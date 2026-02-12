@@ -13,9 +13,10 @@ use crate::{
     app::state::{AppMode, AppState},
     cli::{Cli, SilhouetteSourceArg},
     domain::weather::{
-        WeatherCategory, convert_temp, round_temp, weather_code_to_category, weather_label,
+        ColoredGlyph, WeatherCategory, convert_temp, round_temp, weather_code_to_category,
+        weather_icon, weather_label,
     },
-    ui::theme::{condition_color, detect_color_capability, theme_for},
+    ui::theme::{ColorCapability, condition_color, detect_color_capability, quantize, theme_for},
     ui::widgets::landmark::{LandmarkTint, scene_for_location, scene_from_web_art},
 };
 
@@ -43,12 +44,14 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         particle: theme.particle,
         particles: &state.particles.particles,
         flash: state.particles.flash_active(),
+        flash_bg: theme.accent,
+        flash_fg: theme.text,
     };
     frame.render_widget(bg, area);
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Current · Press S for settings")
+        .title("Current · L cities · S settings")
         .border_style(Style::default().fg(theme.border));
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -82,7 +85,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
             .border_style(Style::default().fg(theme.border));
         let right_inner = separator.inner(right);
         frame.render_widget(separator, right);
-        render_landmark(frame, right_inner, state, is_day, theme);
+        render_landmark(frame, right_inner, state, is_day, theme, capability);
     }
 }
 
@@ -99,6 +102,11 @@ fn render_weather_info(
     let muted_color = theme.muted_text;
 
     if let Some(weather) = &state.weather {
+        if area.height >= 13 && area.width >= 48 {
+            render_weather_info_expanded(frame, area, state, theme, weather, code);
+            return;
+        }
+
         let temp = weather.current_temp(state.units);
         let unit_symbol = if state.units == crate::domain::weather::Units::Celsius {
             "C"
@@ -254,12 +262,304 @@ fn render_weather_info(
             Style::default().fg(text_color),
         )));
         lines.push(Line::from(Span::styled(
-            "Tip: press s for settings, r to retry, q to quit",
+            "Tip: press l for cities, s for settings, r to retry, q to quit",
             Style::default().fg(muted_color),
         )));
     }
 
     frame.render_widget(Paragraph::new(lines), area);
+}
+
+fn render_weather_info_expanded(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+    theme: crate::ui::theme::Theme,
+    weather: &crate::domain::weather::ForecastBundle,
+    code: u8,
+) {
+    let sections = if area.height >= 18 {
+        Layout::vertical([
+            Constraint::Length(5),
+            Constraint::Length(5),
+            Constraint::Min(4),
+        ])
+        .split(area)
+    } else {
+        Layout::vertical([
+            Constraint::Length(4),
+            Constraint::Length(4),
+            Constraint::Min(3),
+        ])
+        .split(area)
+    };
+    let top_area = sections[0];
+    let metrics_area = sections[1];
+    let trend_area = sections[2];
+
+    let temp = weather.current_temp(state.units);
+    let unit_symbol = if state.units == crate::domain::weather::Units::Celsius {
+        "C"
+    } else {
+        "F"
+    };
+    let condition = weather_label(code);
+    let location = weather.location.display_name();
+    let feels = round_temp(convert_temp(
+        weather.current.apparent_temperature_c,
+        state.units,
+    ));
+    let humidity = weather.current.relative_humidity_2m.round() as i32;
+    let wind_dir = compass(weather.current.wind_direction_10m);
+    let wind = weather.current.wind_speed_10m.round() as i32;
+    let precip_now = weather
+        .hourly
+        .first()
+        .and_then(|h| h.precipitation_probability)
+        .map(|v| format!("{}%", v.round() as i32))
+        .unwrap_or_else(|| "--".to_string());
+    let uv_today = weather
+        .daily
+        .first()
+        .and_then(|d| d.uv_index_max)
+        .map(|v| format!("{v:.1}"))
+        .unwrap_or_else(|| "--".to_string());
+    let cloud = cloud_descriptor(code);
+
+    let sunrise = weather
+        .daily
+        .first()
+        .and_then(|d| d.sunrise)
+        .map(|t| t.format("%H:%M").to_string())
+        .unwrap_or_else(|| "--:--".to_string());
+    let sunset = weather
+        .daily
+        .first()
+        .and_then(|d| d.sunset)
+        .map(|t| t.format("%H:%M").to_string())
+        .unwrap_or_else(|| "--:--".to_string());
+
+    let updated = state
+        .refresh_meta
+        .last_success
+        .map(|ts| {
+            let local = ts.with_timezone(&Local);
+            let mins = state.refresh_meta.age_minutes().unwrap_or(0);
+            format!(
+                "Last updated {} ({}m ago)",
+                local.format("%H:%M"),
+                mins.max(0)
+            )
+        })
+        .unwrap_or_else(|| "Last updated --:--".to_string());
+
+    let freshness = match state.refresh_meta.state {
+        crate::resilience::freshness::FreshnessState::Fresh => "Fresh",
+        crate::resilience::freshness::FreshnessState::Stale => "⚠ Stale",
+        crate::resilience::freshness::FreshnessState::Offline => "⚠ Offline",
+    };
+    let freshness_color = match state.refresh_meta.state {
+        crate::resilience::freshness::FreshnessState::Fresh => theme.success,
+        crate::resilience::freshness::FreshnessState::Stale => theme.warning,
+        crate::resilience::freshness::FreshnessState::Offline => theme.danger,
+    };
+
+    let mut top_lines = vec![Line::from(vec![
+        Span::styled(
+            format!("{temp}°{unit_symbol}  "),
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            condition,
+            Style::default()
+                .fg(condition_color(&theme, weather_code_to_category(code)))
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])];
+    if let Some((high, low)) = weather.high_low(state.units) {
+        top_lines.push(Line::from(vec![
+            Span::styled(
+                format!("H:{high}°  L:{low}°  "),
+                Style::default().fg(theme.text),
+            ),
+            Span::styled(location, Style::default().fg(theme.muted_text)),
+        ]));
+    } else {
+        top_lines.push(Line::from(Span::styled(
+            location,
+            Style::default().fg(theme.muted_text),
+        )));
+    }
+    top_lines.push(Line::from(vec![
+        Span::styled("Status ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            freshness,
+            Style::default()
+                .fg(freshness_color)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    top_lines.push(Line::from(Span::styled(
+        updated,
+        Style::default().fg(theme.muted_text),
+    )));
+    frame.render_widget(Paragraph::new(top_lines), top_area);
+
+    let metric_cols = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(metrics_area);
+    let left_metrics = vec![
+        Line::from(vec![
+            Span::styled("Feels ", Style::default().fg(theme.muted_text)),
+            Span::styled(format!("{feels}°"), Style::default().fg(theme.text)),
+            Span::raw("  "),
+            Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
+            Span::styled(format!("{humidity}%"), Style::default().fg(theme.info)),
+        ]),
+        Line::from(vec![
+            Span::styled("Wind ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                format!("{wind} km/h {wind_dir}"),
+                Style::default().fg(theme.success),
+            ),
+            Span::raw("  "),
+            Span::styled("Precip ", Style::default().fg(theme.muted_text)),
+            Span::styled(precip_now, Style::default().fg(theme.accent)),
+        ]),
+    ];
+    frame.render_widget(Paragraph::new(left_metrics), metric_cols[0]);
+
+    let right_metrics = vec![
+        Line::from(vec![
+            Span::styled("Clouds ", Style::default().fg(theme.muted_text)),
+            Span::styled(cloud, Style::default().fg(theme.landmark_neutral)),
+            Span::raw("  "),
+            Span::styled("UV ", Style::default().fg(theme.muted_text)),
+            Span::styled(uv_today, Style::default().fg(theme.warning)),
+        ]),
+        Line::from(vec![
+            Span::styled("Sunrise ", Style::default().fg(theme.muted_text)),
+            Span::styled(sunrise, Style::default().fg(theme.warning)),
+            Span::raw("  "),
+            Span::styled("Sunset ", Style::default().fg(theme.muted_text)),
+            Span::styled(sunset, Style::default().fg(theme.warning)),
+        ]),
+    ];
+    frame.render_widget(Paragraph::new(right_metrics), metric_cols[1]);
+
+    let chart_width = trend_area.width.saturating_sub(14).clamp(12, 48) as usize;
+    let temp_values = weather
+        .hourly
+        .iter()
+        .take(24)
+        .filter_map(|h| h.temperature_2m_c.map(|v| convert_temp(v, state.units)))
+        .collect::<Vec<_>>();
+    let precip_values = weather
+        .hourly
+        .iter()
+        .take(24)
+        .map(|h| h.precipitation_probability.unwrap_or(0.0))
+        .collect::<Vec<_>>();
+    let hours_preview = weather
+        .hourly
+        .iter()
+        .take(((trend_area.width / 9).clamp(4, 10)) as usize)
+        .map(|h| {
+            format!(
+                "{}{}",
+                h.time.format("%H"),
+                weather_icon(h.weather_code.unwrap_or(code), state.settings.icon_mode)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("  ");
+
+    let mut trend_lines = vec![
+        Line::from(vec![
+            Span::styled("Temp   ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                sparkline(&temp_values, chart_width),
+                Style::default().fg(theme.accent),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("Precip ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                sparkline(&precip_values, chart_width),
+                Style::default().fg(theme.info),
+            ),
+        ]),
+    ];
+    if trend_area.height >= 3 {
+        trend_lines.push(Line::from(vec![
+            Span::styled("Next   ", Style::default().fg(theme.muted_text)),
+            Span::styled(hours_preview, Style::default().fg(theme.text)),
+        ]));
+    }
+    if trend_area.height >= 4 {
+        let humidity_values = weather
+            .hourly
+            .iter()
+            .take(24)
+            .filter_map(|h| h.relative_humidity_2m)
+            .collect::<Vec<_>>();
+        trend_lines.push(Line::from(vec![
+            Span::styled("Hum    ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                sparkline(&humidity_values, chart_width),
+                Style::default().fg(theme.success),
+            ),
+        ]));
+    }
+
+    let remaining = trend_area.height.saturating_sub(trend_lines.len() as u16) as usize;
+    let detail_rows = remaining.min(8);
+    for h in weather.hourly.iter().skip(1).take(detail_rows) {
+        let temp = h
+            .temperature_2m_c
+            .map(|v| format!("{:>3}°", round_temp(convert_temp(v, state.units))))
+            .unwrap_or_else(|| " --°".to_string());
+        let precip = h
+            .precipitation_probability
+            .map(|p| format!("P{:>2}%", p.round() as i32))
+            .unwrap_or_else(|| "P--%".to_string());
+        let wx = weather_icon(h.weather_code.unwrap_or(code), state.settings.icon_mode);
+        trend_lines.push(Line::from(vec![
+            Span::styled(
+                format!("{} ", h.time.format("%H:%M")),
+                Style::default().fg(theme.muted_text),
+            ),
+            Span::styled(wx, Style::default().fg(theme.accent)),
+            Span::raw("  "),
+            Span::styled(temp, Style::default().fg(theme.text)),
+            Span::raw("  "),
+            Span::styled(precip, Style::default().fg(theme.info)),
+        ]));
+    }
+    frame.render_widget(Paragraph::new(trend_lines), trend_area);
+}
+
+fn sparkline(values: &[f32], width: usize) -> String {
+    const BARS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    if width == 0 {
+        return String::new();
+    }
+    if values.is_empty() {
+        return "·".repeat(width);
+    }
+
+    let min = values.iter().copied().fold(f32::INFINITY, f32::min);
+    let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let span = (max - min).max(0.001);
+
+    (0..width)
+        .map(|i| {
+            let idx = (i * values.len() / width).min(values.len() - 1);
+            let v = values[idx];
+            let normalized = ((v - min) / span).clamp(0.0, 1.0);
+            let level = (normalized * (BARS.len() - 1) as f32).round() as usize;
+            BARS[level]
+        })
+        .collect()
 }
 
 fn render_landmark(
@@ -268,6 +568,7 @@ fn render_landmark(
     state: &AppState,
     is_day: bool,
     theme: crate::ui::theme::Theme,
+    capability: ColorCapability,
 ) {
     if area.width < 10 || area.height < 4 {
         return;
@@ -309,6 +610,7 @@ fn render_landmark(
                                 "  searching landmark image...".to_string(),
                                 "  converting image to ascii...".to_string(),
                             ],
+                            colored_lines: None,
                         },
                         area.width.saturating_sub(2),
                         area.height.saturating_sub(2),
@@ -340,25 +642,95 @@ fn render_landmark(
         LandmarkTint::Cool => theme.landmark_cool,
         LandmarkTint::Neutral => theme.landmark_neutral,
     };
+    let scene_label = scene.label.clone();
+    let scene_lines = scene.lines;
+    let colored_lines = scene.colored_lines;
+    let has_colored = colored_lines.is_some();
 
     let mut lines = Vec::new();
     lines.push(Line::from(Span::styled(
         format!(
             "{} {}",
             if state.animate_ui { "~>" } else { "--" },
-            scene.label
+            scene_label
         ),
         Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
     )));
 
-    for line in scene.lines {
-        lines.push(Line::from(Span::styled(line, Style::default().fg(tint))));
+    if let Some(color_rows) = colored_lines {
+        for row in color_rows {
+            lines.push(colored_line_from_glyphs(
+                &row,
+                tint,
+                theme.accent,
+                capability,
+            ));
+        }
+    } else {
+        for line in scene_lines {
+            lines.push(Line::from(Span::styled(line, Style::default().fg(tint))));
+        }
     }
 
     let mut text = Text::from(lines);
-    text = text.patch_style(Style::default().fg(tint));
+    if !has_colored {
+        text = text.patch_style(Style::default().fg(tint));
+    }
     let paragraph = Paragraph::new(text);
     frame.render_widget(paragraph, area);
+}
+
+fn colored_line_from_glyphs(
+    glyphs: &[ColoredGlyph],
+    fallback: Color,
+    theme_tint: Color,
+    capability: ColorCapability,
+) -> Line<'static> {
+    if glyphs.is_empty() {
+        return Line::from("");
+    }
+
+    let fallback_rgb = color_to_rgb(fallback);
+    let theme_rgb = color_to_rgb(theme_tint);
+    let themed = |glyph: &ColoredGlyph| -> Color {
+        let base = glyph.color.unwrap_or(fallback_rgb);
+        let with_theme = blend_rgb(
+            base,
+            theme_rgb,
+            if glyph.color.is_some() { 0.34 } else { 0.58 },
+        );
+        let stabilized = blend_rgb(
+            with_theme,
+            fallback_rgb,
+            if glyph.color.is_some() { 0.14 } else { 0.22 },
+        );
+        quantize(
+            Color::Rgb(stabilized.0, stabilized.1, stabilized.2),
+            capability,
+        )
+    };
+
+    let mut spans = Vec::new();
+    let mut run = String::new();
+    let mut current = themed(&glyphs[0]);
+
+    for glyph in glyphs {
+        let next = themed(glyph);
+        if next != current {
+            spans.push(Span::styled(
+                std::mem::take(&mut run),
+                Style::default().fg(current),
+            ));
+            current = next;
+        }
+        run.push(glyph.ch);
+    }
+
+    if !run.is_empty() {
+        spans.push(Span::styled(run, Style::default().fg(current)));
+    }
+
+    Line::from(spans)
 }
 
 fn loading_spinner(frame_tick: u64) -> &'static str {
@@ -421,6 +793,8 @@ struct GradientBackground<'a> {
     particle: Color,
     particles: &'a [crate::ui::particles::Particle],
     flash: bool,
+    flash_bg: Color,
+    flash_fg: Color,
 }
 
 impl Widget for GradientBackground<'_> {
@@ -445,7 +819,7 @@ impl Widget for GradientBackground<'_> {
             for y in area.top()..area.bottom() {
                 for x in area.left()..area.right() {
                     let cell = buf.cell_mut((x, y)).expect("cell");
-                    cell.set_bg(Color::White).set_fg(Color::Black);
+                    cell.set_bg(self.flash_bg).set_fg(self.flash_fg);
                 }
             }
         }
@@ -478,4 +852,73 @@ fn lerp_color(a: Color, b: Color, t: f32) -> Color {
         }
         _ => a,
     }
+}
+
+fn blend_rgb(a: (u8, u8, u8), b: (u8, u8, u8), t: f32) -> (u8, u8, u8) {
+    let t = t.clamp(0.0, 1.0);
+    let lerp = |x: u8, y: u8| -> u8 {
+        (f32::from(x) + (f32::from(y) - f32::from(x)) * t)
+            .round()
+            .clamp(0.0, 255.0) as u8
+    };
+    (lerp(a.0, b.0), lerp(a.1, b.1), lerp(a.2, b.2))
+}
+
+fn color_to_rgb(color: Color) -> (u8, u8, u8) {
+    match color {
+        Color::Rgb(r, g, b) => (r, g, b),
+        Color::Black => (0, 0, 0),
+        Color::Red => (205, 49, 49),
+        Color::Green => (13, 188, 121),
+        Color::Yellow => (229, 229, 16),
+        Color::Blue => (36, 114, 200),
+        Color::Magenta => (188, 63, 188),
+        Color::Cyan => (17, 168, 205),
+        Color::Gray => (229, 229, 229),
+        Color::DarkGray => (102, 102, 102),
+        Color::LightRed => (241, 76, 76),
+        Color::LightGreen => (35, 209, 139),
+        Color::LightYellow => (245, 245, 67),
+        Color::LightBlue => (59, 142, 234),
+        Color::LightMagenta => (214, 112, 214),
+        Color::LightCyan => (41, 184, 219),
+        Color::White => (255, 255, 255),
+        Color::Indexed(idx) => indexed_color_to_rgb(idx),
+        Color::Reset => (255, 255, 255),
+    }
+}
+
+fn indexed_color_to_rgb(idx: u8) -> (u8, u8, u8) {
+    const ANSI: [(u8, u8, u8); 16] = [
+        (0, 0, 0),
+        (205, 49, 49),
+        (13, 188, 121),
+        (229, 229, 16),
+        (36, 114, 200),
+        (188, 63, 188),
+        (17, 168, 205),
+        (229, 229, 229),
+        (102, 102, 102),
+        (241, 76, 76),
+        (35, 209, 139),
+        (245, 245, 67),
+        (59, 142, 234),
+        (214, 112, 214),
+        (41, 184, 219),
+        (255, 255, 255),
+    ];
+
+    if idx < 16 {
+        return ANSI[idx as usize];
+    }
+    if idx <= 231 {
+        let n = idx - 16;
+        let r = n / 36;
+        let g = (n % 36) / 6;
+        let b = n % 6;
+        let convert = |v: u8| -> u8 { if v == 0 { 0 } else { 55 + v * 40 } };
+        return (convert(r), convert(g), convert(b));
+    }
+    let gray = 8 + (idx - 232) * 10;
+    (gray, gray, gray)
 }

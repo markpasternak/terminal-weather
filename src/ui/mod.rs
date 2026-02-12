@@ -21,31 +21,56 @@ use crate::{
 
 pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     let area = frame.area();
+    let capability = detect_color_capability();
+    let (category, is_day) = state
+        .weather
+        .as_ref()
+        .map(|w| {
+            (
+                weather_code_to_category(w.current.weather_code),
+                w.current.is_day,
+            )
+        })
+        .unwrap_or((WeatherCategory::Unknown, false));
+    let theme = theme_for(category, is_day, capability, state.settings.theme);
 
     if area.width < 30 || area.height < 15 {
         let warning = Paragraph::new("Terminal too small. Resize to at least 30x15.")
-            .block(Block::default().borders(Borders::ALL).title("atmos-tui"));
+            .style(Style::default().fg(theme.text).bg(theme.surface))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("atmos-tui")
+                    .style(Style::default().fg(theme.text).bg(theme.surface))
+                    .border_style(Style::default().fg(theme.border).bg(theme.surface)),
+            );
         frame.render_widget(warning, area);
         return;
     }
 
-    let constraints = if area.height >= 44 {
+    let constraints = if area.height >= 52 {
         [
-            Constraint::Percentage(50),
+            Constraint::Percentage(58),
             Constraint::Percentage(16),
-            Constraint::Percentage(34),
+            Constraint::Percentage(26),
+        ]
+    } else if area.height >= 40 {
+        [
+            Constraint::Percentage(54),
+            Constraint::Percentage(18),
+            Constraint::Percentage(28),
         ]
     } else if area.height >= 32 {
         [
-            Constraint::Percentage(45),
-            Constraint::Percentage(18),
-            Constraint::Percentage(37),
+            Constraint::Percentage(50),
+            Constraint::Percentage(20),
+            Constraint::Percentage(30),
         ]
     } else {
         [
-            Constraint::Percentage(40),
-            Constraint::Percentage(20),
-            Constraint::Percentage(40),
+            Constraint::Percentage(42),
+            Constraint::Percentage(22),
+            Constraint::Percentage(36),
         ]
     };
 
@@ -64,6 +89,8 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
         widgets::selector::render(frame, centered_rect(70, 60, area), state);
     } else if state.settings_open {
         widgets::settings::render(frame, centered_rect(68, 74, area), state);
+    } else if state.city_picker_open {
+        widgets::city_picker::render(frame, centered_rect(74, 74, area), state);
     }
 }
 
