@@ -45,7 +45,7 @@ impl SilhouetteClient {
                 Err(_) => continue,
             };
 
-            for title in titles {
+            for title in prioritize_titles(location, &query, titles) {
                 if title.to_ascii_lowercase().contains("disambiguation") {
                     continue;
                 }
@@ -264,6 +264,14 @@ fn queries_for_location(location: &Location) -> Vec<String> {
             "Sydney skyline".to_string(),
             "Sydney Harbour Bridge".to_string(),
         ]
+    } else if norm.contains("san diego") {
+        vec![
+            "San Diego skyline".to_string(),
+            "Balboa Park".to_string(),
+            "Hotel del Coronado".to_string(),
+            "Cabrillo National Monument".to_string(),
+            "Coronado Bridge".to_string(),
+        ]
     } else {
         vec![
             format!("{city} skyline"),
@@ -341,8 +349,23 @@ fn image_is_useful(source: &str, width: Option<u32>, height: Option<u32>) -> boo
         return false;
     }
 
+    const BAD_IMAGE_TOKENS: [&str; 9] = [
+        "logo",
+        "wordmark",
+        "seal",
+        "flag",
+        "map",
+        "coat_of_arms",
+        "coat-of-arms",
+        "crest",
+        "icon",
+    ];
+    if BAD_IMAGE_TOKENS.iter().any(|token| source.contains(token)) {
+        return false;
+    }
+
     if let (Some(width), Some(height)) = (width, height) {
-        if width < 220 || height < 160 {
+        if width < 280 || height < 190 {
             return false;
         }
         let aspect = width as f32 / height as f32;
@@ -390,6 +413,126 @@ fn normalize_key_part(input: &str) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn prioritize_titles(location: &Location, query: &str, titles: Vec<String>) -> Vec<String> {
+    let city = normalize_key_part(&location.name);
+    let query_norm = normalize_key_part(query);
+    let admin = location.admin1.as_deref().map(normalize_key_part);
+    let country = location.country.as_deref().map(normalize_key_part);
+
+    let mut scored = titles
+        .into_iter()
+        .filter(|title| !normalize_key_part(title).contains("disambiguation"))
+        .map(|title| {
+            let score = title_score(
+                &title,
+                &city,
+                &query_norm,
+                admin.as_deref(),
+                country.as_deref(),
+            );
+            (score, title)
+        })
+        .collect::<Vec<_>>();
+
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.len().cmp(&b.1.len())));
+    scored
+        .into_iter()
+        .filter(|(score, _)| *score > -120)
+        .map(|(_, title)| title)
+        .collect()
+}
+
+fn title_score(
+    title: &str,
+    city: &str,
+    query_norm: &str,
+    admin: Option<&str>,
+    country: Option<&str>,
+) -> i32 {
+    let norm = normalize_key_part(title);
+    let mut score = 0;
+
+    if !city.is_empty() && norm.contains(city) {
+        score += 80;
+    }
+    if !query_norm.is_empty() && norm.contains(query_norm) {
+        score += 45;
+    }
+    if let Some(admin) = admin
+        && !admin.is_empty()
+        && norm.contains(admin)
+    {
+        score += 18;
+    }
+    if let Some(country) = country
+        && !country.is_empty()
+        && norm.contains(country)
+    {
+        score += 12;
+    }
+
+    const LANDMARK_TOKENS: [&str; 16] = [
+        "skyline",
+        "tower",
+        "bridge",
+        "city hall",
+        "harbor",
+        "harbour",
+        "waterfront",
+        "cathedral",
+        "museum",
+        "opera",
+        "landmark",
+        "monument",
+        "park",
+        "square",
+        "castle",
+        "gate",
+    ];
+    for token in LANDMARK_TOKENS {
+        if norm.contains(token) {
+            score += if token == "skyline" { 42 } else { 18 };
+        }
+    }
+
+    const BAD_TITLE_TOKENS: [&str; 20] = [
+        " fc",
+        " football club",
+        " soccer",
+        " baseball",
+        " basketball",
+        " roster",
+        " season",
+        " album",
+        " song",
+        " discography",
+        " film",
+        " episode",
+        " tv series",
+        " election",
+        " constituency",
+        " district",
+        " list of",
+        " university",
+        " high school",
+        " airline",
+    ];
+    for token in BAD_TITLE_TOKENS {
+        if norm.contains(token) {
+            score -= 95;
+        }
+    }
+
+    if norm.len() > 90 {
+        score -= 16;
+    }
+    if norm.contains("disambiguation") {
+        score -= 500;
+    }
+
+    score
 }
 
 #[derive(Debug, Deserialize)]
