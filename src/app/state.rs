@@ -6,10 +6,13 @@ use tokio::sync::mpsc;
 
 use crate::{
     app::{
-        events::{AppEvent, schedule_retry, start_frame_task, start_refresh_task},
+        events::{
+            AppEvent, DemoAction, schedule_retry, start_demo_task, start_frame_task,
+            start_refresh_task,
+        },
         settings::{
-            MotionSetting, RecentLocation, RuntimeSettings, load_runtime_settings,
-            save_runtime_settings,
+            MotionSetting, RecentLocation, RuntimeSettings, clear_runtime_settings,
+            load_runtime_settings, save_runtime_settings,
         },
     },
     cli::{Cli, HeroVisualArg, IconMode, ThemeArg},
@@ -36,6 +39,27 @@ const SETTINGS_COUNT: usize = 9;
 const REFRESH_OPTIONS: [u64; 4] = [300, 600, 900, 1800];
 const HISTORY_MAX: usize = 12;
 const CITY_PICKER_VISIBLE_MAX: usize = 9;
+const THEME_OPTIONS: [ThemeArg; 19] = [
+    ThemeArg::Auto,
+    ThemeArg::Aurora,
+    ThemeArg::MidnightCyan,
+    ThemeArg::Aubergine,
+    ThemeArg::Hoth,
+    ThemeArg::Monument,
+    ThemeArg::Ochin,
+    ThemeArg::Nord,
+    ThemeArg::CatppuccinMocha,
+    ThemeArg::Mono,
+    ThemeArg::HighContrast,
+    ThemeArg::Dracula,
+    ThemeArg::GruvboxMaterialDark,
+    ThemeArg::KanagawaWave,
+    ThemeArg::AyuMirage,
+    ThemeArg::AyuLight,
+    ThemeArg::PoimandresStorm,
+    ThemeArg::SelenizedDark,
+    ThemeArg::NoClownFiesta,
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {
@@ -72,6 +96,7 @@ pub struct AppState {
     pub frame_tick: u64,
     pub animate_ui: bool,
     pub viewport_width: u16,
+    pub demo_mode: bool,
     pub settings: RuntimeSettings,
     pub settings_open: bool,
     pub settings_selected: usize,
@@ -84,7 +109,14 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(cli: &Cli) -> Self {
-        let (settings, settings_path) = load_runtime_settings(cli, std::io::stdout().is_terminal());
+        let (mut settings, settings_path) =
+            load_runtime_settings(cli, std::io::stdout().is_terminal());
+        if cli.demo {
+            if let Some(path) = settings_path.as_deref() {
+                let _ = clear_runtime_settings(path);
+            }
+            settings = RuntimeSettings::default();
+        }
         let disabled = matches!(settings.motion, MotionSetting::Off);
         let reduced = matches!(settings.motion, MotionSetting::Reduced);
 
@@ -106,6 +138,7 @@ impl AppState {
             frame_tick: 0,
             animate_ui: matches!(settings.motion, MotionSetting::Full),
             viewport_width: 80,
+            demo_mode: cli.demo,
             settings,
             settings_open: false,
             settings_selected: 0,
@@ -133,6 +166,12 @@ impl AppState {
                     ThemeArg::Auto => "Auto".to_string(),
                     ThemeArg::Aurora => "Aurora".to_string(),
                     ThemeArg::MidnightCyan => "Midnight Cyan".to_string(),
+                    ThemeArg::Aubergine => "Aubergine".to_string(),
+                    ThemeArg::Hoth => "Hoth".to_string(),
+                    ThemeArg::Monument => "Monument".to_string(),
+                    ThemeArg::Ochin => "Ochin".to_string(),
+                    ThemeArg::Nord => "Nord".to_string(),
+                    ThemeArg::CatppuccinMocha => "Catppuccin Mocha".to_string(),
                     ThemeArg::Mono => "Mono".to_string(),
                     ThemeArg::HighContrast => "High contrast".to_string(),
                     ThemeArg::Dracula => "Dracula".to_string(),
@@ -252,6 +291,9 @@ impl AppState {
                 };
                 start_frame_task(tx.clone(), frame_fps);
                 start_refresh_task(tx.clone(), self.settings.refresh_interval_secs);
+                if cli.demo {
+                    start_demo_task(tx.clone());
+                }
                 self.start_fetch(tx, cli).await?;
             }
             AppEvent::TickFrame => {
@@ -333,6 +375,9 @@ impl AppState {
                 );
                 let delay = self.backoff.next_delay();
                 schedule_retry(tx.clone(), delay);
+            }
+            AppEvent::Demo(action) => {
+                self.handle_demo_action(action, tx).await?;
             }
             AppEvent::Quit => {
                 self.mode = AppMode::Quit;
@@ -559,25 +604,7 @@ impl AppState {
                 changed = true;
             }
             SETTINGS_THEME => {
-                self.settings.theme = cycle(
-                    &[
-                        ThemeArg::Auto,
-                        ThemeArg::Aurora,
-                        ThemeArg::MidnightCyan,
-                        ThemeArg::Mono,
-                        ThemeArg::HighContrast,
-                        ThemeArg::Dracula,
-                        ThemeArg::GruvboxMaterialDark,
-                        ThemeArg::KanagawaWave,
-                        ThemeArg::AyuMirage,
-                        ThemeArg::AyuLight,
-                        ThemeArg::PoimandresStorm,
-                        ThemeArg::SelenizedDark,
-                        ThemeArg::NoClownFiesta,
-                    ],
-                    self.settings.theme,
-                    direction,
-                );
+                self.settings.theme = cycle(&THEME_OPTIONS, self.settings.theme, direction);
                 changed = true;
             }
             SETTINGS_MOTION => {
@@ -645,6 +672,9 @@ impl AppState {
     }
 
     fn persist_settings(&mut self) {
+        if self.demo_mode {
+            return;
+        }
         if let Some(path) = &self.settings_path
             && let Err(err) = save_runtime_settings(path, &self.settings)
         {
@@ -788,6 +818,60 @@ impl AppState {
                 }
             }
         });
+        Ok(())
+    }
+
+    async fn handle_demo_action(
+        &mut self,
+        action: DemoAction,
+        tx: &mpsc::Sender<AppEvent>,
+    ) -> Result<()> {
+        match action {
+            DemoAction::OpenCityPicker(query) => {
+                self.settings_open = false;
+                self.city_picker_open = true;
+                self.city_query = query.clone();
+                self.city_history_selected = 0;
+                self.city_status = Some(format!("Demo: search for {query}"));
+            }
+            DemoAction::SwitchCity(location) => {
+                self.settings_open = false;
+                self.city_picker_open = true;
+                self.city_status = Some(format!("Demo: selected {}", location.display_name()));
+                self.city_query.clear();
+                self.city_picker_open = false;
+                self.switch_to_location(tx, location).await?;
+            }
+            DemoAction::OpenSettings => {
+                self.city_picker_open = false;
+                self.settings_open = true;
+                self.settings_selected = SETTINGS_HERO_VISUAL;
+            }
+            DemoAction::SetHeroVisual(visual) => {
+                self.settings_open = true;
+                self.settings_selected = SETTINGS_HERO_VISUAL;
+                if self.settings.hero_visual != visual {
+                    self.settings.hero_visual = visual;
+                    self.apply_runtime_settings();
+                    self.persist_settings();
+                }
+            }
+            DemoAction::SetTheme(theme) => {
+                self.settings_open = true;
+                self.settings_selected = SETTINGS_THEME;
+                if self.settings.theme != theme {
+                    self.settings.theme = theme;
+                    self.apply_runtime_settings();
+                    self.persist_settings();
+                }
+            }
+            DemoAction::CloseSettings => {
+                self.settings_open = false;
+            }
+            DemoAction::Quit => {
+                tx.send(AppEvent::Quit).await?;
+            }
+        }
         Ok(())
     }
 }

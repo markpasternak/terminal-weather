@@ -51,7 +51,7 @@ cargo run -- --demo
 ```
 
 `--demo` clears persisted settings for that run, then automatically:
-1. Switches cities (`New York` → `Miami` → `Sydney` → `Peking`, 5s each)
+1. Opens the city picker, shows a search query, and selects cities (`New York` → `Miami` → `Sydney` → `Peking`, 5s each)
 2. Opens settings and showcases hero visuals (`Gauge Cluster`, `Sky Observatory`, 5s each)
 3. Cycles through themes
 4. Exits the app
