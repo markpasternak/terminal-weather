@@ -1,7 +1,7 @@
-# atmos-tui ExecPlan
+# terminal-weather ExecPlan
 
 ## Goal
-Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
+Build terminal-weather v1.1 end-to-end and satisfy Definition of Done.
 
 ## Milestones
 - [x] P0 Toolchain bootstrap
@@ -92,6 +92,8 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Promoted Unicode-aware matching in geocode normalization + recent-location dedupe -> improves non-ASCII city behavior (e.g., `Åre`).
 - 2026-02-12: Added per-glyph thematic coloring in hero visuals and expanded wide-screen gauge/daily/hourly density -> makes theme changes more perceptible and uses fullscreen space better.
 - 2026-02-12: Applied luxury widescreen composition tuning (hero split rebalance, centered gauge choreography, prioritized weekly profile lanes) -> improves premium feel and space utilization at 120+ columns.
+- 2026-02-12: Added `--demo` scripted showcase mode with ephemeral settings reset -> supports deterministic public demos starting from a clean slate.
+- 2026-02-12: Hardened light-theme contrast by enforcing semantic-token contrast against hero + panel backgrounds and adding regression tests for `Hoth`/`Ayu Light` -> prevents invisible metrics across light palettes.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -110,7 +112,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 11:42: Completed contrast/theming hardening (semantic palette, basic16-safe backgrounds, theme override CLI), reran full gates, result: PASS.
 - 2026-02-12 11:42: Added web-sourced silhouette mode (Wikipedia image search/summary, ASCII conversion cache, async fetch event path with fallback), reran full gates, result: PASS.
 - 2026-02-12 12:18: Upgraded silhouette engine to `image-to-ascii`, added better Wikipedia landmark image selection/fallback filtering, reran full gates, result: PASS.
-- 2026-02-12 12:34: Implemented settings overlay (`s`) with live toggles + persistent config file (`~/.config/atmos-tui/settings.json`), reran full gates, result: PASS.
+- 2026-02-12 12:34: Implemented settings overlay (`s`) with live toggles + persistent config file (`~/.config/terminal-weather/settings.json`), reran full gates, result: PASS.
 - 2026-02-12 12:47: Enlarged/resampled web-sourced landmark art and tuned large-terminal layout proportions, reran full gates, result: PASS.
 - 2026-02-12 13:00: Fixed global contrast regressions (panel/popup readability and border separation), reran full gates, result: PASS.
 - 2026-02-12 13:06: Reviewed theme propagation and fixed remaining non-themed areas (landmark colorization, small-terminal guard, flash overlay), reran full gates, result: PASS.
@@ -122,6 +124,8 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 15:02: Added configurable hero visual modes + settings descriptions, removed web silhouette module/dependencies, refreshed snapshots, and added public README screenshot workflow/script; full gate suite rerun, result: PASS.
 - 2026-02-12 15:43: Completed high-impact review fixes (responsive hourly clamp, Unicode matching/dedupe, modifier-safe input with Ctrl+C quit, panic-path hardening, fuller wide-screen panel density, stronger hero theme coloration), reran full gates, result: PASS.
 - 2026-02-12 16:07: Completed luxury widescreen polish pass (hero proportions, gauge composition, daily premium profile lanes); snapshot 120x40 updated intentionally, reran full gates, result: PASS.
+- 2026-02-12 16:46: Added demo-mode scripted sequence (city tour, hero visual showcase, theme cycle, auto-exit) with clean-start settings reset and no demo persistence; reran full gates, result: PASS.
+- 2026-02-12 16:50: Completed contrast hardening follow-up for light themes (semantic thresholds, border/popover contrast, hero-background-aware token checks) and added contrast regression test coverage; reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added

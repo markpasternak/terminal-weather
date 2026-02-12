@@ -85,6 +85,13 @@ pub fn theme_for(
         ThemeArg::Aurora => ((9, 31, 65), (16, 70, 105), (102, 232, 242)),
         // Dark navy + cyan + amber preset inspired by polished terminal mockups.
         ThemeArg::MidnightCyan => ((10, 14, 42), (28, 22, 84), (122, 230, 255)),
+        // Workspace-inspired presets.
+        ThemeArg::Aubergine => ((46, 24, 73), (82, 36, 114), (106, 212, 243)),
+        ThemeArg::Hoth => ((229, 236, 247), (204, 218, 236), (32, 109, 167)),
+        ThemeArg::Monument => ((17, 33, 33), (33, 58, 57), (242, 176, 68)),
+        ThemeArg::Ochin => ((15, 42, 61), (30, 76, 103), (126, 214, 255)),
+        ThemeArg::Nord => ((46, 52, 64), (59, 66, 82), (136, 192, 208)),
+        ThemeArg::CatppuccinMocha => ((30, 30, 46), (49, 50, 68), (203, 166, 247)),
         ThemeArg::Mono => ((17, 17, 24), (32, 35, 44), (196, 201, 214)),
         ThemeArg::HighContrast => ((0, 0, 0), (10, 10, 16), (255, 210, 0)),
         ThemeArg::Dracula => ((40, 42, 54), (68, 71, 90), (189, 147, 249)),
@@ -156,6 +163,54 @@ pub fn theme_for(
                 Color::LightCyan,
                 Color::LightCyan,
                 Color::Yellow,
+            ),
+            ThemeArg::Aubergine => (
+                Color::Magenta,
+                Color::Blue,
+                Color::DarkGray,
+                Color::LightCyan,
+                Color::LightMagenta,
+                Color::Yellow,
+            ),
+            ThemeArg::Hoth => (
+                Color::Gray,
+                Color::White,
+                Color::DarkGray,
+                Color::Blue,
+                Color::Blue,
+                Color::Black,
+            ),
+            ThemeArg::Monument => (
+                Color::Black,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::Yellow,
+                Color::LightGreen,
+                Color::White,
+            ),
+            ThemeArg::Ochin => (
+                Color::Blue,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::Cyan,
+                Color::LightCyan,
+                Color::White,
+            ),
+            ThemeArg::Nord => (
+                Color::Blue,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::LightCyan,
+                Color::LightBlue,
+                Color::White,
+            ),
+            ThemeArg::CatppuccinMocha => (
+                Color::Magenta,
+                Color::Blue,
+                Color::DarkGray,
+                Color::LightMagenta,
+                Color::LightCyan,
+                Color::White,
             ),
             ThemeArg::Mono => (
                 Color::Black,
@@ -240,20 +295,68 @@ pub fn theme_for(
             ThemeArg::Auto => unreachable!("handled above"),
         };
 
-        let text = if mode == ThemeArg::AyuLight {
+        let is_light_theme = matches!(mode, ThemeArg::AyuLight | ThemeArg::Hoth);
+        let text = if is_light_theme {
             Color::Black
         } else {
             Color::White
         };
-        let muted = if mode == ThemeArg::AyuLight {
+        let muted = if is_light_theme {
             Color::DarkGray
         } else {
             Color::Gray
         };
-        let particle = if mode == ThemeArg::AyuLight {
+        let particle = if is_light_theme {
             Color::Gray
         } else {
             Color::DarkGray
+        };
+        let info = if is_light_theme {
+            Color::Blue
+        } else {
+            Color::LightCyan
+        };
+        let success = if is_light_theme {
+            Color::Green
+        } else {
+            Color::LightGreen
+        };
+        let warning = if is_light_theme {
+            Color::Magenta
+        } else {
+            Color::Yellow
+        };
+        let danger = if is_light_theme {
+            Color::Red
+        } else {
+            Color::LightRed
+        };
+        let temp_freezing = if is_light_theme {
+            Color::Blue
+        } else {
+            Color::LightBlue
+        };
+        let temp_cold = Color::Cyan;
+        let temp_mild = Color::Green;
+        let temp_warm = if is_light_theme {
+            Color::Magenta
+        } else {
+            Color::Yellow
+        };
+        let temp_hot = if is_light_theme {
+            Color::Red
+        } else {
+            Color::LightRed
+        };
+        let landmark_warm = if is_light_theme {
+            Color::Magenta
+        } else {
+            Color::Yellow
+        };
+        let landmark_cool = if is_light_theme {
+            Color::Blue
+        } else {
+            Color::LightBlue
         };
 
         return Theme {
@@ -270,18 +373,18 @@ pub fn theme_for(
             particle,
             border,
             popup_border,
-            info: Color::LightCyan,
-            success: Color::LightGreen,
-            warning: Color::Yellow,
-            danger: Color::LightRed,
-            temp_freezing: Color::LightBlue,
-            temp_cold: Color::Cyan,
-            temp_mild: Color::Green,
-            temp_warm: Color::Yellow,
-            temp_hot: Color::LightRed,
+            info,
+            success,
+            warning,
+            danger,
+            temp_freezing,
+            temp_cold,
+            temp_mild,
+            temp_warm,
+            temp_hot,
             range_track: muted,
-            landmark_warm: Color::Yellow,
-            landmark_cool: Color::LightBlue,
+            landmark_warm,
+            landmark_cool,
             landmark_neutral: muted,
         };
     }
@@ -290,9 +393,9 @@ pub fn theme_for(
     let dark_text = avg_luma >= 170.0;
 
     if dark_text {
-        // Keep light themes readable in terminals by avoiding near-white panel stacks.
-        top = mix_rgb(top, (220, 228, 239), 0.24);
-        bottom = mix_rgb(bottom, (204, 216, 232), 0.20);
+        // Keep light themes readable by pulling gradients away from near-white.
+        top = mix_rgb(top, (198, 210, 226), 0.42);
+        bottom = mix_rgb(bottom, (176, 193, 214), 0.40);
     }
 
     let base_surface = mix_rgb(top, bottom, 0.80);
@@ -308,10 +411,13 @@ pub fn theme_for(
         if dark_text { 0.12 } else { 0.24 },
     );
     let popup_surface = if dark_text {
-        mix_rgb(surface_alt, (20, 27, 38), 0.24)
+        mix_rgb(surface_alt, accent_seed, 0.20)
     } else {
         mix_rgb(surface_alt, (236, 243, 251), 0.18)
     };
+
+    let all_backgrounds = [surface, surface_alt, popup_surface, top, bottom];
+    let hero_backgrounds = [top, bottom, surface];
 
     let text_seed = if dark_text {
         (12, 16, 24)
@@ -323,11 +429,23 @@ pub fn theme_for(
     } else {
         (183, 198, 214)
     };
-    let text = ensure_contrast_multi(text_seed, &[surface, surface_alt, popup_surface], 4.7);
-    let muted = ensure_contrast_multi(muted_seed, &[surface, surface_alt, popup_surface], 3.2);
+    let text = ensure_contrast_multi(
+        text_seed,
+        &all_backgrounds,
+        if dark_text { 4.9 } else { 4.7 },
+    );
+    let muted = ensure_contrast_multi(
+        muted_seed,
+        &all_backgrounds,
+        if dark_text { 4.0 } else { 3.4 },
+    );
     let popup_text = ensure_contrast(text_seed, popup_surface, 4.7);
-    let popup_muted_text = ensure_contrast(muted_seed, popup_surface, 3.2);
-    let accent = ensure_contrast_multi(accent_seed, &[surface, surface_alt, popup_surface], 3.0);
+    let popup_muted_text = ensure_contrast(muted_seed, popup_surface, 4.0);
+    let accent = ensure_contrast_multi(
+        accent_seed,
+        &all_backgrounds,
+        if dark_text { 4.1 } else { 3.4 },
+    );
 
     let particle = if dark_text {
         (92, 108, 124)
@@ -339,13 +457,13 @@ pub fn theme_for(
     } else {
         mix_rgb(surface, accent, 0.54)
     };
-    let border = ensure_contrast_multi(border_seed, &[surface, surface_alt, top, bottom], 2.25);
+    let border = ensure_contrast_multi(border_seed, &[surface, surface_alt, top, bottom], 3.0);
     let popup_border_seed = if dark_text {
         mix_rgb(popup_surface, (5, 11, 18), 0.82)
     } else {
         mix_rgb(popup_surface, accent, 0.70)
     };
-    let popup_border = ensure_contrast(popup_border_seed, popup_surface, 2.6);
+    let popup_border = ensure_contrast(popup_border_seed, popup_surface, 3.2);
 
     let info = ensure_contrast_multi(
         if dark_text {
@@ -353,8 +471,8 @@ pub fn theme_for(
         } else {
             (125, 211, 252)
         },
-        &[surface, surface_alt, popup_surface],
-        3.0,
+        &all_backgrounds,
+        if dark_text { 4.4 } else { 3.8 },
     );
     let success = ensure_contrast_multi(
         if dark_text {
@@ -362,8 +480,8 @@ pub fn theme_for(
         } else {
             (74, 222, 128)
         },
-        &[surface, surface_alt, popup_surface],
-        3.0,
+        &all_backgrounds,
+        if dark_text { 4.3 } else { 3.8 },
     );
     let warning = ensure_contrast_multi(
         if dark_text {
@@ -371,8 +489,8 @@ pub fn theme_for(
         } else {
             (251, 191, 36)
         },
-        &[surface, surface_alt, popup_surface],
-        3.0,
+        &all_backgrounds,
+        if dark_text { 4.3 } else { 3.8 },
     );
     let danger = ensure_contrast_multi(
         if dark_text {
@@ -380,18 +498,47 @@ pub fn theme_for(
         } else {
             (248, 113, 113)
         },
-        &[surface, surface_alt, popup_surface],
-        3.0,
+        &all_backgrounds,
+        if dark_text { 4.3 } else { 3.8 },
     );
-    let range_track = ensure_contrast(muted, surface_alt, 2.6);
-    let landmark_warm = ensure_contrast_multi((253, 230, 138), &[top, bottom], 2.1);
-    let landmark_cool = ensure_contrast_multi((147, 197, 253), &[top, bottom], 2.1);
-    let landmark_neutral = ensure_contrast_multi(muted, &[top, bottom], 2.0);
-    let temp_freezing = ensure_contrast((147, 197, 253), surface_alt, 2.3);
-    let temp_cold = ensure_contrast((56, 189, 248), surface_alt, 2.3);
-    let temp_mild = ensure_contrast((110, 231, 183), surface_alt, 2.3);
-    let temp_warm = ensure_contrast((251, 191, 36), surface_alt, 2.3);
-    let temp_hot = ensure_contrast((248, 113, 113), surface_alt, 2.3);
+    let range_track = ensure_contrast(muted, surface_alt, if dark_text { 4.0 } else { 3.2 });
+    let landmark_warm = ensure_contrast_multi(
+        (253, 230, 138),
+        &hero_backgrounds,
+        if dark_text { 3.9 } else { 2.9 },
+    );
+    let landmark_cool = ensure_contrast_multi(
+        (147, 197, 253),
+        &hero_backgrounds,
+        if dark_text { 3.9 } else { 2.9 },
+    );
+    let landmark_neutral =
+        ensure_contrast_multi(muted, &hero_backgrounds, if dark_text { 3.7 } else { 2.7 });
+    let temp_freezing = ensure_contrast(
+        (147, 197, 253),
+        surface_alt,
+        if dark_text { 4.0 } else { 3.2 },
+    );
+    let temp_cold = ensure_contrast(
+        (56, 189, 248),
+        surface_alt,
+        if dark_text { 4.0 } else { 3.2 },
+    );
+    let temp_mild = ensure_contrast(
+        (110, 231, 183),
+        surface_alt,
+        if dark_text { 3.9 } else { 3.1 },
+    );
+    let temp_warm = ensure_contrast(
+        (251, 191, 36),
+        surface_alt,
+        if dark_text { 4.0 } else { 3.2 },
+    );
+    let temp_hot = ensure_contrast(
+        (248, 113, 113),
+        surface_alt,
+        if dark_text { 4.1 } else { 3.3 },
+    );
 
     Theme {
         top: quantize(Color::Rgb(top.0, top.1, top.2), capability),
@@ -685,6 +832,13 @@ fn basic16_from_rgb(r: u8, g: u8, b: u8) -> Color {
 mod tests {
     use super::*;
 
+    fn as_rgb(color: Color) -> (u8, u8, u8) {
+        match color {
+            Color::Rgb(r, g, b) => (r, g, b),
+            other => panic!("expected Color::Rgb, got {other:?}"),
+        }
+    }
+
     #[test]
     fn basic16_explicit_themes_are_distinct() {
         let aurora = theme_for(
@@ -705,5 +859,53 @@ mod tests {
                 || aurora.accent != mono.accent
                 || aurora.border != mono.border
         );
+    }
+
+    #[test]
+    fn light_themes_keep_semantic_tokens_legible() {
+        for mode in [ThemeArg::AyuLight, ThemeArg::Hoth] {
+            let theme = theme_for(
+                WeatherCategory::Cloudy,
+                true,
+                ColorCapability::TrueColor,
+                mode,
+            );
+            let backgrounds = [
+                as_rgb(theme.top),
+                as_rgb(theme.bottom),
+                as_rgb(theme.surface),
+                as_rgb(theme.surface_alt),
+                as_rgb(theme.popup_surface),
+            ];
+
+            let checks = [
+                (as_rgb(theme.text), 4.8),
+                (as_rgb(theme.muted_text), 3.6),
+                (as_rgb(theme.accent), 3.9),
+                (as_rgb(theme.info), 3.9),
+                (as_rgb(theme.success), 3.9),
+                (as_rgb(theme.warning), 3.9),
+                (as_rgb(theme.danger), 3.9),
+                (as_rgb(theme.temp_cold), 3.2),
+                (as_rgb(theme.temp_warm), 3.2),
+                (as_rgb(theme.temp_hot), 3.3),
+                (as_rgb(theme.landmark_cool), 3.4),
+                (as_rgb(theme.landmark_warm), 3.4),
+            ];
+
+            for (color, minimum) in checks {
+                let ratio = min_contrast_ratio(color, &backgrounds);
+                assert!(
+                    ratio >= minimum,
+                    "mode={mode:?} color={color:?} ratio={ratio:.2} minimum={minimum}"
+                );
+            }
+
+            let popup_ratio = contrast_ratio(as_rgb(theme.popup_text), as_rgb(theme.popup_surface));
+            assert!(
+                popup_ratio >= 4.7,
+                "mode={mode:?} popup_ratio={popup_ratio:.2}"
+            );
+        }
     }
 }
