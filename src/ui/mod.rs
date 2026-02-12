@@ -29,13 +29,29 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
         return;
     }
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
+    let constraints = if area.height >= 44 {
+        [
+            Constraint::Percentage(50),
+            Constraint::Percentage(16),
+            Constraint::Percentage(34),
+        ]
+    } else if area.height >= 32 {
+        [
+            Constraint::Percentage(45),
+            Constraint::Percentage(18),
+            Constraint::Percentage(37),
+        ]
+    } else {
+        [
             Constraint::Percentage(40),
             Constraint::Percentage(20),
             Constraint::Percentage(40),
-        ])
+        ]
+    };
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
         .split(area);
 
     widgets::hero::render(frame, chunks[0], state, cli);

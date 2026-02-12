@@ -72,7 +72,7 @@ impl SilhouetteClient {
                     Err(_) => continue,
                 };
 
-                if let Some(lines) = image_to_ascii(&bytes, 30, 11) {
+                if let Some(lines) = image_to_ascii(&bytes, 96, 42) {
                     return Ok(Some(SilhouetteArt {
                         label: title,
                         lines,
@@ -307,17 +307,15 @@ fn image_to_ascii(bytes: &[u8], width: u32, height: u32) -> Option<Vec<String>> 
     }
 
     let text = char_rows_to_string(&char_rows);
-    let mut lines = text
+    let lines = text
         .lines()
         .map(|line| line.to_string())
         .collect::<Vec<_>>();
-    if lines.is_empty() {
+    if lines.is_empty() || lines.iter().all(|line| line.trim().is_empty()) {
         return None;
     }
 
-    let first = lines.iter().position(|line| line.trim().len() >= 4)?;
-    let last = lines.iter().rposition(|line| line.trim().len() >= 4)?;
-    lines = lines[first..=last].to_vec();
+    let mut lines = trim_ascii_whitespace(lines)?;
 
     let limit = height.max(4) as usize;
     if lines.len() > limit {
@@ -336,11 +334,49 @@ fn image_to_ascii(bytes: &[u8], width: u32, height: u32) -> Option<Vec<String>> 
     }
 
     let ratio = non_space as f32 / total as f32;
-    if !(0.08..=0.72).contains(&ratio) {
+    if !(0.03..=0.85).contains(&ratio) {
         return None;
     }
 
     Some(lines)
+}
+
+fn trim_ascii_whitespace(lines: Vec<String>) -> Option<Vec<String>> {
+    if lines.is_empty() {
+        return None;
+    }
+
+    let top = lines.iter().position(|line| !line.trim().is_empty())?;
+    let bottom = lines.iter().rposition(|line| !line.trim().is_empty())?;
+    let rows = lines[top..=bottom].to_vec();
+
+    let mut left = usize::MAX;
+    let mut right = 0usize;
+    for row in &rows {
+        for (i, ch) in row.chars().enumerate() {
+            if !ch.is_whitespace() {
+                left = left.min(i);
+                right = right.max(i);
+            }
+        }
+    }
+    if left == usize::MAX || right < left {
+        return None;
+    }
+
+    let trimmed = rows
+        .into_iter()
+        .map(|row| {
+            row.chars()
+                .skip(left)
+                .take(right.saturating_sub(left) + 1)
+                .collect::<String>()
+                .trim_end()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+
+    Some(trimmed)
 }
 
 fn image_is_useful(source: &str, width: Option<u32>, height: Option<u32>) -> bool {

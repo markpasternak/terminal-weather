@@ -48,6 +48,9 @@ Total tests passing: 19
 - `src/data/silhouette.rs`
 - `src/app/settings.rs`
 - `src/ui/widgets/settings.rs`
+- `src/ui/widgets/landmark.rs`
+- `src/ui/widgets/hero.rs`
+- `src/ui/mod.rs`
 - `src/ui/widgets/daily.rs`
 - `src/ui/widgets/hero.rs`
 - `src/ui/theme.rs`
@@ -62,3 +65,4 @@ Total tests passing: 19
 4. Web silhouette quality depends on available Wikipedia thumbnails; fallback scenes mitigate missing or noisy images.
 5. `image-to-ascii` adds build-time/dependency weight; consider feature-gating silhouette conversion for minimal builds.
 6. Auto-refresh interval changes from settings are persisted, but active background refresh schedule updates on next launch.
+7. Web-silhouette quality still depends on remote image suitability; heuristics and scaling improved but cannot guarantee perfect landmark matches for every city.

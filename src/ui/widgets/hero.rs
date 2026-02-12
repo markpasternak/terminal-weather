@@ -54,9 +54,19 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     frame.render_widget(block, area);
 
     let columns = if inner.width >= 58 && inner.height >= 8 {
+        let (left_pct, right_pct) = if inner.width >= 120 {
+            (44, 56)
+        } else if inner.width >= 96 {
+            (50, 50)
+        } else {
+            (58, 42)
+        };
         Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(58), Constraint::Percentage(42)])
+            .constraints([
+                Constraint::Percentage(left_pct),
+                Constraint::Percentage(right_pct),
+            ])
             .split(inner)
             .to_vec()
     } else {

@@ -13,12 +13,7 @@ pub struct LandmarkScene {
 }
 
 pub fn scene_from_web_art(art: &SilhouetteArt, width: u16, height: u16) -> LandmarkScene {
-    let mut lines = art
-        .lines
-        .iter()
-        .map(|line| fit_line(line, width as usize))
-        .take(height as usize)
-        .collect::<Vec<_>>();
+    let mut lines = resample_ascii(&art.lines, width as usize, height as usize);
 
     if lines.is_empty() {
         lines.push(fit_line(" silhouette unavailable ", width as usize));
@@ -29,6 +24,69 @@ pub fn scene_from_web_art(art: &SilhouetteArt, width: u16, height: u16) -> Landm
         lines,
         tint: LandmarkTint::Neutral,
     }
+}
+
+fn resample_ascii(lines: &[String], target_w: usize, target_h: usize) -> Vec<String> {
+    if lines.is_empty() || target_w == 0 || target_h == 0 {
+        return Vec::new();
+    }
+
+    let src_h = lines.len();
+    let src_w = lines
+        .iter()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0);
+    if src_w == 0 {
+        return Vec::new();
+    }
+
+    let mut source = vec![vec![' '; src_w]; src_h];
+    for (y, line) in lines.iter().enumerate() {
+        for (x, ch) in line.chars().enumerate().take(src_w) {
+            source[y][x] = ch;
+        }
+    }
+
+    let scale_x = target_w as f32 / src_w as f32;
+    let scale_y = target_h as f32 / src_h as f32;
+    let scale = scale_x.min(scale_y).max(0.25);
+    let out_w = ((src_w as f32 * scale).round() as usize).clamp(1, target_w);
+    let out_h = ((src_h as f32 * scale).round() as usize).clamp(1, target_h);
+
+    let mut scaled = Vec::with_capacity(out_h);
+    for y in 0..out_h {
+        let src_y = ((y as f32 / out_h as f32) * src_h as f32).floor() as usize;
+        let src_y = src_y.min(src_h - 1);
+        let mut row = String::with_capacity(out_w);
+        for x in 0..out_w {
+            let src_x = ((x as f32 / out_w as f32) * src_w as f32).floor() as usize;
+            let src_x = src_x.min(src_w - 1);
+            row.push(source[src_y][src_x]);
+        }
+        scaled.push(row);
+    }
+
+    let pad_top = (target_h.saturating_sub(out_h)) / 2;
+    let pad_left = (target_w.saturating_sub(out_w)) / 2;
+    let mut out = vec![" ".repeat(target_w); target_h];
+    for (row_idx, row) in scaled.into_iter().enumerate() {
+        let y = pad_top + row_idx;
+        if y >= target_h {
+            break;
+        }
+        let mut chars = out[y].chars().collect::<Vec<_>>();
+        for (i, ch) in row.chars().enumerate() {
+            let x = pad_left + i;
+            if x >= target_w {
+                break;
+            }
+            chars[x] = ch;
+        }
+        out[y] = chars.into_iter().collect();
+    }
+
+    out
 }
 
 pub fn scene_for_location(
