@@ -30,11 +30,19 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         detect_color_capability(),
         state.settings.theme,
     );
+    let panel_style = Style::default()
+        .fg(theme.popup_text)
+        .bg(theme.popup_surface);
 
     let block = Block::default()
         .title("Settings")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.border));
+        .style(panel_style)
+        .border_style(
+            Style::default()
+                .fg(theme.popup_border)
+                .bg(theme.popup_surface),
+        );
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -60,6 +68,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 
     let mut list_state = ListState::default().with_selected(Some(state.settings_selected));
     let list = List::new(items)
+        .style(panel_style)
         .highlight_style(
             Style::default()
                 .fg(theme.accent)
@@ -70,7 +79,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 
     let info =
         Paragraph::new("Use ↑/↓ to select, ←/→ to change, Enter to apply action, s to close")
-            .style(Style::default().fg(theme.muted_text));
+            .style(Style::default().fg(theme.popup_muted_text));
     frame.render_widget(info, chunks[1]);
 
     if let Some(path) = &state.last_error
