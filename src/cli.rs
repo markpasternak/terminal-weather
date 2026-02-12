@@ -18,6 +18,7 @@ pub enum IconMode {
 pub enum ThemeArg {
     Auto,
     Aurora,
+    MidnightCyan,
     Mono,
     HighContrast,
     Dracula,

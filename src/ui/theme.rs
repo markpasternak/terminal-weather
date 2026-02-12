@@ -83,6 +83,8 @@ pub fn theme_for(
             (WeatherCategory::Unknown, false) => ((19, 24, 35), (31, 39, 53), (195, 205, 215)),
         },
         ThemeArg::Aurora => ((9, 31, 65), (16, 70, 105), (102, 232, 242)),
+        // Dark navy + cyan + amber preset inspired by polished terminal mockups.
+        ThemeArg::MidnightCyan => ((10, 14, 42), (28, 22, 84), (122, 230, 255)),
         ThemeArg::Mono => ((17, 17, 24), (32, 35, 44), (196, 201, 214)),
         ThemeArg::HighContrast => ((0, 0, 0), (10, 10, 16), (255, 210, 0)),
         ThemeArg::Dracula => ((40, 42, 54), (68, 71, 90), (189, 147, 249)),
@@ -146,6 +148,14 @@ pub fn theme_for(
                 Color::LightCyan,
                 Color::LightCyan,
                 Color::White,
+            ),
+            ThemeArg::MidnightCyan => (
+                Color::Blue,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::LightCyan,
+                Color::LightCyan,
+                Color::Yellow,
             ),
             ThemeArg::Mono => (
                 Color::Black,

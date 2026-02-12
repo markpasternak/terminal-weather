@@ -129,6 +129,7 @@ impl AppState {
                 value: match self.settings.theme {
                     ThemeArg::Auto => "Auto".to_string(),
                     ThemeArg::Aurora => "Aurora".to_string(),
+                    ThemeArg::MidnightCyan => "Midnight Cyan".to_string(),
                     ThemeArg::Mono => "Mono".to_string(),
                     ThemeArg::HighContrast => "High contrast".to_string(),
                     ThemeArg::Dracula => "Dracula".to_string(),
@@ -534,6 +535,7 @@ impl AppState {
                     &[
                         ThemeArg::Auto,
                         ThemeArg::Aurora,
+                        ThemeArg::MidnightCyan,
                         ThemeArg::Mono,
                         ThemeArg::HighContrast,
                         ThemeArg::Dracula,

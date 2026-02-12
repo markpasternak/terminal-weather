@@ -37,7 +37,7 @@ cargo build --release
 ```bash
 cargo run -- Stockholm
 cargo run -- --units fahrenheit Tokyo
-cargo run -- --hero-visual gauge-cluster --theme dracula "San Diego"
+cargo run -- --hero-visual gauge-cluster --theme midnight-cyan "San Diego"
 cargo run -- --hero-visual sky-observatory --reduced-motion London
 cargo run -- --ascii-icons --no-animation Reykjavik
 cargo run -- --lat 59.3293 --lon 18.0686
@@ -58,7 +58,7 @@ Options:
   --no-flash                          Disable thunder flash
   --ascii-icons                       Force ASCII icons
   --emoji-icons                       Force emoji icons
-  --theme <auto|aurora|mono|high-contrast|dracula|gruvbox-material-dark|kanagawa-wave|ayu-mirage|ayu-light|poimandres-storm|selenized-dark|no-clown-fiesta>
+  --theme <auto|aurora|midnight-cyan|mono|high-contrast|dracula|gruvbox-material-dark|kanagawa-wave|ayu-mirage|ayu-light|poimandres-storm|selenized-dark|no-clown-fiesta>
                                       Theme override (default: auto)
   --hero-visual <atmos-canvas|gauge-cluster|sky-observatory>
                                       Current-panel visual mode (default: atmos-canvas)
