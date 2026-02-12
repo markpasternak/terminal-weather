@@ -11,7 +11,9 @@ chrono = { version = "0.4", features = ["clock"] }
 clap = { version = "4.5", features = ["derive"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
 futures = "0.3"
-image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+font8x8 = "0.3"
+image = { version = "0.24", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+image-to-ascii = "0.7.0"
 rand = "0.9"
 ratatui = "0.29"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

@@ -1,5 +1,12 @@
+use std::sync::OnceLock;
+
 use anyhow::{Context, Result};
-use image::imageops::FilterType;
+use font8x8::{BASIC_FONTS, UnicodeFonts};
+use img_to_ascii::{
+    convert::{char_rows_to_string, get_conversion_algorithm, get_converter, img_to_char_rows},
+    font::{Character, Font},
+    image::LumaImage as AsciiLumaImage,
+};
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -39,21 +46,33 @@ impl SilhouetteClient {
             };
 
             for title in titles {
-                let thumb_url = match self.thumbnail_for_title(&title).await {
-                    Ok(v) => v,
-                    Err(_) => continue,
+                if title.to_ascii_lowercase().contains("disambiguation") {
+                    continue;
+                }
+
+                let image_url = match self.page_image_for_title(&title).await {
+                    Ok(Some(url)) => Some(url),
+                    Ok(None) | Err(_) => self.thumbnail_for_title(&title).await.unwrap_or(None),
                 };
 
-                let Some(url) = thumb_url else {
+                let Some(url) = image_url else {
                     continue;
                 };
+
+                if !url.ends_with(".jpg")
+                    && !url.ends_with(".jpeg")
+                    && !url.ends_with(".png")
+                    && !url.ends_with(".webp")
+                {
+                    continue;
+                }
 
                 let bytes = match self.fetch_bytes(&url).await {
                     Ok(v) => v,
                     Err(_) => continue,
                 };
 
-                if let Some(lines) = image_to_ascii(&bytes, 30, 11)? {
+                if let Some(lines) = image_to_ascii(&bytes, 30, 11) {
                     return Ok(Some(SilhouetteArt {
                         label: title,
                         lines,
@@ -90,10 +109,62 @@ impl SilhouetteClient {
 
         let titles = payload
             .query
-            .map(|q| q.search.into_iter().map(|s| s.title).collect())
+            .map(|q| {
+                q.search
+                    .into_iter()
+                    .map(|s| s.title)
+                    .filter(|title| !title.to_ascii_lowercase().contains("disambiguation"))
+                    .collect()
+            })
             .unwrap_or_default();
 
         Ok(titles)
+    }
+
+    async fn page_image_for_title(&self, title: &str) -> Result<Option<String>> {
+        let response = self
+            .client
+            .get(WIKI_SEARCH_URL)
+            .query(&[
+                ("action", "query"),
+                ("prop", "pageimages"),
+                ("piprop", "original|thumbnail"),
+                ("pithumbsize", "1600"),
+                ("redirects", "1"),
+                ("format", "json"),
+                ("formatversion", "2"),
+                ("titles", title),
+            ])
+            .send()
+            .await
+            .context("wikipedia page image request failed")?
+            .error_for_status()
+            .context("wikipedia page image non-success status")?;
+
+        let payload: PageImageResponse = response
+            .json()
+            .await
+            .context("failed to decode wikipedia page image response")?;
+
+        let Some(query) = payload.query else {
+            return Ok(None);
+        };
+
+        for page in query.pages {
+            if let Some(title) = page.title.as_deref()
+                && title.to_ascii_lowercase().contains("disambiguation")
+            {
+                continue;
+            }
+
+            if let Some(image) = page.original.as_ref().or(page.thumbnail.as_ref())
+                && image_is_useful(&image.source, image.width, image.height)
+            {
+                return Ok(Some(image.source.clone()));
+            }
+        }
+
+        Ok(None)
     }
 
     async fn thumbnail_for_title(&self, title: &str) -> Result<Option<String>> {
@@ -115,7 +186,13 @@ impl SilhouetteClient {
             .await
             .context("failed to decode wikipedia summary response")?;
 
-        Ok(payload.thumbnail.map(|thumb| thumb.source))
+        Ok(payload.thumbnail.and_then(|thumb| {
+            if image_is_useful(&thumb.source, thumb.width, thumb.height) {
+                Some(thumb.source)
+            } else {
+                None
+            }
+        }))
     }
 
     async fn fetch_bytes(&self, url: &str) -> Result<Vec<u8>> {
@@ -155,27 +232,43 @@ fn queries_for_location(location: &Location) -> Vec<String> {
         vec![
             "Stockholm City Hall".to_string(),
             "Stockholm skyline".to_string(),
+            "Gamla stan waterfront".to_string(),
         ]
     } else if norm.contains("paris") {
-        vec!["Eiffel Tower".to_string(), "Paris skyline".to_string()]
+        vec![
+            "Eiffel Tower".to_string(),
+            "Paris skyline".to_string(),
+            "Notre-Dame de Paris".to_string(),
+        ]
     } else if norm.contains("new york") || norm.contains("nyc") {
         vec![
             "New York City skyline".to_string(),
             "Statue of Liberty".to_string(),
+            "Manhattan skyline".to_string(),
         ]
     } else if norm.contains("tokyo") {
-        vec!["Tokyo Tower".to_string(), "Tokyo skyline".to_string()]
+        vec![
+            "Tokyo Tower".to_string(),
+            "Tokyo skyline".to_string(),
+            "Tokyo Skytree".to_string(),
+        ]
     } else if norm.contains("london") {
-        vec!["Elizabeth Tower".to_string(), "London skyline".to_string()]
+        vec![
+            "Elizabeth Tower".to_string(),
+            "London skyline".to_string(),
+            "Tower Bridge".to_string(),
+        ]
     } else if norm.contains("sydney") {
         vec![
             "Sydney Opera House".to_string(),
             "Sydney skyline".to_string(),
+            "Sydney Harbour Bridge".to_string(),
         ]
     } else {
         vec![
             format!("{city} skyline"),
             format!("{city} landmark"),
+            format!("{city} architecture"),
             city.to_string(),
         ]
     };
@@ -189,68 +282,104 @@ fn queries_for_location(location: &Location) -> Vec<String> {
     out
 }
 
-fn image_to_ascii(bytes: &[u8], width: u32, height: u32) -> Result<Option<Vec<String>>> {
-    let image = image::load_from_memory(bytes).context("failed to decode image bytes")?;
-    let gray = image
-        .grayscale()
-        .resize_exact(width.max(4), height.max(4), FilterType::Triangle)
-        .to_luma8();
-
-    let mut min = u8::MAX;
-    let mut max = u8::MIN;
-    let mut sum = 0u64;
-    for pixel in gray.pixels() {
-        let value = pixel[0];
-        min = min.min(value);
-        max = max.max(value);
-        sum += u64::from(value);
+fn image_to_ascii(bytes: &[u8], width: u32, height: u32) -> Option<Vec<String>> {
+    let image = image::load_from_memory(bytes).ok()?;
+    let converter = get_converter("direction-and-intensity");
+    let algorithm = get_conversion_algorithm("edge-augmented");
+    let char_rows = img_to_char_rows(
+        ascii_font(),
+        &AsciiLumaImage::from(&image),
+        converter,
+        Some(width.max(8) as usize),
+        0.02,
+        &algorithm,
+    );
+    if char_rows.is_empty() {
+        return None;
     }
 
-    if max.saturating_sub(min) < 12 {
-        return Ok(None);
+    let text = char_rows_to_string(&char_rows);
+    let mut lines = text
+        .lines()
+        .map(|line| line.to_string())
+        .collect::<Vec<_>>();
+    if lines.is_empty() {
+        return None;
     }
 
-    let mean = sum as f32 / gray.as_raw().len() as f32;
-    let mut lines = Vec::with_capacity(gray.height() as usize);
-    let mut non_space = 0usize;
-    let total = (gray.width() * gray.height()) as usize;
-    for y in 0..gray.height() {
-        let mut line = String::with_capacity(gray.width() as usize);
-        for x in 0..gray.width() {
-            let value = gray.get_pixel(x, y)[0] as f32;
-            let ch = if value <= mean * 0.72 {
-                '@'
-            } else if value <= mean * 0.84 {
-                '#'
-            } else if value <= mean * 0.94 {
-                '+'
-            } else if value <= mean * 1.02 {
-                '.'
-            } else {
-                ' '
-            };
-            if ch != ' ' {
-                non_space += 1;
-            }
-            line.push(ch);
+    let first = lines.iter().position(|line| line.trim().len() >= 4)?;
+    let last = lines.iter().rposition(|line| line.trim().len() >= 4)?;
+    lines = lines[first..=last].to_vec();
+
+    let limit = height.max(4) as usize;
+    if lines.len() > limit {
+        let start = (lines.len() - limit) / 2;
+        lines = lines[start..start + limit].to_vec();
+    }
+
+    let non_space = lines
+        .iter()
+        .flat_map(|line| line.chars())
+        .filter(|ch| !ch.is_whitespace())
+        .count();
+    let total = lines.iter().map(|line| line.chars().count()).sum::<usize>();
+    if total == 0 {
+        return None;
+    }
+
+    let ratio = non_space as f32 / total as f32;
+    if !(0.08..=0.72).contains(&ratio) {
+        return None;
+    }
+
+    Some(lines)
+}
+
+fn image_is_useful(source: &str, width: Option<u32>, height: Option<u32>) -> bool {
+    let source = source.to_ascii_lowercase();
+    if source.ends_with(".svg") || source.ends_with(".gif") {
+        return false;
+    }
+
+    if let (Some(width), Some(height)) = (width, height) {
+        if width < 220 || height < 160 {
+            return false;
         }
-        lines.push(line);
+        let aspect = width as f32 / height as f32;
+        if !(0.4..=4.2).contains(&aspect) {
+            return false;
+        }
+    }
+    true
+}
+
+fn ascii_font() -> &'static Font {
+    static FONT: OnceLock<Font> = OnceLock::new();
+    FONT.get_or_init(build_ascii_font)
+}
+
+fn build_ascii_font() -> Font {
+    let alphabet: Vec<char> =
+        " .'`^\",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
+            .chars()
+            .collect();
+    let mut chars = Vec::new();
+
+    for ch in alphabet.iter().copied() {
+        let Some(glyph) = BASIC_FONTS.get(ch) else {
+            continue;
+        };
+        let mut bitmap = Vec::with_capacity(64);
+        for row in glyph {
+            for bit in 0..8 {
+                let on = ((row >> bit) & 1) == 1;
+                bitmap.push(if on { 1.0 } else { 0.0 });
+            }
+        }
+        chars.push(Character::new(ch, bitmap, 8, 8));
     }
 
-    if non_space < total / 35 || non_space > (total * 3) / 4 {
-        return Ok(None);
-    }
-
-    let first = lines.iter().position(|line| line.trim().len() >= 3);
-    let last = lines.iter().rposition(|line| line.trim().len() >= 3);
-    let (Some(first), Some(last)) = (first, last) else {
-        return Ok(None);
-    };
-    if last < first {
-        return Ok(None);
-    }
-
-    Ok(Some(lines[first..=last].to_vec()))
+    Font::new(&chars, &alphabet)
 }
 
 fn normalize_key_part(input: &str) -> String {
@@ -286,6 +415,32 @@ struct SummaryResponse {
 #[derive(Debug, Deserialize)]
 struct SummaryThumbnail {
     source: String,
+    width: Option<u32>,
+    height: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PageImageResponse {
+    query: Option<PageImageQuery>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PageImageQuery {
+    pages: Vec<PageImagePage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PageImagePage {
+    title: Option<String>,
+    original: Option<WikiImage>,
+    thumbnail: Option<WikiImage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WikiImage {
+    source: String,
+    width: Option<u32>,
+    height: Option<u32>,
 }
 
 #[cfg(test)]

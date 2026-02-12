@@ -58,3 +58,4 @@ Total tests passing: 19
 2. RSS measurement should be captured with scripted runtime sampling on representative terminals.
 3. Unicode width variance remains terminal-dependent; `--ascii-icons` is mitigation.
 4. Web silhouette quality depends on available Wikipedia thumbnails; fallback scenes mitigate missing or noisy images.
+5. `image-to-ascii` adds build-time/dependency weight; consider feature-gating silhouette conversion for minimal builds.

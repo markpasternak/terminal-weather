@@ -9,6 +9,7 @@
 - 7-day forecast with normalized temperature range bars
 - Weather-aware themes with day/night adaptation and color fallback tiers
 - Landmark panel with known-city ASCII art, procedural skyline fallback, and optional web-sourced silhouette mode
+- Web silhouette conversion powered by `image-to-ascii` using edge-aware rendering
 - Particle animation engine (rain/snow/fog/thunder) with wind drift
 - Fresh/stale/offline state handling with retry backoff and last-good data retention
 - Deterministic geocode ranking with in-app disambiguation selector (keys `1..5`)
@@ -98,7 +99,7 @@ Theme modes:
 - Unicode/icon width issues:
   - Use `--ascii-icons` for stable alignment on limited terminals.
 - Web silhouette issues:
-  - `--silhouette-source web` fetches landmark thumbnails from Wikipedia and converts them to ASCII.
+  - `--silhouette-source web` fetches meaningful landmark/page images from Wikipedia and converts them with `image-to-ascii`.
   - If fetch fails, `auto` mode falls back to built-in/procedural silhouettes.
 - Coordinate flags error:
   - `--lat` and `--lon` must be provided together.
