@@ -146,10 +146,14 @@ fn demo_script() -> Vec<(Duration, DemoAction)> {
         Duration::from_secs(1),
         DemoAction::SetHeroVisual(HeroVisualArg::GaugeCluster),
     ));
+    steps.push((Duration::from_secs(1), DemoAction::CloseSettings));
+    steps.push((Duration::from_secs(5), DemoAction::OpenSettings));
     steps.push((
-        Duration::from_secs(5),
+        Duration::from_secs(1),
         DemoAction::SetHeroVisual(HeroVisualArg::SkyObservatory),
     ));
+    steps.push((Duration::from_secs(1), DemoAction::CloseSettings));
+    steps.push((Duration::from_secs(5), DemoAction::OpenSettings));
 
     let themes = [
         ThemeArg::Auto,
@@ -158,7 +162,6 @@ fn demo_script() -> Vec<(Duration, DemoAction)> {
         ThemeArg::Aubergine,
         ThemeArg::Hoth,
         ThemeArg::Monument,
-        ThemeArg::Ochin,
         ThemeArg::Nord,
         ThemeArg::CatppuccinMocha,
         ThemeArg::Mono,

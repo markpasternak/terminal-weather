@@ -97,6 +97,7 @@ Build terminal-weather v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Enlarged Sky Observatory celestial markers with responsive sun/moon icon scaling and ray halo rendering -> improves legibility and visual presence in wide hero panels.
 - 2026-02-12: Removed screenshot helper script and realigned README to current product surface (demo flow, hero visuals, dialogs, persistence, manual screenshot workflow) -> keeps public docs accurate and avoids stale tooling.
 - 2026-02-12: Updated demo choreography to show city-search dialog before each city transition -> better represents real user city switching flow during showcase runs.
+- 2026-02-12: Refined demo sequencing to close settings between hero-visual selections and reopen for theme cycling -> ensures visual previews are actually visible before theme pass.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -132,6 +133,7 @@ Build terminal-weather v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 16:26: Increased Sky Observatory icon scale (larger sun/moon + responsive ray halo) and updated sky-visual tint mapping; reran full gates, result: PASS.
 - 2026-02-12 16:30: Removed screenshot capture script and refreshed README to match current behavior and controls; ran sanity gate (`cargo check --all-targets --all-features`), result: PASS.
 - 2026-02-12 16:34: Updated demo city transitions to open location picker with query text before each selection, refreshed README demo description, and reran full quality gates, result: PASS.
+- 2026-02-12 17:07: Fixed demo ordering so gauge/sky previews render with settings closed before theme cycling; updated README wording and reran sanity gates (`fmt/check`), result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added

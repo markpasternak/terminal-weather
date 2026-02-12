@@ -52,7 +52,7 @@ cargo run -- --demo
 
 `--demo` clears persisted settings for that run, then automatically:
 1. Opens the city picker, shows a search query, and selects cities (`New York` → `Miami` → `Sydney` → `Peking`, 5s each)
-2. Opens settings and showcases hero visuals (`Gauge Cluster`, `Sky Observatory`, 5s each)
+2. Opens settings, selects hero visuals, then closes settings so each preview is clearly visible (`Gauge Cluster`, `Sky Observatory`, 5s each)
 3. Cycles through themes
 4. Exits the app
 
@@ -71,7 +71,7 @@ Options:
   --no-flash                          Disable thunder flash
   --ascii-icons                       Force ASCII icons
   --emoji-icons                       Force emoji icons
-  --theme <auto|aurora|midnight-cyan|aubergine|hoth|monument|ochin|nord|catppuccin-mocha|mono|high-contrast|dracula|gruvbox-material-dark|kanagawa-wave|ayu-mirage|ayu-light|poimandres-storm|selenized-dark|no-clown-fiesta>
+  --theme <auto|aurora|midnight-cyan|aubergine|hoth|monument|nord|catppuccin-mocha|mono|high-contrast|dracula|gruvbox-material-dark|kanagawa-wave|ayu-mirage|ayu-light|poimandres-storm|selenized-dark|no-clown-fiesta>
   --hero-visual <atmos-canvas|gauge-cluster|sky-observatory>
   --country-code <ISO2>               Geocode bias (e.g. SE, US)
   --lat <FLOAT>                       Direct latitude (requires --lon)
