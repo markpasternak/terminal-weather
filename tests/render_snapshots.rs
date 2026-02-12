@@ -1,12 +1,12 @@
-use atmos_tui::{
+use chrono::{NaiveDate, NaiveDateTime, Utc};
+use ratatui::{Terminal, backend::TestBackend};
+use terminal_weather::{
     app::state::{AppMode, AppState},
     cli::{Cli, HeroVisualArg, ThemeArg, UnitsArg},
     domain::weather::{CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location},
     resilience::freshness::FreshnessState,
     ui,
 };
-use chrono::{NaiveDate, NaiveDateTime, Utc};
-use ratatui::{Terminal, backend::TestBackend};
 
 fn cli() -> Cli {
     Cli {
@@ -24,6 +24,7 @@ fn cli() -> Cli {
         lat: None,
         lon: None,
         refresh_interval: 600,
+        demo: false,
     }
 }
 

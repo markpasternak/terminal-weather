@@ -1,6 +1,6 @@
 use chrono::{Duration, Utc};
 
-use atmos_tui::resilience::{
+use terminal_weather::resilience::{
     backoff::Backoff,
     freshness::{FreshnessState, evaluate_freshness},
 };

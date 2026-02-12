@@ -89,19 +89,18 @@ pub fn theme_for(
         ThemeArg::Aubergine => ((46, 24, 73), (82, 36, 114), (106, 212, 243)),
         ThemeArg::Hoth => ((229, 236, 247), (204, 218, 236), (32, 109, 167)),
         ThemeArg::Monument => ((17, 33, 33), (33, 58, 57), (242, 176, 68)),
-        ThemeArg::Ochin => ((15, 42, 61), (30, 76, 103), (126, 214, 255)),
         ThemeArg::Nord => ((46, 52, 64), (59, 66, 82), (136, 192, 208)),
         ThemeArg::CatppuccinMocha => ((30, 30, 46), (49, 50, 68), (203, 166, 247)),
         ThemeArg::Mono => ((17, 17, 24), (32, 35, 44), (196, 201, 214)),
         ThemeArg::HighContrast => ((0, 0, 0), (10, 10, 16), (255, 210, 0)),
         ThemeArg::Dracula => ((40, 42, 54), (68, 71, 90), (189, 147, 249)),
         ThemeArg::GruvboxMaterialDark => ((40, 40, 40), (60, 56, 54), (216, 166, 87)),
-        ThemeArg::KanagawaWave => ((31, 31, 40), (43, 46, 58), (126, 156, 216)),
-        ThemeArg::AyuMirage => ((31, 36, 48), (46, 53, 71), (109, 203, 250)),
-        ThemeArg::AyuLight => ((248, 249, 250), (232, 236, 242), (49, 153, 225)),
-        ThemeArg::PoimandresStorm => ((37, 43, 55), (56, 65, 84), (137, 221, 255)),
-        ThemeArg::SelenizedDark => ((16, 60, 72), (24, 73, 86), (70, 149, 247)),
-        ThemeArg::NoClownFiesta => ((16, 16, 16), (33, 37, 45), (186, 215, 255)),
+        ThemeArg::KanagawaWave => ((31, 31, 40), (43, 46, 58), (152, 187, 108)),
+        ThemeArg::AyuMirage => ((31, 36, 48), (46, 53, 71), (255, 173, 102)),
+        ThemeArg::AyuLight => ((248, 249, 250), (232, 236, 242), (255, 148, 64)),
+        ThemeArg::PoimandresStorm => ((37, 43, 55), (56, 65, 84), (209, 159, 232)),
+        ThemeArg::SelenizedDark => ((16, 60, 72), (24, 73, 86), (90, 170, 255)),
+        ThemeArg::NoClownFiesta => ((16, 16, 16), (33, 37, 45), (179, 168, 241)),
     };
 
     if capability == ColorCapability::Basic16 {
@@ -188,14 +187,6 @@ pub fn theme_for(
                 Color::LightGreen,
                 Color::White,
             ),
-            ThemeArg::Ochin => (
-                Color::Blue,
-                Color::DarkGray,
-                Color::DarkGray,
-                Color::Cyan,
-                Color::LightCyan,
-                Color::White,
-            ),
             ThemeArg::Nord => (
                 Color::Blue,
                 Color::DarkGray,
@@ -245,42 +236,42 @@ pub fn theme_for(
                 Color::White,
             ),
             ThemeArg::KanagawaWave => (
-                Color::Blue,
+                Color::Green,
                 Color::DarkGray,
                 Color::DarkGray,
-                Color::LightBlue,
-                Color::LightBlue,
+                Color::LightGreen,
+                Color::LightGreen,
                 Color::White,
             ),
             ThemeArg::AyuMirage => (
-                Color::Blue,
+                Color::Yellow,
                 Color::DarkGray,
                 Color::DarkGray,
-                Color::Cyan,
-                Color::LightCyan,
+                Color::LightYellow,
+                Color::Yellow,
                 Color::White,
             ),
             ThemeArg::AyuLight => (
                 Color::Gray,
                 Color::White,
                 Color::DarkGray,
-                Color::Blue,
-                Color::Blue,
+                Color::Red,
+                Color::Yellow,
                 Color::Black,
             ),
             ThemeArg::PoimandresStorm => (
-                Color::Blue,
+                Color::Magenta,
                 Color::DarkGray,
                 Color::DarkGray,
-                Color::LightCyan,
-                Color::Cyan,
+                Color::LightMagenta,
+                Color::LightMagenta,
                 Color::White,
             ),
             ThemeArg::SelenizedDark => (
                 Color::Cyan,
                 Color::Blue,
                 Color::DarkGray,
-                Color::LightBlue,
+                Color::LightCyan,
                 Color::LightBlue,
                 Color::White,
             ),
@@ -288,8 +279,8 @@ pub fn theme_for(
                 Color::Black,
                 Color::DarkGray,
                 Color::DarkGray,
-                Color::LightBlue,
-                Color::Gray,
+                Color::LightMagenta,
+                Color::Magenta,
                 Color::White,
             ),
             ThemeArg::Auto => unreachable!("handled above"),
@@ -400,16 +391,19 @@ pub fn theme_for(
 
     let base_surface = mix_rgb(top, bottom, 0.80);
     let base_surface_alt = mix_rgb(top, bottom, 0.60);
-    let surface = mix_rgb(
-        base_surface,
-        accent_seed,
-        if dark_text { 0.08 } else { 0.16 },
-    );
-    let surface_alt = mix_rgb(
-        base_surface_alt,
-        accent_seed,
-        if dark_text { 0.12 } else { 0.24 },
-    );
+    // Reduce accent tint on very dark backgrounds to avoid hue-on-hue illegibility.
+    let tint_factor = if dark_text || avg_luma < 40.0 {
+        0.08
+    } else {
+        0.16
+    };
+    let tint_factor_alt = if dark_text || avg_luma < 40.0 {
+        0.12
+    } else {
+        0.24
+    };
+    let surface = mix_rgb(base_surface, accent_seed, tint_factor);
+    let surface_alt = mix_rgb(base_surface_alt, accent_seed, tint_factor_alt);
     let popup_surface = if dark_text {
         mix_rgb(surface_alt, accent_seed, 0.20)
     } else {
@@ -437,14 +431,14 @@ pub fn theme_for(
     let muted = ensure_contrast_multi(
         muted_seed,
         &all_backgrounds,
-        if dark_text { 4.0 } else { 3.4 },
+        if dark_text { 4.5 } else { 4.2 },
     );
     let popup_text = ensure_contrast(text_seed, popup_surface, 4.7);
-    let popup_muted_text = ensure_contrast(muted_seed, popup_surface, 4.0);
+    let popup_muted_text = ensure_contrast(muted_seed, popup_surface, 4.5);
     let accent = ensure_contrast_multi(
         accent_seed,
         &all_backgrounds,
-        if dark_text { 4.1 } else { 3.4 },
+        if dark_text { 4.5 } else { 4.0 },
     );
 
     let particle = if dark_text {
@@ -472,7 +466,7 @@ pub fn theme_for(
             (125, 211, 252)
         },
         &all_backgrounds,
-        if dark_text { 4.4 } else { 3.8 },
+        4.5,
     );
     let success = ensure_contrast_multi(
         if dark_text {
@@ -481,17 +475,23 @@ pub fn theme_for(
             (74, 222, 128)
         },
         &all_backgrounds,
-        if dark_text { 4.3 } else { 3.8 },
+        4.5,
     );
-    let warning = ensure_contrast_multi(
+    // Shift warning toward orange-red when accent is already warm/amber to avoid collision.
+    let warm_accent = accent_seed.0 > 180 && accent_seed.1 > 140 && accent_seed.2 < 140;
+    let warning_seed = if warm_accent {
+        // Use pink-red so it stays distinct from the amber/gold accent after contrast push.
         if dark_text {
-            (161, 98, 7)
+            (180, 40, 60)
         } else {
-            (251, 191, 36)
-        },
-        &all_backgrounds,
-        if dark_text { 4.3 } else { 3.8 },
-    );
+            (255, 110, 130)
+        }
+    } else if dark_text {
+        (161, 98, 7)
+    } else {
+        (251, 191, 36)
+    };
+    let warning = ensure_contrast_multi(warning_seed, &all_backgrounds, 4.5);
     let danger = ensure_contrast_multi(
         if dark_text {
             (185, 28, 28)
@@ -499,45 +499,45 @@ pub fn theme_for(
             (248, 113, 113)
         },
         &all_backgrounds,
-        if dark_text { 4.3 } else { 3.8 },
+        4.5,
     );
     let range_track = ensure_contrast(muted, surface_alt, if dark_text { 4.0 } else { 3.2 });
     let landmark_warm = ensure_contrast_multi(
         (253, 230, 138),
         &hero_backgrounds,
-        if dark_text { 3.9 } else { 2.9 },
+        if dark_text { 4.5 } else { 3.5 },
     );
     let landmark_cool = ensure_contrast_multi(
         (147, 197, 253),
         &hero_backgrounds,
-        if dark_text { 3.9 } else { 2.9 },
+        if dark_text { 4.5 } else { 3.5 },
     );
     let landmark_neutral =
-        ensure_contrast_multi(muted, &hero_backgrounds, if dark_text { 3.7 } else { 2.7 });
+        ensure_contrast_multi(muted, &hero_backgrounds, if dark_text { 4.2 } else { 3.2 });
     let temp_freezing = ensure_contrast(
         (147, 197, 253),
         surface_alt,
-        if dark_text { 4.0 } else { 3.2 },
+        if dark_text { 4.5 } else { 3.8 },
     );
     let temp_cold = ensure_contrast(
         (56, 189, 248),
         surface_alt,
-        if dark_text { 4.0 } else { 3.2 },
+        if dark_text { 4.5 } else { 3.8 },
     );
     let temp_mild = ensure_contrast(
         (110, 231, 183),
         surface_alt,
-        if dark_text { 3.9 } else { 3.1 },
+        if dark_text { 4.5 } else { 3.8 },
     );
     let temp_warm = ensure_contrast(
         (251, 191, 36),
         surface_alt,
-        if dark_text { 4.0 } else { 3.2 },
+        if dark_text { 4.5 } else { 3.8 },
     );
     let temp_hot = ensure_contrast(
         (248, 113, 113),
         surface_alt,
-        if dark_text { 4.1 } else { 3.3 },
+        if dark_text { 4.5 } else { 3.8 },
     );
 
     Theme {
@@ -861,6 +861,85 @@ mod tests {
         );
     }
 
+    /// Every TrueColor theme must have readable text, accent, and semantic colors
+    /// against all background surfaces.
+    #[test]
+    fn all_themes_have_readable_contrast() {
+        let all_modes = [
+            ThemeArg::Aurora,
+            ThemeArg::MidnightCyan,
+            ThemeArg::Aubergine,
+            ThemeArg::Hoth,
+            ThemeArg::Monument,
+            ThemeArg::Nord,
+            ThemeArg::CatppuccinMocha,
+            ThemeArg::Mono,
+            ThemeArg::HighContrast,
+            ThemeArg::Dracula,
+            ThemeArg::GruvboxMaterialDark,
+            ThemeArg::KanagawaWave,
+            ThemeArg::AyuMirage,
+            ThemeArg::AyuLight,
+            ThemeArg::PoimandresStorm,
+            ThemeArg::SelenizedDark,
+            ThemeArg::NoClownFiesta,
+        ];
+        for mode in all_modes {
+            let theme = theme_for(
+                WeatherCategory::Cloudy,
+                true,
+                ColorCapability::TrueColor,
+                mode,
+            );
+            let backgrounds = [
+                as_rgb(theme.top),
+                as_rgb(theme.bottom),
+                as_rgb(theme.surface),
+                as_rgb(theme.surface_alt),
+            ];
+
+            // Primary text must be clearly readable (WCAG AA = 4.5)
+            let text_ratio = min_contrast_ratio(as_rgb(theme.text), &backgrounds);
+            assert!(
+                text_ratio >= 4.5,
+                "mode={mode:?} text ratio={text_ratio:.2} < 4.5"
+            );
+
+            // Accent must be distinguishable (relaxed for decorative use)
+            let accent_ratio = min_contrast_ratio(as_rgb(theme.accent), &backgrounds);
+            assert!(
+                accent_ratio >= 3.0,
+                "mode={mode:?} accent ratio={accent_ratio:.2} < 3.0"
+            );
+
+            // Popup text on popup surface
+            let popup_ratio = contrast_ratio(as_rgb(theme.popup_text), as_rgb(theme.popup_surface));
+            assert!(
+                popup_ratio >= 4.5,
+                "mode={mode:?} popup ratio={popup_ratio:.2} < 4.5"
+            );
+
+            // Warning must be visually distinguishable from accent (by color distance).
+            // Skip when both are pushed to near-white by the contrast engine (high luminance);
+            // in that case the bg contrast carries the distinction.
+            let w = as_rgb(theme.warning);
+            let a = as_rgb(theme.accent);
+            let w_luma = relative_luminance(w);
+            let a_luma = relative_luminance(a);
+            let both_washed = w_luma > 0.75 && a_luma > 0.75;
+            if !both_washed {
+                let dist = ((w.0 as f32 - a.0 as f32).powi(2)
+                    + (w.1 as f32 - a.1 as f32).powi(2)
+                    + (w.2 as f32 - a.2 as f32).powi(2))
+                .sqrt();
+                assert!(
+                    dist >= 50.0,
+                    "mode={mode:?} warning≈accent dist={dist:.1} (warning={w:?}, accent={a:?})"
+                );
+            }
+        }
+    }
+
     #[test]
     fn light_themes_keep_semantic_tokens_legible() {
         for mode in [ThemeArg::AyuLight, ThemeArg::Hoth] {
@@ -880,15 +959,15 @@ mod tests {
 
             let checks = [
                 (as_rgb(theme.text), 4.8),
-                (as_rgb(theme.muted_text), 3.6),
+                (as_rgb(theme.muted_text), 4.1),
                 (as_rgb(theme.accent), 3.9),
-                (as_rgb(theme.info), 3.9),
-                (as_rgb(theme.success), 3.9),
-                (as_rgb(theme.warning), 3.9),
-                (as_rgb(theme.danger), 3.9),
-                (as_rgb(theme.temp_cold), 3.2),
-                (as_rgb(theme.temp_warm), 3.2),
-                (as_rgb(theme.temp_hot), 3.3),
+                (as_rgb(theme.info), 4.4),
+                (as_rgb(theme.success), 4.4),
+                (as_rgb(theme.warning), 4.4),
+                (as_rgb(theme.danger), 4.4),
+                (as_rgb(theme.temp_cold), 3.5),
+                (as_rgb(theme.temp_warm), 3.5),
+                (as_rgb(theme.temp_hot), 3.5),
                 (as_rgb(theme.landmark_cool), 3.4),
                 (as_rgb(theme.landmark_warm), 3.4),
             ];

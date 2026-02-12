@@ -19,6 +19,14 @@ pub enum ThemeArg {
     Auto,
     Aurora,
     MidnightCyan,
+    #[serde(alias = "SlackAubergine", alias = "slack-aubergine")]
+    Aubergine,
+    #[serde(alias = "SlackHoth", alias = "slack-hoth")]
+    Hoth,
+    #[serde(alias = "SlackMonument", alias = "slack-monument")]
+    Monument,
+    Nord,
+    CatppuccinMocha,
     Mono,
     HighContrast,
     Dracula,
@@ -44,7 +52,7 @@ pub enum HeroVisualArg {
 
 #[derive(Debug, Parser, Clone)]
 #[command(
-    name = "atmos-tui",
+    name = "terminal-weather",
     version,
     about = "Animated terminal weather dashboard"
 )]
@@ -103,6 +111,10 @@ pub struct Cli {
     /// Refresh interval in seconds
     #[arg(long, default_value_t = 600)]
     pub refresh_interval: u64,
+
+    /// Run automated demo script and exit
+    #[arg(long)]
+    pub demo: bool,
 }
 
 impl Cli {

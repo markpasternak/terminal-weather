@@ -1,4 +1,4 @@
-use atmos_tui::{data::geocode::GeocodeClient, domain::weather::GeocodeResolution};
+use terminal_weather::{data::geocode::GeocodeClient, domain::weather::GeocodeResolution};
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
     matchers::{method, path, query_param},

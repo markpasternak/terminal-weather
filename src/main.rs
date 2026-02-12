@@ -1,9 +1,9 @@
 use anyhow::Result;
-use atmos_tui::cli::Cli;
 use clap::Parser;
+use terminal_weather::cli::Cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    atmos_tui::run(cli).await
+    terminal_weather::run(cli).await
 }

@@ -1,5 +1,5 @@
 [package]
-name = "atmos-tui"
+name = "terminal-weather"
 version = "0.1.0"
 edition = "2024"
 description = "Animated terminal weather dashboard"

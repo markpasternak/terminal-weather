@@ -1,4 +1,6 @@
-use atmos_tui::{
+use chrono::{NaiveDate, NaiveDateTime, Utc};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use terminal_weather::{
     app::{events::AppEvent, state::AppState},
     cli::{Cli, HeroVisualArg, ThemeArg, UnitsArg},
     domain::weather::{
@@ -6,8 +8,6 @@ use atmos_tui::{
     },
     ui::layout::visible_hour_count,
 };
-use chrono::{NaiveDate, NaiveDateTime, Utc};
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc;
 
 fn cli() -> Cli {
@@ -26,6 +26,7 @@ fn cli() -> Cli {
         lat: None,
         lon: None,
         refresh_interval: 600,
+        demo: false,
     }
 }
 

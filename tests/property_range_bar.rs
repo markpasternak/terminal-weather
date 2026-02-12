@@ -1,5 +1,5 @@
-use atmos_tui::ui::widgets::daily::bar_bounds;
 use proptest::prelude::*;
+use terminal_weather::ui::widgets::daily::bar_bounds;
 
 proptest! {
     #[test]

@@ -831,14 +831,30 @@ fn scene_char_color(
 ) -> Color {
     match visual {
         HeroVisualArg::AtmosCanvas => {
-            if matches!(ch, '█' | '▓' | '▒' | '▀' | '─') {
+            if matches!(ch, '█' | '▅' | '▃' | '▁') {
+                // Terrain
                 theme.accent
-            } else if matches!(ch, '◉' | '◐' | '*' | 'o') {
+            } else if matches!(ch, '◉' | '◐') {
+                // Sun / moon
                 theme.warning
-            } else if matches!(ch, '/' | '\\' | '!' | '=') {
-                theme.info
-            } else if matches!(ch, '(' | ')' | '~' | '·') {
+            } else if matches!(ch, '░' | '▒' | '▓') {
+                // Clouds / fog
                 theme.landmark_neutral
+            } else if matches!(ch, '/' | '╱' | '╲' | '~') {
+                // Rain / splashes / lightning / shimmer
+                theme.info
+            } else if matches!(ch, 'o' | '•') {
+                // Hail stones and bounce marks
+                theme.warning
+            } else if matches!(ch, '❆') {
+                // Ice glaze crystals
+                theme.landmark_cool
+            } else if matches!(ch, '*' | '✦' | '✧') {
+                // Stars
+                theme.landmark_cool
+            } else if matches!(ch, '·' | '∴' | '─') {
+                // Haze, snow accumulation, horizon
+                theme.muted_text
             } else {
                 base_tint
             }

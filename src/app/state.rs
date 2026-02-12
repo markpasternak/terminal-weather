@@ -39,14 +39,13 @@ const SETTINGS_COUNT: usize = 9;
 const REFRESH_OPTIONS: [u64; 4] = [300, 600, 900, 1800];
 const HISTORY_MAX: usize = 12;
 const CITY_PICKER_VISIBLE_MAX: usize = 9;
-const THEME_OPTIONS: [ThemeArg; 19] = [
+const THEME_OPTIONS: [ThemeArg; 18] = [
     ThemeArg::Auto,
     ThemeArg::Aurora,
     ThemeArg::MidnightCyan,
     ThemeArg::Aubergine,
     ThemeArg::Hoth,
     ThemeArg::Monument,
-    ThemeArg::Ochin,
     ThemeArg::Nord,
     ThemeArg::CatppuccinMocha,
     ThemeArg::Mono,
@@ -169,7 +168,6 @@ impl AppState {
                     ThemeArg::Aubergine => "Aubergine".to_string(),
                     ThemeArg::Hoth => "Hoth".to_string(),
                     ThemeArg::Monument => "Monument".to_string(),
-                    ThemeArg::Ochin => "Ochin".to_string(),
                     ThemeArg::Nord => "Nord".to_string(),
                     ThemeArg::CatppuccinMocha => "Catppuccin Mocha".to_string(),
                     ThemeArg::Mono => "Mono".to_string(),

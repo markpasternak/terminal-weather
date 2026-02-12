@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 
@@ -198,7 +199,18 @@ pub fn save_runtime_settings(path: &Path, settings: &RuntimeSettings) -> anyhow:
     fs::write(path, payload).context("writing settings file failed")
 }
 
+pub fn clear_runtime_settings(path: &Path) -> anyhow::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err).context("clearing settings file failed"),
+    }
+}
+
 fn settings_path() -> Option<PathBuf> {
+    if let Some(base) = std::env::var_os("TERMINAL_WEATHER_CONFIG_DIR") {
+        return Some(PathBuf::from(base).join("settings.json"));
+    }
     if let Some(base) = std::env::var_os("ATMOS_TUI_CONFIG_DIR") {
         return Some(PathBuf::from(base).join("settings.json"));
     }
@@ -207,7 +219,7 @@ fn settings_path() -> Option<PathBuf> {
     Some(
         PathBuf::from(home)
             .join(".config")
-            .join("atmos-tui")
+            .join("terminal-weather")
             .join("settings.json"),
     )
 }

@@ -40,7 +40,7 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title("atmos-tui")
+                    .title("terminal weather")
                     .style(Style::default().fg(theme.text).bg(theme.surface))
                     .border_style(Style::default().fg(theme.border).bg(theme.surface)),
             );
