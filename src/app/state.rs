@@ -12,7 +12,10 @@ use tokio::sync::mpsc;
 use crate::{
     app::{
         events::{AppEvent, schedule_retry, start_frame_task, start_refresh_task},
-        settings::{MotionSetting, RuntimeSettings, load_runtime_settings, save_runtime_settings},
+        settings::{
+            MotionSetting, RecentLocation, RuntimeSettings, load_runtime_settings,
+            save_runtime_settings,
+        },
     },
     cli::{Cli, IconMode, SilhouetteSourceArg, ThemeArg},
     data::{
@@ -40,6 +43,8 @@ const SETTINGS_CLOSE: usize = 8;
 const SETTINGS_COUNT: usize = 9;
 
 const REFRESH_OPTIONS: [u64; 4] = [300, 600, 900, 1800];
+const HISTORY_MAX: usize = 12;
+const CITY_PICKER_VISIBLE_MAX: usize = 9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {
@@ -81,6 +86,10 @@ pub struct AppState {
     pub settings: RuntimeSettings,
     pub settings_open: bool,
     pub settings_selected: usize,
+    pub city_picker_open: bool,
+    pub city_query: String,
+    pub city_history_selected: usize,
+    pub city_status: Option<String>,
     settings_path: Option<PathBuf>,
 }
 
@@ -113,6 +122,10 @@ impl AppState {
             settings,
             settings_open: false,
             settings_selected: 0,
+            city_picker_open: false,
+            city_query: String::new(),
+            city_history_selected: 0,
+            city_status: None,
             settings_path,
         }
     }
@@ -134,6 +147,14 @@ impl AppState {
                     ThemeArg::Aurora => "Aurora".to_string(),
                     ThemeArg::Mono => "Mono".to_string(),
                     ThemeArg::HighContrast => "High contrast".to_string(),
+                    ThemeArg::Dracula => "Dracula".to_string(),
+                    ThemeArg::GruvboxMaterialDark => "Gruvbox Material".to_string(),
+                    ThemeArg::KanagawaWave => "Kanagawa Wave".to_string(),
+                    ThemeArg::AyuMirage => "Ayu Mirage".to_string(),
+                    ThemeArg::AyuLight => "Ayu Light".to_string(),
+                    ThemeArg::PoimandresStorm => "Poimandres Storm".to_string(),
+                    ThemeArg::SelenizedDark => "Selenized Dark".to_string(),
+                    ThemeArg::NoClownFiesta => "No Clown Fiesta".to_string(),
                 },
                 editable: true,
             },
@@ -257,6 +278,7 @@ impl AppState {
                     self.fetch_in_flight = false;
                     self.mode = AppMode::SelectingLocation;
                     self.loading_message = "Choose a location (1-5)".to_string();
+                    self.city_picker_open = false;
                 }
                 GeocodeResolution::NotFound(city) => {
                     self.fetch_in_flight = false;
@@ -274,12 +296,17 @@ impl AppState {
                 self.backoff.reset();
                 self.hourly_offset = 0;
                 self.active_location_key = Some(cache_key(&location));
+                self.push_recent_location(&location);
+                self.persist_settings();
+                self.city_status = None;
                 self.maybe_fetch_silhouette(tx, &location);
             }
             AppEvent::FetchFailed(err) => {
                 self.fetch_in_flight = false;
                 self.last_error = Some(err);
                 self.mode = AppMode::Error;
+                self.city_status =
+                    Some("Search failed; keeping last successful weather".to_string());
                 self.refresh_meta.mark_failure();
                 self.refresh_meta.state = evaluate_freshness(
                     self.refresh_meta.last_success,
@@ -314,14 +341,27 @@ impl AppState {
                     self.handle_settings_key(key.code, tx, cli).await?;
                     return Ok(());
                 }
+                if self.city_picker_open {
+                    self.handle_city_picker_key(key.code, tx, cli).await?;
+                    return Ok(());
+                }
 
                 match key.code {
                     KeyCode::Esc | KeyCode::Char('q') => {
                         tx.send(AppEvent::Quit).await?;
                     }
                     KeyCode::Char('s') if self.mode != AppMode::SelectingLocation => {
+                        self.city_picker_open = false;
                         self.settings_open = true;
                         self.settings_selected = 0;
+                    }
+                    KeyCode::Char('l') if self.mode != AppMode::SelectingLocation => {
+                        self.settings_open = false;
+                        self.city_picker_open = true;
+                        self.city_query.clear();
+                        self.city_history_selected = 0;
+                        self.city_status =
+                            Some("Type a city and press Enter, or pick from history".to_string());
                     }
                     KeyCode::Char('r') => {
                         self.start_fetch(tx, cli).await?;
@@ -406,6 +446,67 @@ impl AppState {
         Ok(())
     }
 
+    async fn handle_city_picker_key(
+        &mut self,
+        code: KeyCode,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> Result<()> {
+        self.city_history_selected = self.city_history_selected.min(self.city_picker_max_index());
+        match code {
+            KeyCode::Esc => {
+                self.city_picker_open = false;
+                self.city_status = None;
+            }
+            KeyCode::Up => {
+                self.city_history_selected = self.city_history_selected.saturating_sub(1);
+            }
+            KeyCode::Down => {
+                self.city_history_selected =
+                    (self.city_history_selected + 1).min(self.city_picker_max_index());
+            }
+            KeyCode::Backspace => {
+                self.city_query.pop();
+            }
+            KeyCode::Delete => {
+                self.clear_recent_locations();
+            }
+            KeyCode::Char(digit @ '1'..='9') => {
+                let idx = (digit as usize) - ('1' as usize);
+                if let Some(saved) = self.settings.recent_locations.get(idx).cloned() {
+                    self.city_picker_open = false;
+                    self.switch_to_location(tx, saved.to_location()).await?;
+                }
+            }
+            KeyCode::Enter => {
+                let query = self.city_query.trim().to_string();
+                if !query.is_empty() {
+                    self.city_picker_open = false;
+                    self.city_status = Some(format!("Searching {query}..."));
+                    self.start_city_search(tx, query, cli.country_code.clone())
+                        .await?;
+                } else if Some(self.city_history_selected) == self.city_picker_action_index() {
+                    self.clear_recent_locations();
+                } else if let Some(saved) = self
+                    .settings
+                    .recent_locations
+                    .get(self.city_history_selected)
+                    .cloned()
+                {
+                    self.city_picker_open = false;
+                    self.switch_to_location(tx, saved.to_location()).await?;
+                }
+            }
+            KeyCode::Char(ch) => {
+                if is_city_char(ch) {
+                    self.city_query.push(ch);
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn adjust_selected_setting(&mut self, direction: i8, tx: &mpsc::Sender<AppEvent>) {
         let mut changed = false;
         match self.settings_selected {
@@ -424,6 +525,14 @@ impl AppState {
                         ThemeArg::Aurora,
                         ThemeArg::Mono,
                         ThemeArg::HighContrast,
+                        ThemeArg::Dracula,
+                        ThemeArg::GruvboxMaterialDark,
+                        ThemeArg::KanagawaWave,
+                        ThemeArg::AyuMirage,
+                        ThemeArg::AyuLight,
+                        ThemeArg::PoimandresStorm,
+                        ThemeArg::SelenizedDark,
+                        ThemeArg::NoClownFiesta,
                     ],
                     self.settings.theme,
                     direction,
@@ -499,10 +608,90 @@ impl AppState {
 
     fn persist_settings(&mut self) {
         if let Some(path) = &self.settings_path
-            && let Err(err) = save_runtime_settings(path, self.settings)
+            && let Err(err) = save_runtime_settings(path, &self.settings)
         {
             self.last_error = Some(format!("Failed to save settings: {err}"));
         }
+    }
+
+    fn push_recent_location(&mut self, location: &Location) {
+        let entry = RecentLocation::from_location(location);
+        self.settings
+            .recent_locations
+            .retain(|existing| !existing.same_place(&entry));
+        self.settings.recent_locations.insert(0, entry);
+        self.settings.recent_locations.truncate(HISTORY_MAX);
+        self.city_history_selected = self
+            .city_history_selected
+            .min(self.settings.recent_locations.len().saturating_sub(1));
+    }
+
+    fn clear_recent_locations(&mut self) {
+        if self.settings.recent_locations.is_empty() {
+            self.city_status = Some("No recent locations to clear".to_string());
+            self.city_history_selected = 0;
+            return;
+        }
+        self.settings.recent_locations.clear();
+        self.city_history_selected = 0;
+        self.city_status = Some("Cleared all recent locations".to_string());
+        self.persist_settings();
+    }
+
+    fn visible_recent_count(&self) -> usize {
+        self.settings
+            .recent_locations
+            .len()
+            .min(CITY_PICKER_VISIBLE_MAX)
+    }
+
+    fn city_picker_action_index(&self) -> Option<usize> {
+        let visible = self.visible_recent_count();
+        if visible > 0 { Some(visible) } else { None }
+    }
+
+    fn city_picker_max_index(&self) -> usize {
+        self.city_picker_action_index().unwrap_or(0)
+    }
+
+    async fn switch_to_location(
+        &mut self,
+        tx: &mpsc::Sender<AppEvent>,
+        location: Location,
+    ) -> Result<()> {
+        self.selected_location = Some(location.clone());
+        self.pending_locations.clear();
+        self.mode = AppMode::Loading;
+        self.city_status = Some(format!("Switching to {}", location.display_name()));
+        self.fetch_forecast(tx, location).await
+    }
+
+    async fn start_city_search(
+        &mut self,
+        tx: &mpsc::Sender<AppEvent>,
+        city: String,
+        country_code: Option<String>,
+    ) -> Result<()> {
+        self.pending_locations.clear();
+        self.mode = AppMode::Loading;
+        self.fetch_in_flight = true;
+        self.loading_message = format!("Searching {city}...");
+        self.refresh_meta.last_attempt = Some(chrono::Utc::now());
+
+        let geocoder = GeocodeClient::new();
+        let tx2 = tx.clone();
+        tokio::spawn(async move {
+            match geocoder.resolve(city, country_code).await {
+                Ok(resolution) => {
+                    let _ = tx2.send(AppEvent::GeocodeResolved(resolution)).await;
+                }
+                Err(err) => {
+                    let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
+                }
+            }
+        });
+
+        Ok(())
     }
 
     async fn start_fetch(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
@@ -594,4 +783,8 @@ fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
     let len = values.len() as i32;
     let next = (idx + step).rem_euclid(len) as usize;
     values[next]
+}
+
+fn is_city_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, ' ' | '-' | '\'' | ',' | '.')
 }

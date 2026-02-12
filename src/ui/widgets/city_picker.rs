@@ -74,7 +74,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     );
     frame.render_widget(query_line, chunks[0]);
 
-    let items = state
+    let mut items = state
         .settings
         .recent_locations
         .iter()
@@ -82,6 +82,14 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .enumerate()
         .map(|(idx, saved)| ListItem::new(format!("{}. {}", idx + 1, saved.display_name())))
         .collect::<Vec<_>>();
+    if !items.is_empty() {
+        items.push(ListItem::new(Line::from(vec![Span::styled(
+            "Clear all recent locations",
+            Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
+        )])));
+    }
 
     let mut list_state = ListState::default().with_selected(Some(
         state
@@ -102,15 +110,14 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     .highlight_symbol("› ")
     .block(
         Block::default()
-            .title("Recent (1-9 quick switch)")
+            .title("Recent (1-9 quick switch · Del clear all)")
             .borders(Borders::NONE),
     );
     frame.render_stateful_widget(list, chunks[1], &mut list_state);
 
-    let status_text = state
-        .city_status
-        .as_deref()
-        .unwrap_or("Shortcuts: Enter search/switch · ↑/↓ history · Backspace edit · Esc close");
+    let status_text = state.city_status.as_deref().unwrap_or(
+        "Shortcuts: Enter search/switch · ↑/↓ history · Del clear all · Backspace edit · Esc close",
+    );
     let status = Paragraph::new(status_text).style(Style::default().fg(theme.popup_muted_text));
     frame.render_widget(status, chunks[2]);
 }
