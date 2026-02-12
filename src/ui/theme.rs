@@ -96,31 +96,170 @@ pub fn theme_for(
     };
 
     if capability == ColorCapability::Basic16 {
-        top = (0, 0, 0);
-        bottom = match category {
-            WeatherCategory::Clear => (0, 32, 72),
-            WeatherCategory::Cloudy => (25, 30, 35),
-            WeatherCategory::Rain => (0, 22, 56),
-            WeatherCategory::Snow => (28, 38, 56),
-            WeatherCategory::Fog => (30, 30, 30),
-            WeatherCategory::Thunder => (24, 0, 44),
-            WeatherCategory::Unknown => (20, 24, 32),
+        if mode == ThemeArg::Auto {
+            top = (0, 0, 0);
+            bottom = match category {
+                WeatherCategory::Clear => (0, 32, 72),
+                WeatherCategory::Cloudy => (25, 30, 35),
+                WeatherCategory::Rain => (0, 22, 56),
+                WeatherCategory::Snow => (28, 38, 56),
+                WeatherCategory::Fog => (30, 30, 30),
+                WeatherCategory::Thunder => (24, 0, 44),
+                WeatherCategory::Unknown => (20, 24, 32),
+            };
+
+            return Theme {
+                top: quantize(Color::Rgb(top.0, top.1, top.2), capability),
+                bottom: quantize(Color::Rgb(bottom.0, bottom.1, bottom.2), capability),
+                surface: Color::Black,
+                surface_alt: Color::DarkGray,
+                popup_surface: Color::Blue,
+                accent: Color::Cyan,
+                text: Color::White,
+                muted_text: Color::Gray,
+                popup_text: Color::White,
+                popup_muted_text: Color::Gray,
+                particle: Color::Gray,
+                border: Color::LightCyan,
+                popup_border: Color::Yellow,
+                info: Color::LightCyan,
+                success: Color::LightGreen,
+                warning: Color::Yellow,
+                danger: Color::LightRed,
+                temp_freezing: Color::LightBlue,
+                temp_cold: Color::Cyan,
+                temp_mild: Color::Green,
+                temp_warm: Color::Yellow,
+                temp_hot: Color::LightRed,
+                range_track: Color::Gray,
+                landmark_warm: Color::Yellow,
+                landmark_cool: Color::LightBlue,
+                landmark_neutral: Color::Gray,
+            };
+        }
+
+        let (surface, surface_alt, popup_surface, accent, border, popup_border) = match mode {
+            ThemeArg::Aurora => (
+                Color::Blue,
+                Color::Cyan,
+                Color::DarkGray,
+                Color::LightCyan,
+                Color::LightCyan,
+                Color::White,
+            ),
+            ThemeArg::Mono => (
+                Color::Black,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::White,
+                Color::Gray,
+                Color::White,
+            ),
+            ThemeArg::HighContrast => (
+                Color::Black,
+                Color::Black,
+                Color::Black,
+                Color::Yellow,
+                Color::White,
+                Color::Yellow,
+            ),
+            ThemeArg::Dracula => (
+                Color::Magenta,
+                Color::Blue,
+                Color::DarkGray,
+                Color::LightMagenta,
+                Color::LightMagenta,
+                Color::White,
+            ),
+            ThemeArg::GruvboxMaterialDark => (
+                Color::Black,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::Yellow,
+                Color::Yellow,
+                Color::White,
+            ),
+            ThemeArg::KanagawaWave => (
+                Color::Blue,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::LightBlue,
+                Color::LightBlue,
+                Color::White,
+            ),
+            ThemeArg::AyuMirage => (
+                Color::Blue,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::Cyan,
+                Color::LightCyan,
+                Color::White,
+            ),
+            ThemeArg::AyuLight => (
+                Color::Gray,
+                Color::White,
+                Color::DarkGray,
+                Color::Blue,
+                Color::Blue,
+                Color::Black,
+            ),
+            ThemeArg::PoimandresStorm => (
+                Color::Blue,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::LightCyan,
+                Color::Cyan,
+                Color::White,
+            ),
+            ThemeArg::SelenizedDark => (
+                Color::Cyan,
+                Color::Blue,
+                Color::DarkGray,
+                Color::LightBlue,
+                Color::LightBlue,
+                Color::White,
+            ),
+            ThemeArg::NoClownFiesta => (
+                Color::Black,
+                Color::DarkGray,
+                Color::DarkGray,
+                Color::LightBlue,
+                Color::Gray,
+                Color::White,
+            ),
+            ThemeArg::Auto => unreachable!("handled above"),
+        };
+
+        let text = if mode == ThemeArg::AyuLight {
+            Color::Black
+        } else {
+            Color::White
+        };
+        let muted = if mode == ThemeArg::AyuLight {
+            Color::DarkGray
+        } else {
+            Color::Gray
+        };
+        let particle = if mode == ThemeArg::AyuLight {
+            Color::Gray
+        } else {
+            Color::DarkGray
         };
 
         return Theme {
             top: quantize(Color::Rgb(top.0, top.1, top.2), capability),
             bottom: quantize(Color::Rgb(bottom.0, bottom.1, bottom.2), capability),
-            surface: Color::Black,
-            surface_alt: Color::DarkGray,
-            popup_surface: Color::Blue,
-            accent: Color::Cyan,
-            text: Color::White,
-            muted_text: Color::Gray,
-            popup_text: Color::White,
-            popup_muted_text: Color::Gray,
-            particle: Color::Gray,
-            border: Color::LightCyan,
-            popup_border: Color::Yellow,
+            surface,
+            surface_alt,
+            popup_surface,
+            accent,
+            text,
+            muted_text: muted,
+            popup_text: text,
+            popup_muted_text: muted,
+            particle,
+            border,
+            popup_border,
             info: Color::LightCyan,
             success: Color::LightGreen,
             warning: Color::Yellow,
@@ -130,10 +269,10 @@ pub fn theme_for(
             temp_mild: Color::Green,
             temp_warm: Color::Yellow,
             temp_hot: Color::LightRed,
-            range_track: Color::Gray,
+            range_track: muted,
             landmark_warm: Color::Yellow,
             landmark_cool: Color::LightBlue,
-            landmark_neutral: Color::Gray,
+            landmark_neutral: muted,
         };
     }
 
@@ -529,5 +668,32 @@ fn basic16_from_rgb(r: u8, g: u8, b: u8) -> Color {
                 Color::Magenta
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic16_explicit_themes_are_distinct() {
+        let aurora = theme_for(
+            WeatherCategory::Clear,
+            true,
+            ColorCapability::Basic16,
+            ThemeArg::Aurora,
+        );
+        let mono = theme_for(
+            WeatherCategory::Clear,
+            true,
+            ColorCapability::Basic16,
+            ThemeArg::Mono,
+        );
+
+        assert!(
+            aurora.surface != mono.surface
+                || aurora.accent != mono.accent
+                || aurora.border != mono.border
+        );
     }
 }

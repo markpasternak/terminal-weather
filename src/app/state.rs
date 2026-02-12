@@ -438,6 +438,8 @@ impl AppState {
                     self.start_fetch(tx, cli).await?;
                 } else if self.settings_selected == SETTINGS_CLOSE {
                     self.settings_open = false;
+                } else {
+                    self.adjust_selected_setting(1, tx);
                 }
             }
             _ => {}

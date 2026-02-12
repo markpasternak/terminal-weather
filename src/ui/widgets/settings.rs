@@ -78,7 +78,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_stateful_widget(list, chunks[0], &mut list_state);
 
     let info =
-        Paragraph::new("Use ↑/↓ to select, ←/→ to change, Enter to apply action, s to close")
+        Paragraph::new("Use ↑/↓ to select, ←/→ or Enter to change, Enter on actions, s to close")
             .style(Style::default().fg(theme.popup_muted_text));
     frame.render_widget(info, chunks[1]);
 

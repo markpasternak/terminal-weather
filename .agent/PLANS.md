@@ -84,6 +84,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Added luxury polish pass with hero typography scaling, staged loading choreography, and wide-screen micro-spacing tuning (hourly density + daily range expansion) -> improves elegance and space usage on large terminals.
 - 2026-02-12: Added clear-all flow for recent locations in the city picker (selectable row + Delete shortcut + persisted wipe) -> gives users explicit history reset control.
 - 2026-02-12: Expanded city input to Unicode letters (`char::is_alphanumeric`) -> allows searches like "Åre" and other non-ASCII city names.
+- 2026-02-12: Made Basic16/NO_COLOR palette theme-aware for explicit themes and added Enter-to-cycle settings behavior -> ensures theme switching is visibly effective across capabilities.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -109,6 +110,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 13:12: Completed luxury polish pass (hero scale system, animated loading choreography, 120+ column spacing refinements, snapshot refresh), reran full gates, result: PASS.
 - 2026-02-12 13:16: Added location-history clear-all UX and persistence in city picker, reran full gates, result: PASS.
 - 2026-02-12 13:18: Fixed city picker non-ASCII input rejection (`å/Å`), added regression tests, reran full gates, result: PASS.
+- 2026-02-12 13:22: Fixed "theme change does nothing" path (Basic16 explicit theme variation + Enter-to-change settings), added regression test, reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added
