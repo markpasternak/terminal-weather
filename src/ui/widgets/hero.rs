@@ -48,7 +48,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Current")
+        .title("Current · Press S for settings")
         .border_style(Style::default().fg(theme.border));
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -254,7 +254,7 @@ fn render_weather_info(
             Style::default().fg(text_color),
         )));
         lines.push(Line::from(Span::styled(
-            "Tip: press r to retry, q to quit",
+            "Tip: press s for settings, r to retry, q to quit",
             Style::default().fg(muted_color),
         )));
     }

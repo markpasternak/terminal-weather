@@ -3,7 +3,7 @@ source: tests/render_snapshots.rs
 assertion_line: 126
 expression: "render_to_string(60, 20, 71)"
 ---
-┌Current───────────────────────────────────────────────────┐
+┌Current · Press S for settings────────────────────────────┐
 │7°C                                                       │
 │Slight snowfall                                           │
 │H:9°  L:3°                                                │
