@@ -49,9 +49,13 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
 
 fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
     let label = match state.refresh_meta.state {
+        FreshnessState::Offline => Some(("⚠ offline".to_string(), Color::LightRed)),
+        FreshnessState::Stale => Some(("⚠ stale".to_string(), Color::Yellow)),
+        FreshnessState::Fresh if state.fetch_in_flight => Some((
+            format!("{} syncing", spinner(state.frame_tick)),
+            Color::Cyan,
+        )),
         FreshnessState::Fresh => None,
-        FreshnessState::Stale => Some(("⚠ stale", Color::Yellow)),
-        FreshnessState::Offline => Some(("⚠ offline", Color::LightRed)),
     };
 
     if let Some((text, color)) = label {
@@ -70,6 +74,11 @@ fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
         );
         frame.render_widget(badge, badge_area);
     }
+}
+
+fn spinner(frame_tick: u64) -> &'static str {
+    const FRAMES: [&str; 4] = ["-", "\\", "|", "/"];
+    FRAMES[(frame_tick as usize) % FRAMES.len()]
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

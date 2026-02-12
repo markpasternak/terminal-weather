@@ -38,7 +38,14 @@ pub fn scene_for_location(
     } else if norm.contains("sydney") {
         sydney_scene(twinkle, compact)
     } else {
-        skyline_scene(is_day, phase, compact)
+        city_signature_scene(
+            &norm,
+            is_day,
+            phase,
+            compact,
+            width as usize,
+            height as usize,
+        )
     };
 
     scene.lines = scene
@@ -52,17 +59,17 @@ pub fn scene_for_location(
 
 fn stockholm_scene(twinkle: char, compact: bool) -> LandmarkScene {
     let lines = if compact {
-        vec!["  [STO]  ".to_string(), format!("  ~{}~~   ", twinkle)]
+        vec![" STO CITY ".to_string(), format!("  ~{}~~~   ", twinkle)]
     } else {
         vec![
-            "      |>>>      ".to_string(),
-            "      |         ".to_string(),
-            "   ___|___      ".to_string(),
-            "  /_/_|_\\_\\     ".to_string(),
-            "  |  _ _  |     ".to_string(),
-            "  | | | | |___  ".to_string(),
-            "  |_|_|_|_|___| ".to_string(),
-            format!("  ~~~{}~~~~~~~ ", twinkle),
+            "         /\\            ".to_string(),
+            "        /  \\   ^ ^ ^   ".to_string(),
+            "       /____\\  | | |   ".to_string(),
+            "      | [] |___|_|_|_  ".to_string(),
+            "   ___|____|  _  _  |  ".to_string(),
+            "  |  _  _  | | || |||  ".to_string(),
+            "  |_|_|_|_|_|_||_|||_  ".to_string(),
+            format!("  ~~~~~{}~~~~~~~ ~~   ", twinkle),
         ]
     };
 
@@ -75,17 +82,17 @@ fn stockholm_scene(twinkle: char, compact: bool) -> LandmarkScene {
 
 fn paris_scene(twinkle: char, compact: bool) -> LandmarkScene {
     let lines = if compact {
-        vec!["  [PAR]  ".to_string(), format!("   {}     ", twinkle)]
+        vec![" PARIS ".to_string(), format!("  /{}\\  ", twinkle)]
     } else {
         vec![
-            "      /\\        ".to_string(),
-            "     /  \\       ".to_string(),
-            "    / /\\ \\      ".to_string(),
-            "   / /  \\ \\     ".to_string(),
-            "  /_/____\\_\\    ".to_string(),
-            "     |  |       ".to_string(),
-            "   __|__|__     ".to_string(),
-            format!("  ~~~~{}~~~~    ", twinkle),
+            "          /\\            ".to_string(),
+            "         /  \\           ".to_string(),
+            "        /_/\\_\\          ".to_string(),
+            "       /_/  \\_\\         ".to_string(),
+            "      /_/====\\_\\        ".to_string(),
+            "         ||||           ".to_string(),
+            "         ||||           ".to_string(),
+            format!("  ~~~~~~~{}~~~~~~~      ", twinkle),
         ]
     };
 
@@ -100,19 +107,18 @@ fn new_york_scene(twinkle: char, compact: bool) -> LandmarkScene {
     let window = if twinkle == '*' { 'o' } else { '.' };
     let lines = if compact {
         vec![
-            " [NYC] ".to_string(),
-            format!(" {}{}{}{}{}  ", window, window, window, window, window),
+            " NYC ".to_string(),
+            format!(" {}{}{}{}{} ", window, window, window, window, window),
         ]
     } else {
         vec![
-            "      __|__      ".to_string(),
-            "  []  |___|  []  ".to_string(),
-            format!("  ||  |{}{}{}|  ||  ", window, window, window),
-            " _||__|___|__||_ ".to_string(),
-            " |  |  | |  |  | ".to_string(),
-            " |[]|[]| |[]|[]| ".to_string(),
-            " |__|__|_|__|__| ".to_string(),
-            "~~~~~~~~~~~~~~~~ ".to_string(),
+            "   |-|   |-|    /\\      ".to_string(),
+            "   | |___| |   /  \\     ".to_string(),
+            format!(" __|{}|_{}|_|__/[]_\\___  ", window, window),
+            format!("| [] {}  []  []  {} [] | ", window, window),
+            "|_[]__[]__[]__[]__[]__| ".to_string(),
+            "   ||    ||    ||    || ".to_string(),
+            "~~~~~~~~~~~~~~~~~~~~~~~ ".to_string(),
         ]
     };
 
@@ -125,17 +131,17 @@ fn new_york_scene(twinkle: char, compact: bool) -> LandmarkScene {
 
 fn tokyo_scene(twinkle: char, compact: bool) -> LandmarkScene {
     let lines = if compact {
-        vec![" [TKY] ".to_string(), format!("  /{}\\   ", twinkle)]
+        vec![" TOKYO ".to_string(), format!("  /{}\\   ", twinkle)]
     } else {
         vec![
-            "      /\\         ".to_string(),
-            "     /  \\        ".to_string(),
-            "    /====\\       ".to_string(),
-            "      ||         ".to_string(),
-            "    __||__       ".to_string(),
-            "   |  ||  |      ".to_string(),
-            "   |__||__|      ".to_string(),
-            format!(" ~~~~~{}~~~~~    ", twinkle),
+            "         /\\             ".to_string(),
+            "        /##\\            ".to_string(),
+            "       /####\\           ".to_string(),
+            "      /######\\          ".to_string(),
+            "         ||             ".to_string(),
+            "       __||__           ".to_string(),
+            "      /__||__\\          ".to_string(),
+            format!("  ~~~~~~{}~~~~~~~       ", twinkle),
         ]
     };
 
@@ -148,17 +154,17 @@ fn tokyo_scene(twinkle: char, compact: bool) -> LandmarkScene {
 
 fn london_scene(twinkle: char, compact: bool) -> LandmarkScene {
     let lines = if compact {
-        vec![" [LDN] ".to_string(), format!("  [{}]   ", twinkle)]
+        vec![" LONDON ".to_string(), format!("  [{}]   ", twinkle)]
     } else {
         vec![
-            "      []         ".to_string(),
-            "      ||         ".to_string(),
-            "   ___||___      ".to_string(),
-            "  |  __   |      ".to_string(),
-            "  | |  |  |      ".to_string(),
-            "  | |  |  |__    ".to_string(),
-            "  |_|__|__|__|   ".to_string(),
-            format!(" ~~~~{}~~~~~~~   ", twinkle),
+            "         []             ".to_string(),
+            "         ||             ".to_string(),
+            "      ___||___          ".to_string(),
+            "     |  __   |          ".to_string(),
+            "     | |[]|  |          ".to_string(),
+            "     | |  |  |__        ".to_string(),
+            "   __|_|__|__|__|       ".to_string(),
+            format!("  ~~~~~{}~~~~~~~~~      ", twinkle),
         ]
     };
 
@@ -171,19 +177,16 @@ fn london_scene(twinkle: char, compact: bool) -> LandmarkScene {
 
 fn sydney_scene(twinkle: char, compact: bool) -> LandmarkScene {
     let lines = if compact {
-        vec![
-            " [SYD] ".to_string(),
-            format!("  {}{}{}    ", '^', twinkle, '^'),
-        ]
+        vec![" SYDNEY ".to_string(), format!("  ^{}^   ", twinkle)]
     } else {
         vec![
-            "     _/\\_        ".to_string(),
-            "   _/ /\\ \\_      ".to_string(),
-            " _/ _/  \\_ \\_    ".to_string(),
-            "/__/      \\__\\   ".to_string(),
-            "   \\  /\\  /      ".to_string(),
-            "    \\/  \\/       ".to_string(),
-            format!(" ~~~~{}~~~~~~~   ", twinkle),
+            "      _/\\_   _/\\_       ".to_string(),
+            "   __/ /\\ \\_/ /\\ \\__    ".to_string(),
+            "  /__/ /  \\___/  \\__\\   ".to_string(),
+            "  \\  \\ \\  /   \\  /  /   ".to_string(),
+            "   \\__\\_\\/_____/\\_/     ".to_string(),
+            "      /_/       \\_\\     ".to_string(),
+            format!("  ~~~~~{}~~~~~~~~~~~    ", twinkle),
         ]
     };
 
@@ -194,42 +197,160 @@ fn sydney_scene(twinkle: char, compact: bool) -> LandmarkScene {
     }
 }
 
-fn skyline_scene(is_day: bool, phase: u64, compact: bool) -> LandmarkScene {
-    let cloud_offset = (phase % 6) as usize;
-    let sky = if is_day {
-        let mut line = "   .--.          ".to_string();
-        let cloud = " .-(    ). ";
-        if cloud_offset + cloud.len() < line.len() {
-            line.replace_range(cloud_offset..(cloud_offset + cloud.len()), cloud);
-        }
-        line
-    } else {
-        let star_pos = (phase % 10) as usize + 2;
-        let mut line = "                ".to_string();
-        if star_pos < line.len() {
-            line.replace_range(star_pos..(star_pos + 1), "*");
-        }
-        line
-    };
+fn city_signature_scene(
+    name_norm: &str,
+    is_day: bool,
+    phase: u64,
+    compact: bool,
+    width: usize,
+    height: usize,
+) -> LandmarkScene {
+    let seed = hash64(name_norm);
+    let tag = city_tag(name_norm);
 
-    let lines = if compact {
-        vec![" [CITY] ".to_string(), " _|_|_  ".to_string()]
-    } else {
-        vec![
-            sky,
-            "   _   _    _    ".to_string(),
-            "  | |_| |__| |   ".to_string(),
-            "  |  _  / _` |   ".to_string(),
-            "  | | | | (_| |  ".to_string(),
-            "  |_| |_|\\__,_|  ".to_string(),
-            " ~~~~~~~~~~~~~~~ ".to_string(),
-        ]
-    };
+    if compact {
+        let mini = mini_skyline(seed, 8);
+        return LandmarkScene {
+            label: format!("{tag} Signature"),
+            lines: vec![format!(" {tag} "), format!(" {mini} ")],
+            tint: LandmarkTint::Neutral,
+        };
+    }
+
+    let scene_width = width.clamp(16, 30);
+    let skyline_rows = height.saturating_sub(2).clamp(4, 7);
+    let sky = animated_sky(is_day, phase, scene_width);
+    let city = build_skyline_rows(seed, phase, scene_width, skyline_rows);
+
+    let mut lines = Vec::with_capacity(skyline_rows + 2);
+    lines.push(sky);
+    lines.extend(city);
+    lines.push(format!(
+        "{}{}",
+        "~".repeat(scene_width.saturating_sub(8)),
+        city_wave_char(seed, phase)
+    ));
 
     LandmarkScene {
-        label: "Local Skyline".to_string(),
+        label: format!("{tag} Signature"),
         lines,
         tint: LandmarkTint::Neutral,
+    }
+}
+
+fn build_skyline_rows(seed: u64, phase: u64, width: usize, rows: usize) -> Vec<String> {
+    let mut heights = vec![0usize; width];
+    let mut x = 0usize;
+    let mut rng = seed;
+    let max_h = rows.max(1);
+
+    while x < width {
+        rng = lcg(rng);
+        let building_w = 2 + (rng as usize % 4);
+        rng = lcg(rng);
+        let building_h = 1 + (rng as usize % max_h);
+        let end = (x + building_w).min(width);
+        for h in heights.iter_mut().take(end).skip(x) {
+            *h = building_h;
+        }
+        x = end.saturating_add(1);
+    }
+
+    let mut out = Vec::with_capacity(rows);
+    for row in (1..=rows).rev() {
+        let mut line = String::with_capacity(width);
+        for (col, h) in heights.iter().copied().enumerate() {
+            if h < row {
+                line.push(' ');
+                continue;
+            }
+
+            let is_roof = h == row;
+            if is_roof {
+                line.push(if (seed + col as u64).is_multiple_of(5) {
+                    '^'
+                } else {
+                    '_'
+                });
+            } else {
+                let lit = (seed + phase + col as u64 + row as u64).is_multiple_of(7);
+                line.push(if lit { 'o' } else { '|' });
+            }
+        }
+        out.push(line);
+    }
+    out
+}
+
+fn animated_sky(is_day: bool, phase: u64, width: usize) -> String {
+    let mut line = vec![' '; width];
+    if is_day {
+        let sun_x = (phase as usize % width.max(1)).min(width.saturating_sub(1));
+        line[sun_x] = 'o';
+        if width > 8 {
+            let cloud = "~~";
+            let c_start = (sun_x + 4).min(width.saturating_sub(cloud.len()));
+            for (i, ch) in cloud.chars().enumerate() {
+                line[c_start + i] = ch;
+            }
+        }
+    } else {
+        let star_count = (width / 6).max(2);
+        for i in 0..star_count {
+            let x = ((phase as usize + i * 5) % width.max(1)).min(width.saturating_sub(1));
+            line[x] = if i.is_multiple_of(2) { '*' } else { '.' };
+        }
+    }
+    line.into_iter().collect()
+}
+
+fn mini_skyline(seed: u64, width: usize) -> String {
+    let mut out = String::with_capacity(width);
+    let mut r = seed;
+    for _ in 0..width {
+        r = lcg(r);
+        out.push(match r % 4 {
+            0 => '_',
+            1 => '|',
+            2 => '^',
+            _ => '.',
+        });
+    }
+    out
+}
+
+fn city_wave_char(seed: u64, phase: u64) -> char {
+    if (seed + phase).is_multiple_of(2) {
+        '~'
+    } else {
+        '-'
+    }
+}
+
+fn hash64(input: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for b in input.as_bytes() {
+        hash ^= u64::from(*b);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
+fn lcg(seed: u64) -> u64 {
+    seed.wrapping_mul(6364136223846793005).wrapping_add(1)
+}
+
+fn city_tag(name_norm: &str) -> String {
+    let joined = name_norm
+        .split_whitespace()
+        .take(3)
+        .map(|w| w.chars().take(3).collect::<String>())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if joined.is_empty() {
+        "LOCAL".to_string()
+    } else {
+        joined.to_ascii_uppercase()
     }
 }
 

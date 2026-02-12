@@ -12,7 +12,9 @@ use ratatui::{
 use crate::{
     app::state::{AppMode, AppState},
     cli::Cli,
-    domain::weather::{WeatherCategory, weather_code_to_category, weather_label},
+    domain::weather::{
+        WeatherCategory, convert_temp, round_temp, weather_code_to_category, weather_label,
+    },
     ui::theme::{detect_color_capability, theme_for},
     ui::widgets::landmark::{LandmarkTint, scene_for_location},
 };
@@ -28,7 +30,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
                 w.current.weather_code,
             )
         })
-        .unwrap_or((WeatherCategory::Unknown, true, 0));
+        // Loading/no-data should default to a dark palette to avoid bright blank panels.
+        .unwrap_or((WeatherCategory::Unknown, false, 0));
 
     let capability = detect_color_capability();
     let theme = theme_for(category, is_day, capability);
@@ -82,6 +85,7 @@ fn render_weather_info(
     code: u8,
 ) {
     let mut lines = Vec::new();
+    let compact_metrics = area.width < 54 || area.height < 8;
 
     if let Some(weather) = &state.weather {
         let temp = weather.current_temp(state.units);
@@ -97,7 +101,9 @@ fn render_weather_info(
         )]));
         lines.push(Line::from(Span::styled(
             weather_label(code),
-            Style::default().fg(text_color),
+            Style::default()
+                .fg(condition_color(code))
+                .add_modifier(Modifier::BOLD),
         )));
         if let Some((high, low)) = weather.high_low(state.units) {
             lines.push(Line::from(Span::styled(
@@ -109,6 +115,65 @@ fn render_weather_info(
             weather.location.display_name(),
             Style::default().fg(text_color),
         )));
+
+        let feels = round_temp(convert_temp(
+            weather.current.apparent_temperature_c,
+            state.units,
+        ));
+        let humidity = weather.current.relative_humidity_2m.round() as i32;
+        let wind_dir = compass(weather.current.wind_direction_10m);
+        let wind = weather.current.wind_speed_10m.round() as i32;
+        let precip_now = weather
+            .hourly
+            .first()
+            .and_then(|h| h.precipitation_probability)
+            .map(|v| format!("{}%", v.round() as i32))
+            .unwrap_or_else(|| "--".to_string());
+        let uv_today = weather
+            .daily
+            .first()
+            .and_then(|d| d.uv_index_max)
+            .map(|v| format!("{v:.1}"))
+            .unwrap_or_else(|| "--".to_string());
+        let cloud = cloud_descriptor(code);
+
+        if compact_metrics {
+            lines.push(Line::from(vec![
+                Span::styled("Wind ", Style::default().fg(muted_color)),
+                Span::styled(
+                    format!("{wind} km/h {wind_dir}"),
+                    Style::default().fg(Color::Green),
+                ),
+                Span::raw("  "),
+                Span::styled("Hum ", Style::default().fg(muted_color)),
+                Span::styled(format!("{humidity}%"), Style::default().fg(Color::Cyan)),
+            ]));
+        } else {
+            lines.push(Line::from(vec![
+                Span::styled("Feels ", Style::default().fg(muted_color)),
+                Span::styled(format!("{feels}°"), Style::default().fg(text_color)),
+                Span::raw("  "),
+                Span::styled("Humidity ", Style::default().fg(muted_color)),
+                Span::styled(format!("{humidity}%"), Style::default().fg(Color::Cyan)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("Wind ", Style::default().fg(muted_color)),
+                Span::styled(
+                    format!("{wind} km/h {wind_dir}"),
+                    Style::default().fg(Color::Green),
+                ),
+                Span::raw("  "),
+                Span::styled("Precip ", Style::default().fg(muted_color)),
+                Span::styled(precip_now, Style::default().fg(Color::LightBlue)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("Clouds ", Style::default().fg(muted_color)),
+                Span::styled(cloud, Style::default().fg(Color::Gray)),
+                Span::raw("  "),
+                Span::styled("UV ", Style::default().fg(muted_color)),
+                Span::styled(uv_today, Style::default().fg(Color::Yellow)),
+            ]));
+        }
 
         let freshness = match state.refresh_meta.state {
             crate::resilience::freshness::FreshnessState::Fresh => None,
@@ -154,9 +219,29 @@ fn render_weather_info(
             )));
         }
     } else {
+        let spinner = loading_spinner(state.frame_tick);
+        let stage = loading_stage(state.frame_tick);
+        let bar = indeterminate_bar(state.frame_tick, 18);
+
+        lines.push(Line::from(Span::styled(
+            format!("{spinner} Preparing atmosphere"),
+            Style::default().fg(text_color).add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(Span::styled(
+            stage,
+            Style::default().fg(text_color),
+        )));
+        lines.push(Line::from(Span::styled(
+            bar,
+            Style::default().fg(muted_color),
+        )));
         lines.push(Line::from(Span::styled(
             state.loading_message.clone(),
             Style::default().fg(text_color),
+        )));
+        lines.push(Line::from(Span::styled(
+            "Tip: press r to retry, q to quit",
+            Style::default().fg(muted_color),
         )));
     }
 
@@ -178,6 +263,7 @@ fn render_landmark(
         .weather
         .as_ref()
         .map(|w| w.location.name.as_str())
+        .or_else(|| state.selected_location.as_ref().map(|l| l.name.as_str()))
         .unwrap_or("Local");
 
     let scene = scene_for_location(
@@ -215,6 +301,71 @@ fn render_landmark(
     text = text.patch_style(Style::default().fg(tint));
     let paragraph = Paragraph::new(text);
     frame.render_widget(paragraph, area);
+}
+
+fn loading_spinner(frame_tick: u64) -> &'static str {
+    const FRAMES: [&str; 8] = ["-", "\\", "|", "/", "-", "\\", "|", "/"];
+    FRAMES[(frame_tick as usize) % FRAMES.len()]
+}
+
+fn loading_stage(frame_tick: u64) -> &'static str {
+    const STAGES: [&str; 3] = [
+        "Locating city context",
+        "Fetching weather layers",
+        "Composing terminal scene",
+    ];
+    STAGES[((frame_tick / 14) as usize) % STAGES.len()]
+}
+
+fn indeterminate_bar(frame_tick: u64, width: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+    let mut chars = vec!['·'; width];
+    let head = (frame_tick as usize) % width;
+    chars[head] = '█';
+    if head > 0 {
+        chars[head - 1] = '▓';
+    }
+    if head + 1 < width {
+        chars[head + 1] = '▓';
+    }
+    format!("[{}]", chars.into_iter().collect::<String>())
+}
+
+fn compass(deg: f32) -> &'static str {
+    const DIRS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    let mut idx = ((deg.rem_euclid(360.0) / 45.0).round() as usize) % 8;
+    if idx >= DIRS.len() {
+        idx = 0;
+    }
+    DIRS[idx]
+}
+
+fn cloud_descriptor(code: u8) -> &'static str {
+    match code {
+        0 => "Clear",
+        1 => "Mostly clear",
+        2 => "Partly cloudy",
+        3 => "Overcast",
+        45 | 48 => "Foggy",
+        51..=67 | 80..=82 => "Rain clouds",
+        71..=86 => "Snow clouds",
+        95 | 96 | 99 => "Storm clouds",
+        _ => "Variable",
+    }
+}
+
+fn condition_color(code: u8) -> Color {
+    match weather_code_to_category(code) {
+        WeatherCategory::Clear => Color::Yellow,
+        WeatherCategory::Cloudy => Color::LightBlue,
+        WeatherCategory::Rain => Color::Cyan,
+        WeatherCategory::Snow => Color::White,
+        WeatherCategory::Fog => Color::Gray,
+        WeatherCategory::Thunder => Color::Magenta,
+        WeatherCategory::Unknown => Color::LightBlue,
+    }
 }
 
 struct GradientBackground<'a> {

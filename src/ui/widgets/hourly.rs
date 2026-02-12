@@ -15,13 +15,30 @@ use crate::{
 };
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
+    let capability = detect_color_capability();
+
     let Some(bundle) = &state.weather else {
-        let block = Block::default().borders(Borders::ALL).title("Hourly");
+        let theme = theme_for(
+            crate::domain::weather::WeatherCategory::Unknown,
+            true,
+            capability,
+        );
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title("Hourly")
+            .border_style(Style::default().fg(theme.muted_text));
+        let inner = block.inner(area);
         frame.render_widget(block, area);
+        render_loading_placeholder(
+            frame,
+            inner,
+            state.frame_tick,
+            theme.accent,
+            theme.muted_text,
+        );
         return;
     };
 
-    let capability = detect_color_capability();
     let theme = theme_for(
         weather_code_to_category(bundle.current.weather_code),
         bundle.current.is_day,
@@ -106,6 +123,45 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
     let widths = vec![Constraint::Length(6); slice.len()];
     let table = Table::new([times, icons, temps], widths);
     frame.render_widget(table, inner);
+}
+
+fn render_loading_placeholder(
+    frame: &mut Frame,
+    area: Rect,
+    frame_tick: u64,
+    accent: Color,
+    muted: Color,
+) {
+    if area.height == 0 || area.width == 0 {
+        return;
+    }
+    let slots = (usize::from(area.width) / 6).max(4);
+    let mut shimmer = vec!['·'; slots];
+    let idx = (frame_tick as usize) % slots;
+    shimmer[idx] = '◆';
+    if idx > 0 {
+        shimmer[idx - 1] = '◇';
+    }
+    let row1 = shimmer.iter().collect::<String>();
+    let row2 = (0..slots)
+        .map(|i| {
+            if (i + idx).is_multiple_of(3) {
+                '◦'
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>();
+
+    let rows = [
+        Row::new(vec![
+            Cell::from("Loading timeline").style(Style::default().fg(accent)),
+        ]),
+        Row::new(vec![Cell::from(row1).style(Style::default().fg(muted))]),
+        Row::new(vec![Cell::from(row2).style(Style::default().fg(accent))]),
+    ];
+    let table = Table::new(rows, [Constraint::Min(1)]).column_spacing(1);
+    frame.render_widget(table, area);
 }
 
 fn icon_color_for(code: u8) -> Color {

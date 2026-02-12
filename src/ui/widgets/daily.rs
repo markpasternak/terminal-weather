@@ -15,9 +15,23 @@ use crate::{
 };
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
+    let capability = detect_color_capability();
+
     let Some(bundle) = &state.weather else {
-        let block = Block::default().borders(Borders::ALL).title("7-Day");
+        let theme = theme_for(WeatherCategory::Unknown, true, capability);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title("7-Day")
+            .border_style(Style::default().fg(theme.muted_text));
+        let inner = block.inner(area);
         frame.render_widget(block, area);
+        render_loading_daily(
+            frame,
+            inner,
+            state.frame_tick,
+            theme.accent,
+            theme.muted_text,
+        );
         return;
     };
 
@@ -30,7 +44,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         "7-Day (Low/High)"
     };
 
-    let capability = detect_color_capability();
     let theme = theme_for(
         weather_code_to_category(bundle.current.weather_code),
         bundle.current.is_day,
@@ -139,6 +152,50 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
     }
 
     frame.render_widget(table, inner);
+}
+
+fn render_loading_daily(
+    frame: &mut Frame,
+    area: Rect,
+    frame_tick: u64,
+    accent: Color,
+    muted: Color,
+) {
+    if area.height == 0 || area.width < 12 {
+        return;
+    }
+    let rows = usize::from(area.height).min(6);
+    let width = usize::from(area.width.saturating_sub(10)).clamp(8, 28);
+    let phase = (frame_tick as usize) % width;
+
+    let body = (0..rows)
+        .map(|idx| {
+            let mut bar = vec!['·'; width];
+            let head = (phase + idx * 2) % width;
+            bar[head] = '█';
+            if head > 0 {
+                bar[head - 1] = '▓';
+            }
+
+            Row::new(vec![
+                Cell::from(format!("D{}", idx + 1)).style(Style::default().fg(muted)),
+                Cell::from(bar.into_iter().collect::<String>()).style(Style::default().fg(accent)),
+                Cell::from("--°").style(Style::default().fg(muted)),
+            ])
+        })
+        .collect::<Vec<_>>();
+
+    let table = Table::new(
+        body,
+        [
+            Constraint::Length(4),
+            Constraint::Length(width as u16),
+            Constraint::Length(4),
+        ],
+    )
+    .column_spacing(1);
+
+    frame.render_widget(table, area);
 }
 
 fn icon_color_for(code: u8) -> Color {
