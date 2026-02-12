@@ -18,3 +18,4 @@
 # Optional local artifacts
 /assets/screenshots/generated-*.png
 /assets/screenshots/generated-*.jpg
+/demo.cast
