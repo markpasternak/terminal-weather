@@ -87,6 +87,8 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 09:24: Completed M6 tests/docs/evidence hardening and final gate run, result: PASS.
 - 2026-02-12 09:30: Completed post-M6 UI refinement (hero contrast + 7-day responsiveness/clarity), reran full gates, result: PASS.
 - 2026-02-12 09:38: Added animated location-aware landmark ASCII hero panel and richer color styling in hourly/daily widgets, reran full gates, result: PASS.
+- 2026-02-12 09:45: Refined loading UX with staged animated loader, shimmer placeholders, and syncing status animation; reran full gates, result: PASS.
+- 2026-02-12 09:52: Added dynamic procedural city-signature skyline fallback and expanded hero weather metrics (feels-like, humidity, wind, precip, clouds, UV), reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added
