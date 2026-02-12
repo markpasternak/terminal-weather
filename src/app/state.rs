@@ -786,5 +786,23 @@ fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
 }
 
 fn is_city_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, ' ' | '-' | '\'' | ',' | '.')
+    ch.is_alphanumeric() || matches!(ch, ' ' | '-' | '\'' | '’' | ',' | '.')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_city_char;
+
+    #[test]
+    fn city_input_accepts_unicode_letters() {
+        assert!(is_city_char('å'));
+        assert!(is_city_char('Å'));
+        assert!(is_city_char('é'));
+    }
+
+    #[test]
+    fn city_input_rejects_control_chars() {
+        assert!(!is_city_char('\n'));
+        assert!(!is_city_char('\t'));
+    }
 }
