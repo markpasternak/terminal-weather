@@ -124,7 +124,7 @@ impl RecentLocation {
     }
 
     pub fn same_place(&self, other: &Self) -> bool {
-        let same_name = self.name.eq_ignore_ascii_case(&other.name);
+        let same_name = unicode_case_eq(&self.name, &other.name);
         let same_country = self
             .country
             .as_deref()
@@ -134,6 +134,14 @@ impl RecentLocation {
         let close_lon = (self.longitude - other.longitude).abs() < 0.05;
         same_name && same_country && close_lat && close_lon
     }
+}
+
+fn unicode_case_eq(a: &str, b: &str) -> bool {
+    fold_lower(a) == fold_lower(b)
+}
+
+fn fold_lower(value: &str) -> String {
+    value.chars().flat_map(char::to_lowercase).collect()
 }
 
 pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, Option<PathBuf>) {
@@ -202,4 +210,30 @@ fn settings_path() -> Option<PathBuf> {
             .join("atmos-tui")
             .join("settings.json"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RecentLocation;
+
+    #[test]
+    fn same_place_handles_unicode_case() {
+        let a = RecentLocation {
+            name: "Åre".to_string(),
+            latitude: 63.4,
+            longitude: 13.1,
+            country: Some("Sweden".to_string()),
+            admin1: Some("Jämtland".to_string()),
+            timezone: Some("Europe/Stockholm".to_string()),
+        };
+        let b = RecentLocation {
+            name: "åre".to_string(),
+            latitude: 63.41,
+            longitude: 13.11,
+            country: Some("sweden".to_string()),
+            admin1: Some("Jämtland".to_string()),
+            timezone: Some("Europe/Stockholm".to_string()),
+        };
+        assert!(a.same_place(&b));
+    }
 }

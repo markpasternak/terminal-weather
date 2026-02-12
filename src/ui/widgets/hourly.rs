@@ -9,7 +9,7 @@ use crate::{
     app::state::AppState,
     cli::Cli,
     domain::weather::{convert_temp, round_temp, weather_code_to_category, weather_icon},
-    ui::layout::{HourlyDensity, hourly_density},
+    ui::layout::visible_hour_count,
     ui::theme::{detect_color_capability, icon_color, temp_color, theme_for},
 };
 
@@ -58,12 +58,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let show = match hourly_density(area.width) {
-        HourlyDensity::Full16 => 16,
-        HourlyDensity::Full12 => 12,
-        HourlyDensity::Compact8 => 8,
-        HourlyDensity::Compact6 => 6,
-    };
+    let show = visible_hour_count(area.width);
 
     let offset = state
         .hourly_offset
@@ -197,6 +192,45 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
                     .map(|p| format!("{:>4.0}", p))
                     .unwrap_or_else(|| " -- ".to_string());
                 Cell::from(text).style(Style::default().fg(theme.info))
+            }));
+            cells
+        }));
+    }
+    if inner.height >= 10 {
+        rows.push(Row::new({
+            let mut cells = vec![Cell::from("RH").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
+                let text = h
+                    .relative_humidity_2m
+                    .map(|rh| format!("{:>3}%", rh.round() as i32))
+                    .unwrap_or_else(|| "-- ".to_string());
+                Cell::from(text).style(Style::default().fg(theme.info))
+            }));
+            cells
+        }));
+    }
+    if inner.height >= 11 {
+        rows.push(Row::new({
+            let mut cells = vec![Cell::from("P%").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
+                let text = h
+                    .precipitation_probability
+                    .map(|p| format!("{:>3}%", p.round() as i32))
+                    .unwrap_or_else(|| "-- ".to_string());
+                Cell::from(text).style(Style::default().fg(theme.warning))
+            }));
+            cells
+        }));
+    }
+    if inner.height >= 12 {
+        rows.push(Row::new({
+            let mut cells = vec![Cell::from("Wind").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
+                let text = h
+                    .wind_speed_10m
+                    .map(|w| format!("{:>3}", w.round() as i32))
+                    .unwrap_or_else(|| "-- ".to_string());
+                Cell::from(text).style(Style::default().fg(theme.success))
             }));
             cells
         }));

@@ -110,7 +110,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "unicode-width 0.2.0",
  "wiremock",
 ]
 

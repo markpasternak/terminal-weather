@@ -24,11 +24,12 @@ impl GeocodeClient {
     }
 
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(8))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
-            client: Client::builder()
-                .timeout(std::time::Duration::from_secs(8))
-                .build()
-                .expect("reqwest client"),
+            client,
             base_url: base_url.into(),
         }
     }
@@ -178,7 +179,9 @@ fn is_ambiguous(top: &ScoredLocation, second: &ScoredLocation) -> bool {
 fn normalize(value: &str) -> String {
     value
         .trim()
-        .to_ascii_lowercase()
+        .chars()
+        .flat_map(char::to_lowercase)
+        .collect::<String>()
         .replace(['-', '_'], " ")
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -236,5 +239,10 @@ mod tests {
         };
 
         assert!(is_ambiguous(&a, &b));
+    }
+
+    #[test]
+    fn normalize_is_unicode_case_insensitive() {
+        assert_eq!(normalize("Åre"), normalize("åre"));
     }
 }

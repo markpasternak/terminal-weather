@@ -28,11 +28,12 @@ impl ForecastClient {
     }
 
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
-            client: Client::builder()
-                .timeout(std::time::Duration::from_secs(10))
-                .build()
-                .expect("reqwest client"),
+            client,
             base_url: base_url.into(),
         }
     }

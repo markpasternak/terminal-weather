@@ -14,3 +14,12 @@ pub fn hourly_density(width: u16) -> HourlyDensity {
         _ => HourlyDensity::Compact6,
     }
 }
+
+pub fn visible_hour_count(width: u16) -> usize {
+    match hourly_density(width) {
+        HourlyDensity::Full16 => 16,
+        HourlyDensity::Full12 => 12,
+        HourlyDensity::Compact8 => 8,
+        HourlyDensity::Compact6 => 6,
+    }
+}

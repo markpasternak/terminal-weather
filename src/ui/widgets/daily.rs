@@ -449,6 +449,54 @@ fn render_week_summary(
         }
     }
 
+    if (area.height as usize).saturating_sub(lines.len()) > 0 && area.width >= 32 {
+        let highs = bundle
+            .daily
+            .iter()
+            .filter_map(|d| d.temperature_max_c)
+            .map(|t| convert_temp(t, units))
+            .collect::<Vec<_>>();
+        let precip = bundle
+            .daily
+            .iter()
+            .map(|d| d.precipitation_sum_mm.unwrap_or(0.0))
+            .collect::<Vec<_>>();
+        let gusts = bundle
+            .daily
+            .iter()
+            .map(|d| d.wind_gusts_10m_max.unwrap_or(0.0))
+            .collect::<Vec<_>>();
+        let profile_width = area.width.saturating_sub(16).clamp(8, 42) as usize;
+
+        if (area.height as usize).saturating_sub(lines.len()) > 0 && !highs.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("Temp profile ", Style::default().fg(theme.muted_text)),
+                Span::styled(
+                    profile_bar(&highs, profile_width),
+                    Style::default().fg(theme.accent),
+                ),
+            ]));
+        }
+        if (area.height as usize).saturating_sub(lines.len()) > 0 && !precip.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("Precip lane  ", Style::default().fg(theme.muted_text)),
+                Span::styled(
+                    profile_bar(&precip, profile_width),
+                    Style::default().fg(theme.info),
+                ),
+            ]));
+        }
+        if (area.height as usize).saturating_sub(lines.len()) > 0 && !gusts.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("Wind lane    ", Style::default().fg(theme.muted_text)),
+                Span::styled(
+                    profile_bar(&gusts, profile_width),
+                    Style::default().fg(theme.warning),
+                ),
+            ]));
+        }
+    }
+
     frame.render_widget(Paragraph::new(lines), area);
 }
 
@@ -580,6 +628,23 @@ fn format_duration_hm(seconds: f32) -> String {
     let h = total_minutes / 60;
     let m = total_minutes % 60;
     format!("{h:02}:{m:02}")
+}
+
+fn profile_bar(values: &[f32], width: usize) -> String {
+    const BARS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    if values.is_empty() || width == 0 {
+        return String::new();
+    }
+    let min = values.iter().copied().fold(f32::INFINITY, f32::min);
+    let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let span = (max - min).max(0.001);
+    (0..width)
+        .map(|idx| {
+            let src = (idx * values.len() / width).min(values.len().saturating_sub(1));
+            let norm = ((values[src] - min) / span).clamp(0.0, 1.0);
+            BARS[(norm * (BARS.len() - 1) as f32).round() as usize]
+        })
+        .collect()
 }
 
 pub fn bar_bounds(

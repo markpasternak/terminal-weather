@@ -135,13 +135,20 @@ pub fn scene_for_gauge_cluster(bundle: &ForecastBundle, width: u16, height: u16)
         .unwrap_or(0.0);
     let vis_km = (current.visibility_m / 1000.0).max(0.0);
 
-    let meter_w = w.saturating_sub(18).clamp(8, 36);
+    let meter_w = w.saturating_sub(26).clamp(10, 56);
     let pressure_norm = ((pressure - 970.0) / 70.0).clamp(0.0, 1.0);
     let uv_norm = (uv / 12.0).clamp(0.0, 1.0);
     let temp_norm = ((temp_c as f32 + 20.0) / 60.0).clamp(0.0, 1.0);
     let vis_norm = (vis_km / 12.0).clamp(0.0, 1.0);
+    let precip_now = current.precipitation_mm.max(0.0);
+    let cloud = current.cloud_cover.clamp(0.0, 100.0);
+    let left_col_width = if w >= 74 {
+        w.saturating_mul(62) / 100
+    } else {
+        w
+    };
 
-    let mut lines = vec![
+    let left_lines = vec![
         format!("Temp   {} {:>4}C", meter(temp_norm, meter_w), temp_c),
         format!(
             "Hum    {} {:>4.0}%",
@@ -162,8 +169,63 @@ pub fn scene_for_gauge_cluster(bundle: &ForecastBundle, width: u16, height: u16)
             gust
         ),
     ];
+    let mut lines = if w >= 74 && h >= 9 {
+        let right_lines = [
+            format!("Condition {}", scene_name(category, bundle.current.is_day)),
+            format!("Cloud {:>3.0}%   Rain now {:>3.1}mm", cloud, precip_now),
+            format!(
+                "Sun arc {:>2}:{:02} -> {:>2}:{:02}",
+                bundle
+                    .daily
+                    .first()
+                    .and_then(|d| d.sunrise.map(|t| t.hour() as i32))
+                    .unwrap_or(6),
+                bundle
+                    .daily
+                    .first()
+                    .and_then(|d| d.sunrise.map(|t| t.minute() as i32))
+                    .unwrap_or(0),
+                bundle
+                    .daily
+                    .first()
+                    .and_then(|d| d.sunset.map(|t| t.hour() as i32))
+                    .unwrap_or(18),
+                bundle
+                    .daily
+                    .first()
+                    .and_then(|d| d.sunset.map(|t| t.minute() as i32))
+                    .unwrap_or(0)
+            ),
+            format!("Visibility {:>4.1}km", vis_km),
+            "Compass".to_string(),
+            "    N".to_string(),
+            format!(
+                "  W {} E   dir {}",
+                if compass_arrow(current.wind_direction_10m) == '←' {
+                    '◉'
+                } else {
+                    '+'
+                },
+                compass_short(current.wind_direction_10m)
+            ),
+            "    S".to_string(),
+        ];
 
-    if h >= 11 {
+        let mut merged = Vec::with_capacity(left_lines.len().max(right_lines.len()));
+        for idx in 0..left_lines.len().max(right_lines.len()) {
+            let left = left_lines.get(idx).map(String::as_str).unwrap_or("");
+            let right = right_lines.get(idx).map(String::as_str).unwrap_or("");
+            merged.push(format!(
+                "{left:<left_col_width$}  {right}",
+                left_col_width = left_col_width
+            ));
+        }
+        merged
+    } else {
+        left_lines
+    };
+
+    if h >= 12 && w < 74 {
         lines.push("".to_string());
         lines.push("Compass".to_string());
         lines.push("    N".to_string());

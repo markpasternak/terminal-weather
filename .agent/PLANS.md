@@ -88,6 +88,9 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Rebalanced information by timescale (hero=current + 24h trend summaries, hourly=per-hour table, daily=7-day aggregates/cues) -> removes repeated metrics across panels and improves scanability.
 - 2026-02-12: Switched hourly/daily vertical alignment to top-anchored adaptive sections with extra insight rows/columns on larger terminals -> improves full-screen space usage.
 - 2026-02-12: Replaced web/city ASCII landmark modes with deterministic hero visual modes (`Atmos Canvas`, `Gauge Cluster`, `Sky Observatory`) -> removes brittle visual dependency and improves clarity of visual choices.
+- 2026-02-12: Coupled hourly scroll bounds to active viewport density (`6/8/12/16`) via shared layout helper -> fixes right-scroll overshoot on wide terminals.
+- 2026-02-12: Promoted Unicode-aware matching in geocode normalization + recent-location dedupe -> improves non-ASCII city behavior (e.g., `Åre`).
+- 2026-02-12: Added per-glyph thematic coloring in hero visuals and expanded wide-screen gauge/daily/hourly density -> makes theme changes more perceptible and uses fullscreen space better.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -116,6 +119,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 13:22: Fixed "theme change does nothing" path (Basic16 explicit theme variation + Enter-to-change settings), added regression test, reran full gates, result: PASS.
 - 2026-02-12 14:07: Added high-value Open-Meteo fields (pressure/dew/visibility/cloud layers/precip totals/gust maxima), refactored hero+hourly+daily to avoid duplication and better use tall/wide layouts; initial snapshot gate failed (expected UI changes), snapshots updated, reran full gates, result: PASS.
 - 2026-02-12 15:02: Added configurable hero visual modes + settings descriptions, removed web silhouette module/dependencies, refreshed snapshots, and added public README screenshot workflow/script; full gate suite rerun, result: PASS.
+- 2026-02-12 15:43: Completed high-impact review fixes (responsive hourly clamp, Unicode matching/dedupe, modifier-safe input with Ctrl+C quit, panic-path hardening, fuller wide-screen panel density, stronger hero theme coloration), reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added

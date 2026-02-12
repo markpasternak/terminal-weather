@@ -49,6 +49,7 @@ async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) 
             }
         }
 
+        app.viewport_width = terminal.size()?.width;
         terminal.draw(|frame| ui::render(frame, &app, &cli))?;
 
         if app.mode == AppMode::Quit {

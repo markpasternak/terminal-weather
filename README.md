@@ -72,6 +72,7 @@ Options:
 
 ## Keybindings
 - `q` / `Esc`: quit
+- `Ctrl+C`: immediate quit
 - `r`: manual refresh
 - `s`: open/close settings
 - `l`: open/close city switcher

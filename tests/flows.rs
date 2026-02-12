@@ -4,6 +4,7 @@ use atmos_tui::{
     domain::weather::{
         CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location, Units,
     },
+    ui::layout::visible_hour_count,
 };
 use chrono::{NaiveDate, NaiveDateTime, Utc};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
@@ -164,7 +165,17 @@ async fn flow_hourly_scroll_clamps_bounds() {
             .unwrap();
     }
 
-    assert!(state.hourly_offset <= 18);
+    let expected_max = state
+        .weather
+        .as_ref()
+        .map(|bundle| {
+            bundle
+                .hourly
+                .len()
+                .saturating_sub(visible_hour_count(state.viewport_width))
+        })
+        .unwrap_or(0);
+    assert!(state.hourly_offset <= expected_max);
 
     for _ in 0..50 {
         state
@@ -178,4 +189,51 @@ async fn flow_hourly_scroll_clamps_bounds() {
     }
 
     assert_eq!(state.hourly_offset, 0);
+}
+
+#[tokio::test]
+async fn flow_ctrl_c_quits_without_toggling_units() {
+    let cli = cli();
+    let mut state = AppState::new(&cli);
+    state.weather = Some(fixture_bundle());
+    let (tx, mut rx) = mpsc::channel(8);
+
+    state
+        .handle_event(
+            AppEvent::Input(Event::Key(KeyEvent::new(
+                KeyCode::Char('c'),
+                KeyModifiers::CONTROL,
+            ))),
+            &tx,
+            &cli,
+        )
+        .await
+        .unwrap();
+
+    let event = rx.recv().await.expect("quit event");
+    assert!(matches!(event, AppEvent::Quit));
+    assert_eq!(state.units, Units::Celsius);
+}
+
+#[tokio::test]
+async fn flow_city_picker_keeps_dialog_open_while_typing_l() {
+    let cli = cli();
+    let mut state = AppState::new(&cli);
+    let (tx, _rx) = mpsc::channel(8);
+    state.city_picker_open = true;
+
+    state
+        .handle_event(
+            AppEvent::Input(Event::Key(KeyEvent::new(
+                KeyCode::Char('l'),
+                KeyModifiers::NONE,
+            ))),
+            &tx,
+            &cli,
+        )
+        .await
+        .unwrap();
+
+    assert!(state.city_picker_open);
+    assert_eq!(state.city_query, "l");
 }

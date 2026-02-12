@@ -778,12 +778,102 @@ fn render_landmark(
     )));
 
     for line in scene_lines {
-        lines.push(Line::from(Span::styled(line, Style::default().fg(tint))));
+        lines.push(colorize_scene_line(
+            &line,
+            theme,
+            tint,
+            state.settings.hero_visual,
+        ));
     }
 
     let text = Text::from(lines).patch_style(Style::default().fg(tint));
     let paragraph = Paragraph::new(text);
     frame.render_widget(paragraph, area);
+}
+
+fn colorize_scene_line(
+    line: &str,
+    theme: crate::ui::theme::Theme,
+    base_tint: Color,
+    visual: HeroVisualArg,
+) -> Line<'static> {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut current_color: Option<Color> = None;
+    let mut current = String::new();
+
+    for ch in line.chars() {
+        let color = scene_char_color(ch, theme, base_tint, visual);
+        if Some(color) != current_color {
+            if !current.is_empty() {
+                spans.push(Span::styled(
+                    std::mem::take(&mut current),
+                    Style::default().fg(current_color.unwrap_or(base_tint)),
+                ));
+            }
+            current_color = Some(color);
+        }
+        current.push(ch);
+    }
+
+    if !current.is_empty() {
+        spans.push(Span::styled(
+            current,
+            Style::default().fg(current_color.unwrap_or(base_tint)),
+        ));
+    }
+
+    Line::from(spans)
+}
+
+fn scene_char_color(
+    ch: char,
+    theme: crate::ui::theme::Theme,
+    base_tint: Color,
+    visual: HeroVisualArg,
+) -> Color {
+    match visual {
+        HeroVisualArg::AtmosCanvas => {
+            if matches!(ch, '█' | '▓' | '▒' | '▀' | '─') {
+                theme.accent
+            } else if matches!(ch, '◉' | '◐' | '*' | 'o') {
+                theme.warning
+            } else if matches!(ch, '/' | '\\' | '!' | '=') {
+                theme.info
+            } else if matches!(ch, '(' | ')' | '~' | '·') {
+                theme.landmark_neutral
+            } else {
+                base_tint
+            }
+        }
+        HeroVisualArg::GaugeCluster => {
+            if matches!(ch, '█' | '▓' | '▒') {
+                theme.accent
+            } else if matches!(ch, '[' | ']' | '|' | '+' | '◉') {
+                theme.info
+            } else if matches!(ch, '↑' | '→' | '↓' | '←' | '↗' | '↘' | '↙' | '↖') {
+                theme.warning
+            } else if ch.is_ascii_digit() || matches!(ch, '%' | '.') {
+                theme.text
+            } else if ch.is_ascii_alphabetic() {
+                theme.muted_text
+            } else {
+                base_tint
+            }
+        }
+        HeroVisualArg::SkyObservatory => {
+            if matches!(ch, '◉' | '○' | '◑' | '◐' | '◔' | '◕' | '◖' | '◗' | '●') {
+                theme.warning
+            } else if matches!(ch, '█' | '▓' | '▒' | '░') {
+                theme.info
+            } else if matches!(ch, '*' | '·' | '⌂' | '─' | '~' | '/') {
+                theme.landmark_cool
+            } else if ch.is_ascii_digit() || ch == ':' {
+                theme.text
+            } else {
+                base_tint
+            }
+        }
+    }
 }
 
 fn render_loading_choreography(
@@ -1067,16 +1157,18 @@ impl Widget for GradientBackground<'_> {
             };
             let color = lerp_color(self.top, self.bottom, t);
             for x in area.left()..area.right() {
-                let cell = buf.cell_mut((x, y)).expect("cell");
-                cell.set_symbol(" ").set_bg(color).set_fg(self.text);
+                if let Some(cell) = buf.cell_mut((x, y)) {
+                    cell.set_symbol(" ").set_bg(color).set_fg(self.text);
+                }
             }
         }
 
         if self.flash {
             for y in area.top()..area.bottom() {
                 for x in area.left()..area.right() {
-                    let cell = buf.cell_mut((x, y)).expect("cell");
-                    cell.set_bg(self.flash_bg).set_fg(self.flash_fg);
+                    if let Some(cell) = buf.cell_mut((x, y)) {
+                        cell.set_bg(self.flash_bg).set_fg(self.flash_fg);
+                    }
                 }
             }
         }

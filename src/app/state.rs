@@ -1,7 +1,7 @@
 use std::{io::IsTerminal, path::PathBuf, time::Instant};
 
 use anyhow::Result;
-use crossterm::event::{Event, KeyCode, KeyEventKind};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use tokio::sync::mpsc;
 
 use crate::{
@@ -18,6 +18,7 @@ use crate::{
         ForecastBundle, GeocodeResolution, Location, RefreshMetadata, Units, evaluate_freshness,
     },
     resilience::backoff::Backoff,
+    ui::layout::visible_hour_count,
     ui::particles::ParticleEngine,
 };
 
@@ -70,6 +71,7 @@ pub struct AppState {
     pub last_frame_at: Instant,
     pub frame_tick: u64,
     pub animate_ui: bool,
+    pub viewport_width: u16,
     pub settings: RuntimeSettings,
     pub settings_open: bool,
     pub settings_selected: usize,
@@ -103,6 +105,7 @@ impl AppState {
             last_frame_at: Instant::now(),
             frame_tick: 0,
             animate_ui: matches!(settings.motion, MotionSetting::Full),
+            viewport_width: 80,
             settings,
             settings_open: false,
             settings_selected: 0,
@@ -352,20 +355,34 @@ impl AppState {
                     return Ok(());
                 }
                 if self.city_picker_open {
-                    self.handle_city_picker_key(key.code, tx, cli).await?;
+                    self.handle_city_picker_key(key, tx, cli).await?;
                     return Ok(());
                 }
 
                 match key.code {
-                    KeyCode::Esc | KeyCode::Char('q') => {
+                    KeyCode::Esc => {
                         tx.send(AppEvent::Quit).await?;
                     }
-                    KeyCode::Char('s') if self.mode != AppMode::SelectingLocation => {
+                    KeyCode::Char(_) if command_char_matches(key, 'q') => {
+                        tx.send(AppEvent::Quit).await?;
+                    }
+                    KeyCode::Char('c') | KeyCode::Char('C')
+                        if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                    {
+                        tx.send(AppEvent::Quit).await?;
+                    }
+                    KeyCode::Char(_)
+                        if command_char_matches(key, 's')
+                            && self.mode != AppMode::SelectingLocation =>
+                    {
                         self.city_picker_open = false;
                         self.settings_open = true;
                         self.settings_selected = 0;
                     }
-                    KeyCode::Char('l') if self.mode != AppMode::SelectingLocation => {
+                    KeyCode::Char(_)
+                        if command_char_matches(key, 'l')
+                            && self.mode != AppMode::SelectingLocation =>
+                    {
                         self.settings_open = false;
                         self.city_picker_open = true;
                         self.city_query.clear();
@@ -373,17 +390,17 @@ impl AppState {
                         self.city_status =
                             Some("Type a city and press Enter, or pick from history".to_string());
                     }
-                    KeyCode::Char('r') => {
+                    KeyCode::Char(_) if command_char_matches(key, 'r') => {
                         self.start_fetch(tx, cli).await?;
                     }
-                    KeyCode::Char('f') => {
+                    KeyCode::Char(_) if command_char_matches(key, 'f') => {
                         if self.settings.units != Units::Fahrenheit {
                             self.settings.units = Units::Fahrenheit;
                             self.apply_runtime_settings();
                             self.persist_settings();
                         }
                     }
-                    KeyCode::Char('c') => {
+                    KeyCode::Char(_) if command_char_matches(key, 'c') => {
                         if self.settings.units != Units::Celsius {
                             self.settings.units = Units::Celsius;
                             self.apply_runtime_settings();
@@ -395,8 +412,8 @@ impl AppState {
                     }
                     KeyCode::Right => {
                         if let Some(bundle) = &self.weather {
-                            let max_visible = 6;
-                            let max_offset = bundle.hourly.len().saturating_sub(max_visible);
+                            let visible = visible_hour_count(self.viewport_width);
+                            let max_offset = bundle.hourly.len().saturating_sub(visible);
                             self.hourly_offset = (self.hourly_offset + 1).min(max_offset);
                         }
                     }
@@ -412,7 +429,8 @@ impl AppState {
                     _ => {}
                 }
             }
-            Event::Resize(_, _) => {
+            Event::Resize(width, _) => {
+                self.viewport_width = width;
                 self.particles.reset();
             }
             _ => {}
@@ -428,7 +446,13 @@ impl AppState {
         cli: &Cli,
     ) -> Result<()> {
         match code {
-            KeyCode::Esc | KeyCode::Char('s') | KeyCode::Char('q') => {
+            KeyCode::Esc => {
+                self.settings_open = false;
+            }
+            KeyCode::Char(_) if command_char_matches_keycode(code, 's') => {
+                self.settings_open = false;
+            }
+            KeyCode::Char(_) if command_char_matches_keycode(code, 'q') => {
                 self.settings_open = false;
             }
             KeyCode::Up => {
@@ -460,12 +484,12 @@ impl AppState {
 
     async fn handle_city_picker_key(
         &mut self,
-        code: KeyCode,
+        key: KeyEvent,
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> Result<()> {
         self.city_history_selected = self.city_history_selected.min(self.city_picker_max_index());
-        match code {
+        match key.code {
             KeyCode::Esc => {
                 self.city_picker_open = false;
                 self.city_status = None;
@@ -510,7 +534,11 @@ impl AppState {
                 }
             }
             KeyCode::Char(ch) => {
-                if is_city_char(ch) {
+                if !key
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER)
+                    && is_city_char(ch)
+                {
                     self.city_query.push(ch);
                 }
             }
@@ -777,6 +805,16 @@ fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
 
 fn is_city_char(ch: char) -> bool {
     ch.is_alphanumeric() || matches!(ch, ' ' | '-' | '\'' | '’' | ',' | '.')
+}
+
+fn command_char_matches(key: KeyEvent, target: char) -> bool {
+    !key.modifiers
+        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER)
+        && matches!(key.code, KeyCode::Char(ch) if ch.eq_ignore_ascii_case(&target))
+}
+
+fn command_char_matches_keycode(code: KeyCode, target: char) -> bool {
+    matches!(code, KeyCode::Char(ch) if ch.eq_ignore_ascii_case(&target))
 }
 
 #[cfg(test)]
