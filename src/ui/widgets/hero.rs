@@ -772,19 +772,9 @@ fn render_landmark(
         LandmarkTint::Cool => theme.landmark_cool,
         LandmarkTint::Neutral => theme.landmark_neutral,
     };
-    let scene_label = scene.label;
     let scene_lines = scene.lines;
 
     let mut lines = Vec::new();
-    lines.push(Line::from(Span::styled(
-        format!(
-            "{} {}",
-            if state.animate_ui { "~>" } else { "--" },
-            scene_label
-        ),
-        Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-    )));
-
     for line in scene_lines {
         lines.push(colorize_scene_line(
             &line,
