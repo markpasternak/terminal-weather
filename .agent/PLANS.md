@@ -95,6 +95,7 @@ Build terminal-weather v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Added `--demo` scripted showcase mode with ephemeral settings reset -> supports deterministic public demos starting from a clean slate.
 - 2026-02-12: Hardened light-theme contrast by enforcing semantic-token contrast against hero + panel backgrounds and adding regression tests for `Hoth`/`Ayu Light` -> prevents invisible metrics across light palettes.
 - 2026-02-12: Enlarged Sky Observatory celestial markers with responsive sun/moon icon scaling and ray halo rendering -> improves legibility and visual presence in wide hero panels.
+- 2026-02-12: Removed screenshot helper script and realigned README to current product surface (demo flow, hero visuals, dialogs, persistence, manual screenshot workflow) -> keeps public docs accurate and avoids stale tooling.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -128,6 +129,7 @@ Build terminal-weather v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 16:46: Added demo-mode scripted sequence (city tour, hero visual showcase, theme cycle, auto-exit) with clean-start settings reset and no demo persistence; reran full gates, result: PASS.
 - 2026-02-12 16:50: Completed contrast hardening follow-up for light themes (semantic thresholds, border/popover contrast, hero-background-aware token checks) and added contrast regression test coverage; reran full gates, result: PASS.
 - 2026-02-12 16:26: Increased Sky Observatory icon scale (larger sun/moon + responsive ray halo) and updated sky-visual tint mapping; reran full gates, result: PASS.
+- 2026-02-12 16:30: Removed screenshot capture script and refreshed README to match current behavior and controls; ran sanity gate (`cargo check --all-targets --all-features`), result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added

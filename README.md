@@ -1,31 +1,33 @@
-# atmos-tui
+# terminal weather
 
-`atmos-tui` is a terminal-first weather dashboard focused on ambient visuals, clear hierarchy, and resilient live data updates.
+`terminal weather` is an animated, terminal-first weather dashboard with resilient live data, rich theming, and dense but readable forecasting views.
 
-![atmos-tui preview](assets/screenshots/app-preview.svg)
-
-## Highlights
-- Three-panel responsive layout: `Current` / `Hourly` / `7-Day`
-- High-value weather signals:
-  - current: temp, feels-like, dew point, humidity, pressure trend, visibility, wind/gust, cloud layers, UV
-  - hourly: time, icon, temp, precipitation, gusts, visibility, cloud/pressure rows (space-adaptive)
-  - daily: min/max range bars, precip totals, gust maxima, week summaries and day cues
-- Hero visual modes (right side of Current panel):
-  - `Atmos Canvas`: data-driven terrain + condition overlays
-  - `Gauge Cluster`: live instrument panel
-  - `Sky Observatory`: sun/moon arc + condition/precip lanes
-- Theme system with contrast-safe semantic colors and multiple presets
-- Particle ambience (rain/snow/fog/thunder) with reduced-motion and flash controls
-- Deterministic geocoding + ambiguity selector
-- Resilience model with fresh/stale/offline states and retry backoff
-- Persistent settings + location history across sessions
+## Features
+- Responsive 3-panel layout:
+  - `Current` hero panel with live metrics + visual scene
+  - `Hourly` strip with adaptive rows and horizontal scrolling
+  - `7-Day` forecast with range bars and weekly summaries
+- Hero visuals (settings + CLI selectable):
+  - `Atmos Canvas`: weather-driven terrain/sky scene
+  - `Gauge Cluster`: instrument-style telemetry panel
+  - `Sky Observatory`: sun/moon arc, weather strip, precipitation lane
+- Rich weather data:
+  - current: temperature, feels-like, dew point, humidity, pressure + trend, visibility, wind + gust, cloud cover/layers, UV, sunrise/sunset
+  - hourly: time, weather, temp, precipitation, gust, visibility, cloud, pressure, RH (rows scale with available space)
+  - daily: min/max spans, precip totals, gust maxima, daylight/sunshine and weekly rollups
+- Deterministic location resolution and ambiguity handling
+- Live freshness semantics (`fresh`, `stale`, `offline`) with retry backoff and manual refresh
+- Particle ambience (rain/snow/fog/thunder) with motion and flash accessibility controls
+- Contrast-hardened themes across TrueColor, xterm-256, and 16-color terminals
+- Persistent settings + recent city history (including clear-all from the city picker)
+- Built-in demo mode for deterministic showcases
 
 ## Prerequisites
-- Rust stable toolchain (`rustup`, `cargo`, `rustc`)
+- Rust stable (`rustup`, `cargo`, `rustc`)
 - UTF-8 capable terminal (TrueColor recommended)
-- Network access (Open-Meteo APIs)
+- Network access to Open-Meteo APIs
 
-## Install
+## Build
 ```bash
 git clone <repo-url>
 cd terminal-weather
@@ -37,15 +39,26 @@ cargo build --release
 ```bash
 cargo run -- Stockholm
 cargo run -- --units fahrenheit Tokyo
-cargo run -- --hero-visual gauge-cluster --theme midnight-cyan "San Diego"
+cargo run -- --theme midnight-cyan --hero-visual gauge-cluster "San Diego"
 cargo run -- --hero-visual sky-observatory --reduced-motion London
 cargo run -- --ascii-icons --no-animation Reykjavik
 cargo run -- --lat 59.3293 --lon 18.0686
 ```
 
+## Demo Mode
+```bash
+cargo run -- --demo
+```
+
+`--demo` clears persisted settings for that run, then automatically:
+1. Switches cities (`New York` → `Miami` → `Sydney` → `Peking`, 5s each)
+2. Opens settings and showcases hero visuals (`Gauge Cluster`, `Sky Observatory`, 5s each)
+3. Cycles through themes
+4. Exits the app
+
 ## CLI
 ```bash
-atmos-tui [CITY]
+terminal-weather [CITY]
 
 Arguments:
   [CITY]                              City name (default: Stockholm)
@@ -58,79 +71,90 @@ Options:
   --no-flash                          Disable thunder flash
   --ascii-icons                       Force ASCII icons
   --emoji-icons                       Force emoji icons
-  --theme <auto|aurora|midnight-cyan|mono|high-contrast|dracula|gruvbox-material-dark|kanagawa-wave|ayu-mirage|ayu-light|poimandres-storm|selenized-dark|no-clown-fiesta>
-                                      Theme override (default: auto)
+  --theme <auto|aurora|midnight-cyan|aubergine|hoth|monument|ochin|nord|catppuccin-mocha|mono|high-contrast|dracula|gruvbox-material-dark|kanagawa-wave|ayu-mirage|ayu-light|poimandres-storm|selenized-dark|no-clown-fiesta>
   --hero-visual <atmos-canvas|gauge-cluster|sky-observatory>
-                                      Current-panel visual mode (default: atmos-canvas)
   --country-code <ISO2>               Geocode bias (e.g. SE, US)
   --lat <FLOAT>                       Direct latitude (requires --lon)
   --lon <FLOAT>                       Direct longitude (requires --lat)
   --refresh-interval <secs>           Default: 600
+  --demo                              Run automated showcase and exit
   --help
   --version
 ```
 
 ## Keybindings
-- `q` / `Esc`: quit
+Global:
+- `q` or `Esc`: quit
 - `Ctrl+C`: immediate quit
 - `r`: manual refresh
 - `s`: open/close settings
 - `l`: open/close city switcher
 - `f`: switch to Fahrenheit
 - `c`: switch to Celsius
-- `←` / `→`: scroll hourly strip
-- `1..5`: choose city during ambiguity selection
+- `←` / `→`: scroll hourly columns
+- `1..5`: choose location when ambiguity selector is shown
 
-## Settings (Persisted)
-Stored at `~/.config/atmos-tui/settings.json` (override directory via `ATMOS_TUI_CONFIG_DIR`).
+Settings panel:
+- `↑` / `↓`: move selection
+- `←` / `→` or `Enter`: change selected editable setting
+- `Enter` on action rows: run action (`Refresh now`, `Close`)
+- `s` or `Esc`: close settings
 
-Settings include:
+City switcher:
+- Type to search (Unicode letters supported, e.g. `Åre`)
+- `Enter`: search or switch to highlighted recent city
+- `↑` / `↓`: move through recent cities / clear-all row
+- `1..9`: quick-switch to recent city
+- `Delete`: clear all recent locations
+- `Backspace`: edit query
+- `Esc`: close
+
+## Persisted Settings
+Saved to:
+- `~/.config/terminal-weather/settings.json`
+- Override config directory with `TERMINAL_WEATHER_CONFIG_DIR`
+
+Persisted values:
 - units
 - theme
-- motion level
-- thunder flash
-- icon mode
+- motion (`full`, `reduced`, `off`)
+- thunder flash on/off
+- icon mode (`unicode`, `ascii`, `emoji`)
 - hero visual mode
 - refresh interval
-- recent city history
+- recent locations
 
-## Color and Terminal Compatibility
-Color capability fallback:
+## Terminal and Color Behavior
+Color capability fallback order:
 1. TrueColor (`COLORTERM=truecolor` / `24bit`)
 2. xterm-256 quantized
-3. 16-color semantic fallback (`NO_COLOR`)
+3. Basic 16-color semantic fallback (also used when `NO_COLOR` is set)
 
-Icon fallback:
+Icon modes:
 - Unicode (default)
 - ASCII (`--ascii-icons`)
 - Emoji (`--emoji-icons`)
 
-## Screenshot Workflow (for GitHub updates)
-Use the one-off script:
+## Screenshots
+The repository no longer includes a screenshot script.
 
-```bash
-./scripts/capture_fullscreen_screenshot.sh
-```
-
-Optional output path:
-
-```bash
-./scripts/capture_fullscreen_screenshot.sh assets/screenshots/generated-fullscreen.png
-```
-
-This script is macOS-focused (`screencapture`) and captures your full display after a short countdown.
+To add/update a README screenshot manually:
+1. Run the app in your terminal at the desired size/theme
+2. Capture your screen/window with your OS tooling
+3. Save it to `assets/screenshots/app-preview.png`
+4. Add a Markdown image link in this README if you want it rendered on GitHub
 
 ## Troubleshooting
-- API/network errors:
-  - app keeps last known good data visible
-  - status progresses to `stale` / `offline` with retries
-  - press `r` for manual refresh
+- API/network failures:
+  - app keeps last known good weather visible
+  - status transitions to `stale` / `offline` with retry backoff
+  - press `r` to trigger manual refresh
 - Tiny terminal:
-  - below `30x15`, app shows resize warning only
-- Icon width/alignment issues:
+  - below `30x15`, only resize guidance is rendered
+- Icon alignment issues:
   - use `--ascii-icons`
-- Coordinate input errors:
-  - `--lat` and `--lon` must be passed together
+- Coordinate mode errors:
+  - `--lat` and `--lon` must be provided together
 
 ## Development
 ```bash
