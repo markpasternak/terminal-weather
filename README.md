@@ -2,6 +2,8 @@
 
 `terminal weather` is an animated, terminal-first weather dashboard with resilient live data, rich theming, and dense but readable forecasting views.
 
+![terminal weather demo](demo.gif)
+
 ## Features
 - Responsive 3-panel layout:
   - `Current` hero panel with live metrics + visual scene
