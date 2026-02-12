@@ -34,7 +34,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     let bg = GradientBackground {
         top: theme.top,
         bottom: theme.bottom,
-        accent: theme.accent,
+        text: theme.text,
+        particle: theme.particle,
         particles: &state.particles.particles,
         flash: state.particles.flash_active(),
     };
@@ -43,7 +44,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Current")
-        .border_style(Style::default().fg(theme.accent));
+        .border_style(Style::default().fg(theme.text));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -59,13 +60,22 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
 
         lines.push(Line::from(vec![Span::styled(
             format!("{temp}°{unit_symbol}"),
-            Style::default().add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
         )]));
-        lines.push(Line::from(weather_label(code).to_string()));
+        lines.push(Line::from(Span::styled(
+            weather_label(code),
+            Style::default().fg(theme.text),
+        )));
         if let Some((high, low)) = weather.high_low(state.units) {
-            lines.push(Line::from(format!("H:{high}°  L:{low}°")));
+            lines.push(Line::from(Span::styled(
+                format!("H:{high}°  L:{low}°"),
+                Style::default().fg(theme.text),
+            )));
         }
-        lines.push(Line::from(weather.location.display_name()));
+        lines.push(Line::from(Span::styled(
+            weather.location.display_name(),
+            Style::default().fg(theme.text),
+        )));
 
         let freshness = match state.refresh_meta.state {
             crate::resilience::freshness::FreshnessState::Fresh => None,
@@ -95,14 +105,26 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
                 )
             })
             .unwrap_or_else(|| "Last updated: --:--".to_string());
-        lines.push(Line::from(updated));
+        lines.push(Line::from(Span::styled(
+            updated,
+            Style::default().fg(theme.muted_text),
+        )));
     } else if state.mode == AppMode::Error {
-        lines.push(Line::from("Unable to load weather"));
+        lines.push(Line::from(Span::styled(
+            "Unable to load weather",
+            Style::default().fg(theme.text),
+        )));
         if let Some(err) = &state.last_error {
-            lines.push(Line::from(err.clone()));
+            lines.push(Line::from(Span::styled(
+                err.clone(),
+                Style::default().fg(theme.muted_text),
+            )));
         }
     } else {
-        lines.push(Line::from(state.loading_message.clone()));
+        lines.push(Line::from(Span::styled(
+            state.loading_message.clone(),
+            Style::default().fg(theme.text),
+        )));
     }
 
     frame.render_widget(Paragraph::new(lines), inner);
@@ -111,7 +133,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
 struct GradientBackground<'a> {
     top: Color,
     bottom: Color,
-    accent: Color,
+    text: Color,
+    particle: Color,
     particles: &'a [crate::ui::particles::Particle],
     flash: bool,
 }
@@ -130,7 +153,7 @@ impl Widget for GradientBackground<'_> {
             let color = lerp_color(self.top, self.bottom, t);
             for x in area.left()..area.right() {
                 let cell = buf.cell_mut((x, y)).expect("cell");
-                cell.set_symbol(" ").set_bg(color).set_fg(self.accent);
+                cell.set_symbol(" ").set_bg(color).set_fg(self.text);
             }
         }
 
@@ -152,7 +175,7 @@ impl Widget for GradientBackground<'_> {
             if let Some(cell) = buf.cell_mut((x, y)) {
                 let bg = cell.bg;
                 cell.set_symbol(&p.glyph.to_string())
-                    .set_fg(Color::White)
+                    .set_fg(self.particle)
                     .set_bg(bg);
             }
         }

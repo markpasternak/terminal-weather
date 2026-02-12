@@ -136,9 +136,11 @@ pub fn weather_code_to_particle(code: u8) -> ParticleKind {
     match weather_code_to_category(code) {
         WeatherCategory::Rain => ParticleKind::Rain,
         WeatherCategory::Snow => ParticleKind::Snow,
-        WeatherCategory::Fog | WeatherCategory::Cloudy => ParticleKind::Fog,
+        WeatherCategory::Fog => ParticleKind::Fog,
         WeatherCategory::Thunder => ParticleKind::Thunder,
-        WeatherCategory::Clear | WeatherCategory::Unknown => ParticleKind::None,
+        WeatherCategory::Cloudy | WeatherCategory::Clear | WeatherCategory::Unknown => {
+            ParticleKind::None
+        }
     }
 }
 
