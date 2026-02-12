@@ -42,8 +42,14 @@ fn fixture_bundle(code: u8) -> ForecastBundle {
         temperature_2m_c: 7.2,
         relative_humidity_2m: 73.0,
         apparent_temperature_c: 5.8,
+        dew_point_2m_c: 2.1,
         weather_code: code,
+        precipitation_mm: 0.4,
+        cloud_cover: 42.0,
+        pressure_msl_hpa: 1008.2,
+        visibility_m: 11_200.0,
         wind_speed_10m: 12.0,
+        wind_gusts_10m: 21.0,
         wind_direction_10m: 220.0,
         is_day: true,
         high_today_c: Some(9.0),
@@ -58,6 +64,17 @@ fn fixture_bundle(code: u8) -> ForecastBundle {
             weather_code: Some(code),
             relative_humidity_2m: Some(70.0),
             precipitation_probability: Some(35.0),
+            precipitation_mm: Some(0.4 + idx as f32 * 0.1),
+            rain_mm: Some(0.3 + idx as f32 * 0.1),
+            snowfall_cm: Some(if code >= 71 { 0.2 } else { 0.0 }),
+            wind_speed_10m: Some(12.0 + idx as f32 * 0.3),
+            wind_gusts_10m: Some(20.0 + idx as f32 * 0.5),
+            pressure_msl_hpa: Some(1008.0 + idx as f32 * 0.4),
+            visibility_m: Some(9_500.0 - idx as f32 * 80.0),
+            cloud_cover: Some(40.0 + idx as f32 * 2.0),
+            cloud_cover_low: Some(12.0 + idx as f32 * 1.0),
+            cloud_cover_mid: Some(24.0 + idx as f32 * 1.3),
+            cloud_cover_high: Some(36.0 + idx as f32 * 1.5),
         })
         .collect::<Vec<_>>();
 
@@ -72,6 +89,17 @@ fn fixture_bundle(code: u8) -> ForecastBundle {
             sunset: None,
             uv_index_max: Some(2.0),
             precipitation_probability_max: Some(40.0),
+            precipitation_sum_mm: Some(2.5 + idx as f32 * 0.6),
+            rain_sum_mm: Some(2.0 + idx as f32 * 0.5),
+            snowfall_sum_cm: Some(if code >= 71 {
+                1.2 + idx as f32 * 0.2
+            } else {
+                0.0
+            }),
+            precipitation_hours: Some(2.0 + idx as f32 * 0.3),
+            wind_gusts_10m_max: Some(22.0 + idx as f32 * 1.1),
+            daylight_duration_s: Some(9.2 * 3600.0 + idx as f32 * 140.0),
+            sunshine_duration_s: Some(4.1 * 3600.0 + idx as f32 * 190.0),
         })
         .collect::<Vec<_>>();
 

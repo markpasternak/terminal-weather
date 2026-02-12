@@ -21,9 +21,19 @@ pub struct Location {
 }
 
 #[derive(Debug, Clone)]
+pub struct ColoredGlyph {
+    pub ch: char,
+    pub color: Option<(u8, u8, u8)>,
+    /// Background color — used by half-block rendering where each cell
+    /// encodes two vertical pixels (fg = top, bg = bottom via `▀`).
+    pub bg_color: Option<(u8, u8, u8)>,
+}
+
+#[derive(Debug, Clone)]
 pub struct SilhouetteArt {
     pub label: String,
     pub lines: Vec<String>,
+    pub colored_lines: Option<Vec<Vec<ColoredGlyph>>>,
 }
 
 impl Location {
@@ -53,8 +63,14 @@ pub struct CurrentConditions {
     pub temperature_2m_c: f32,
     pub relative_humidity_2m: f32,
     pub apparent_temperature_c: f32,
+    pub dew_point_2m_c: f32,
     pub weather_code: u8,
+    pub precipitation_mm: f32,
+    pub cloud_cover: f32,
+    pub pressure_msl_hpa: f32,
+    pub visibility_m: f32,
     pub wind_speed_10m: f32,
+    pub wind_gusts_10m: f32,
     pub wind_direction_10m: f32,
     pub is_day: bool,
     pub high_today_c: Option<f32>,
@@ -68,6 +84,17 @@ pub struct HourlyForecast {
     pub weather_code: Option<u8>,
     pub relative_humidity_2m: Option<f32>,
     pub precipitation_probability: Option<f32>,
+    pub precipitation_mm: Option<f32>,
+    pub rain_mm: Option<f32>,
+    pub snowfall_cm: Option<f32>,
+    pub wind_speed_10m: Option<f32>,
+    pub wind_gusts_10m: Option<f32>,
+    pub pressure_msl_hpa: Option<f32>,
+    pub visibility_m: Option<f32>,
+    pub cloud_cover: Option<f32>,
+    pub cloud_cover_low: Option<f32>,
+    pub cloud_cover_mid: Option<f32>,
+    pub cloud_cover_high: Option<f32>,
 }
 
 #[derive(Debug, Clone)]
@@ -80,6 +107,13 @@ pub struct DailyForecast {
     pub sunset: Option<NaiveDateTime>,
     pub uv_index_max: Option<f32>,
     pub precipitation_probability_max: Option<f32>,
+    pub precipitation_sum_mm: Option<f32>,
+    pub rain_sum_mm: Option<f32>,
+    pub snowfall_sum_cm: Option<f32>,
+    pub precipitation_hours: Option<f32>,
+    pub wind_gusts_10m_max: Option<f32>,
+    pub daylight_duration_s: Option<f32>,
+    pub sunshine_duration_s: Option<f32>,
 }
 
 #[derive(Debug, Clone)]

@@ -48,23 +48,29 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
         return;
     }
 
-    let constraints = if area.height >= 52 {
+    let constraints = if area.height >= 60 {
         [
-            Constraint::Percentage(58),
-            Constraint::Percentage(16),
-            Constraint::Percentage(26),
+            Constraint::Percentage(52),
+            Constraint::Percentage(18),
+            Constraint::Percentage(30),
         ]
-    } else if area.height >= 40 {
+    } else if area.height >= 52 {
         [
             Constraint::Percentage(54),
             Constraint::Percentage(18),
             Constraint::Percentage(28),
         ]
-    } else if area.height >= 32 {
+    } else if area.height >= 40 {
         [
             Constraint::Percentage(50),
+            Constraint::Percentage(18),
+            Constraint::Percentage(32),
+        ]
+    } else if area.height >= 32 {
+        [
+            Constraint::Percentage(46),
             Constraint::Percentage(20),
-            Constraint::Percentage(30),
+            Constraint::Percentage(34),
         ]
     } else {
         [

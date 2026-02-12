@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
@@ -45,13 +45,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     };
 
     let layout = DailyLayout::for_area(area);
-    let title = if layout.show_bar && inner_title_width(area) >= 34 {
-        "7-Day (Low .. Day Range .. High)"
-    } else if layout.show_bar {
-        "7-Day (Low..High)"
-    } else {
-        "7-Day (Low/High)"
-    };
+    let title = "7-Day Forecast";
 
     let theme = theme_for(
         weather_code_to_category(bundle.current.weather_code),
@@ -80,20 +74,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         .filter_map(|d| d.temperature_max_c)
         .fold(f32::NEG_INFINITY, f32::max);
 
-    let summary_enabled = inner.height >= 13;
-    let split = if summary_enabled {
-        Layout::vertical([Constraint::Min(6), Constraint::Length(3)]).split(inner)
-    } else {
-        Layout::vertical([Constraint::Min(1)]).split(inner)
-    };
-    let table_slot = split[0];
-    let summary_slot = if summary_enabled {
-        Some(split[1])
-    } else {
-        None
-    };
-
-    let max_rows = layout.max_rows(table_slot.height);
+    let max_rows = layout.max_rows(inner.height);
     if max_rows == 0 {
         return;
     }
@@ -149,6 +130,20 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
                 row_cells.push(Cell::from(max_label).style(
                     Style::default().fg(temp_color(&theme, convert_temp(max_c, state.units))),
                 ));
+                if layout.show_precip_col {
+                    let precip = day
+                        .precipitation_sum_mm
+                        .map(|v| format!("{v:>4.1}"))
+                        .unwrap_or_else(|| "--.-".to_string());
+                    row_cells.push(Cell::from(precip).style(Style::default().fg(theme.info)));
+                }
+                if layout.show_gust_col {
+                    let gust = day
+                        .wind_gusts_10m_max
+                        .map(|v| format!("{:>3}", v.round() as i32))
+                        .unwrap_or_else(|| "-- ".to_string());
+                    row_cells.push(Cell::from(gust).style(Style::default().fg(theme.warning)));
+                }
 
                 let row = Row::new(row_cells);
 
@@ -169,6 +164,12 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         widths.push(Constraint::Length(layout.bar_width as u16));
     }
     widths.push(Constraint::Length(5));
+    if layout.show_precip_col {
+        widths.push(Constraint::Length(5));
+    }
+    if layout.show_gust_col {
+        widths.push(Constraint::Length(4));
+    }
 
     let row_count = rows.len() as u16;
     let header_rows = if layout.show_header { 1 } else { 0 };
@@ -187,18 +188,38 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
             header_cells.push("Range");
         }
         header_cells.push("High");
+        if layout.show_precip_col {
+            header_cells.push("Pmm");
+        }
+        if layout.show_gust_col {
+            header_cells.push("Gst");
+        }
         table = table.header(Row::new(header_cells).style(Style::default().fg(theme.muted_text)));
     }
 
-    let table_area = if table_slot.height > table_height {
-        Rect {
-            x: table_slot.x,
-            y: table_slot.y + (table_slot.height - table_height) / 2,
-            width: table_slot.width,
-            height: table_height,
-        }
+    let (table_area, summary_slot) = if inner.height > table_height.saturating_add(2) {
+        let summary_y = inner.y.saturating_add(table_height);
+        let summary_height = inner.bottom().saturating_sub(summary_y);
+        (
+            Rect {
+                x: inner.x,
+                y: inner.y,
+                width: inner.width,
+                height: table_height,
+            },
+            if summary_height > 0 {
+                Some(Rect {
+                    x: inner.x,
+                    y: summary_y,
+                    width: inner.width,
+                    height: summary_height,
+                })
+            } else {
+                None
+            },
+        )
     } else {
-        table_slot
+        (inner, None)
     };
     frame.render_widget(table, table_area);
 
@@ -253,10 +274,6 @@ fn render_loading_daily(
     frame.render_widget(table, area);
 }
 
-fn inner_title_width(area: Rect) -> u16 {
-    area.width.saturating_sub(2)
-}
-
 fn render_week_summary(
     frame: &mut Frame,
     area: Rect,
@@ -268,61 +285,208 @@ fn render_week_summary(
         return;
     }
 
-    let mut global_min = f32::INFINITY;
-    let mut global_max = f32::NEG_INFINITY;
-    let mut warmest: Option<(String, f32)> = None;
+    let mut precip_total = 0.0f32;
+    let mut rain_total = 0.0f32;
+    let mut snow_total = 0.0f32;
+    let mut daylight_total = 0.0f32;
+    let mut sunshine_total = 0.0f32;
+    let mut daylight_count = 0usize;
+    let mut sunshine_count = 0usize;
+    let mut precipitation_hours_total = 0.0f32;
+    let mut precipitation_hours_count = 0usize;
+    let mut breeziest: Option<(String, f32)> = None;
     let mut wettest: Option<(String, f32)> = None;
+    let mut strongest_uv: Option<(String, f32)> = None;
+    let mut week_min_temp_c: Option<f32> = None;
+    let mut week_max_temp_c: Option<f32> = None;
 
     for day in &bundle.daily {
-        if let Some(v) = day.temperature_min_c {
-            global_min = global_min.min(v);
-        }
-        if let Some(v) = day.temperature_max_c {
-            global_max = global_max.max(v);
-            let tag = day.date.format("%a").to_string();
-            if warmest.as_ref().is_none_or(|(_, best)| v > *best) {
-                warmest = Some((tag, v));
-            }
-        }
-        if let Some(v) = day.precipitation_probability_max {
+        if let Some(v) = day.precipitation_sum_mm {
+            precip_total += v.max(0.0);
             let tag = day.date.format("%a").to_string();
             if wettest.as_ref().is_none_or(|(_, best)| v > *best) {
                 wettest = Some((tag, v));
             }
         }
+        if let Some(v) = day.rain_sum_mm {
+            rain_total += v.max(0.0);
+        }
+        if let Some(v) = day.snowfall_sum_cm {
+            snow_total += v.max(0.0);
+        }
+        if let Some(v) = day.daylight_duration_s {
+            daylight_total += v.max(0.0);
+            daylight_count += 1;
+        }
+        if let Some(v) = day.sunshine_duration_s {
+            sunshine_total += v.max(0.0);
+            sunshine_count += 1;
+        }
+        if let Some(v) = day.precipitation_hours {
+            precipitation_hours_total += v.max(0.0);
+            precipitation_hours_count += 1;
+        }
+        if let Some(v) = day.wind_gusts_10m_max {
+            let tag = day.date.format("%a").to_string();
+            if breeziest.as_ref().is_none_or(|(_, best)| v > *best) {
+                breeziest = Some((tag, v));
+            }
+        }
+        if let Some(v) = day.uv_index_max {
+            let tag = day.date.format("%a").to_string();
+            if strongest_uv.as_ref().is_none_or(|(_, best)| v > *best) {
+                strongest_uv = Some((tag, v));
+            }
+        }
+        if let Some(v) = day.temperature_min_c {
+            week_min_temp_c = Some(week_min_temp_c.map_or(v, |current| current.min(v)));
+        }
+        if let Some(v) = day.temperature_max_c {
+            week_max_temp_c = Some(week_max_temp_c.map_or(v, |current| current.max(v)));
+        }
     }
 
-    let low = round_temp(convert_temp(global_min, units));
-    let high = round_temp(convert_temp(global_max, units));
-    let spread = high - low;
-    let warmest_txt = warmest
-        .map(|(day, temp)| format!("{day} {}°", round_temp(convert_temp(temp, units))))
-        .unwrap_or_else(|| "--".to_string());
     let wettest_txt = wettest
-        .map(|(day, p)| format!("{day} {}%", p.round() as i32))
+        .map(|(day, mm)| format!("{day} {mm:.1}mm"))
         .unwrap_or_else(|| "--".to_string());
+    let breeziest_txt = breeziest
+        .map(|(day, gust)| format!("{day} {}km/h", gust.round() as i32))
+        .unwrap_or_else(|| "--".to_string());
+    let avg_daylight = if daylight_count > 0 {
+        format_duration_hm(daylight_total / daylight_count as f32)
+    } else {
+        "--:--".to_string()
+    };
+    let avg_sun = if sunshine_count > 0 {
+        format_duration_hm(sunshine_total / sunshine_count as f32)
+    } else {
+        "--:--".to_string()
+    };
+    let precip_hours_avg = if precipitation_hours_count > 0 {
+        format!(
+            "{:.1}h/day",
+            precipitation_hours_total / precipitation_hours_count as f32
+        )
+    } else {
+        "--".to_string()
+    };
+    let uv_peak = strongest_uv
+        .map(|(day, uv)| format!("{day} {uv:.1}"))
+        .unwrap_or_else(|| "--".to_string());
+    let week_thermal = match (week_min_temp_c, week_max_temp_c) {
+        (Some(low), Some(high)) => {
+            let low = round_temp(convert_temp(low, units));
+            let high = round_temp(convert_temp(high, units));
+            format!("{low}°..{high}°")
+        }
+        _ => "--".to_string(),
+    };
 
-    let lines = vec![
+    let mut lines = vec![
         Line::from(vec![
-            Span::styled("Week ", Style::default().fg(theme.muted_text)),
+            Span::styled("Totals ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                format!("{low}°..{high}°"),
+                format!("P {precip_total:.1}mm"),
                 Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
             ),
             Span::raw("  "),
-            Span::styled("Spread ", Style::default().fg(theme.muted_text)),
-            Span::styled(format!("{spread}°"), Style::default().fg(theme.accent)),
+            Span::styled("Rain ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                format!("{rain_total:.1}mm"),
+                Style::default().fg(theme.info),
+            ),
+            Span::raw("  "),
+            Span::styled("Snow ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                format!("{snow_total:.1}cm"),
+                Style::default().fg(theme.temp_cold),
+            ),
         ]),
         Line::from(vec![
-            Span::styled("Warmest ", Style::default().fg(theme.muted_text)),
-            Span::styled(warmest_txt, Style::default().fg(theme.warning)),
+            Span::styled("Avg daylight ", Style::default().fg(theme.muted_text)),
+            Span::styled(avg_daylight, Style::default().fg(theme.warning)),
+            Span::raw("  "),
+            Span::styled("Avg sun ", Style::default().fg(theme.muted_text)),
+            Span::styled(avg_sun, Style::default().fg(theme.accent)),
+        ]),
+        Line::from(vec![
+            Span::styled("Breeziest ", Style::default().fg(theme.muted_text)),
+            Span::styled(breeziest_txt, Style::default().fg(theme.warning)),
             Span::raw("  "),
             Span::styled("Wettest ", Style::default().fg(theme.muted_text)),
             Span::styled(wettest_txt, Style::default().fg(theme.info)),
         ]),
+        Line::from(vec![
+            Span::styled("Avg precip hrs ", Style::default().fg(theme.muted_text)),
+            Span::styled(precip_hours_avg, Style::default().fg(theme.info)),
+            Span::raw("  "),
+            Span::styled("Peak UV ", Style::default().fg(theme.muted_text)),
+            Span::styled(uv_peak, Style::default().fg(theme.warning)),
+            Span::raw("  "),
+            Span::styled("Week span ", Style::default().fg(theme.muted_text)),
+            Span::styled(week_thermal, Style::default().fg(theme.accent)),
+        ]),
     ];
 
+    let remaining = area.height.saturating_sub(lines.len() as u16);
+    if remaining >= 2 {
+        lines.push(Line::from(Span::styled(
+            "Day cues",
+            Style::default()
+                .fg(theme.muted_text)
+                .add_modifier(Modifier::BOLD),
+        )));
+
+        let cue_rows = usize::from(area.height.saturating_sub(lines.len() as u16));
+        for day in bundle.daily.iter().take(cue_rows) {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("{:>3} ", day.date.format("%a")),
+                    Style::default().fg(theme.muted_text),
+                ),
+                Span::styled(day_cue(day), Style::default().fg(theme.text)),
+            ]));
+        }
+    }
+
     frame.render_widget(Paragraph::new(lines), area);
+}
+
+fn day_cue(day: &crate::domain::weather::DailyForecast) -> String {
+    let precip = day.precipitation_sum_mm.unwrap_or(0.0);
+    let snow = day.snowfall_sum_cm.unwrap_or(0.0);
+    let gust = day.wind_gusts_10m_max.unwrap_or(0.0);
+    let sun_ratio = match (day.sunshine_duration_s, day.daylight_duration_s) {
+        (Some(sun), Some(daylight)) if daylight > 0.0 => Some((sun / daylight).clamp(0.0, 1.0)),
+        _ => None,
+    };
+
+    let mut parts = Vec::new();
+    if snow >= 1.0 {
+        parts.push(format!("snow {:.1}cm", snow));
+    } else if precip >= 6.0 {
+        parts.push(format!("wet {:.1}mm", precip));
+    } else if precip >= 1.0 {
+        parts.push(format!("light rain {:.1}mm", precip));
+    } else {
+        parts.push("mostly dry".to_string());
+    }
+
+    if gust >= 45.0 {
+        parts.push(format!("gusty {}km/h", gust.round() as i32));
+    } else if gust >= 30.0 {
+        parts.push(format!("breezy {}km/h", gust.round() as i32));
+    }
+
+    if let Some(ratio) = sun_ratio {
+        if ratio >= 0.65 {
+            parts.push("bright".to_string());
+        } else if ratio <= 0.25 {
+            parts.push("dim".to_string());
+        }
+    }
+
+    parts.join(", ")
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -330,6 +494,8 @@ struct DailyLayout {
     show_icon: bool,
     show_bar: bool,
     show_header: bool,
+    show_precip_col: bool,
+    show_gust_col: bool,
     bar_width: usize,
     column_spacing: u16,
 }
@@ -342,21 +508,40 @@ impl DailyLayout {
         // - wide: icon + bar + header
         // - medium: no icon, still show range bar + header
         // - narrow: low/high only
-        if inner_width >= 90 {
-            let bar_width = inner_width.saturating_sub(4 + 3 + 5 + 5 + 8).clamp(18, 54);
+        if inner_width >= 112 {
+            let bar_width = inner_width
+                .saturating_sub(4 + 3 + 5 + 5 + 5 + 4 + 10)
+                .clamp(18, 48);
             Self {
                 show_icon: true,
                 show_bar: true,
                 show_header: true,
+                show_precip_col: true,
+                show_gust_col: true,
                 bar_width,
                 column_spacing: 2,
             }
-        } else if inner_width >= 50 {
-            let bar_width = inner_width.saturating_sub(4 + 3 + 5 + 5 + 5).clamp(10, 34);
+        } else if inner_width >= 86 {
+            let bar_width = inner_width
+                .saturating_sub(4 + 3 + 5 + 5 + 5 + 8)
+                .clamp(14, 34);
             Self {
                 show_icon: true,
                 show_bar: true,
                 show_header: true,
+                show_precip_col: true,
+                show_gust_col: false,
+                bar_width,
+                column_spacing: 1,
+            }
+        } else if inner_width >= 56 {
+            let bar_width = inner_width.saturating_sub(4 + 3 + 5 + 5 + 6).clamp(10, 24);
+            Self {
+                show_icon: true,
+                show_bar: true,
+                show_header: true,
+                show_precip_col: false,
+                show_gust_col: false,
                 bar_width,
                 column_spacing: 1,
             }
@@ -366,6 +551,8 @@ impl DailyLayout {
                 show_icon: false,
                 show_bar: true,
                 show_header: true,
+                show_precip_col: false,
+                show_gust_col: false,
                 bar_width,
                 column_spacing: 1,
             }
@@ -374,6 +561,8 @@ impl DailyLayout {
                 show_icon: false,
                 show_bar: false,
                 show_header: false,
+                show_precip_col: false,
+                show_gust_col: false,
                 bar_width: 0,
                 column_spacing: 1,
             }
@@ -384,6 +573,13 @@ impl DailyLayout {
         let reserved = if self.show_header { 1 } else { 0 };
         usize::from(inner_height.saturating_sub(reserved)).min(7)
     }
+}
+
+fn format_duration_hm(seconds: f32) -> String {
+    let total_minutes = (seconds.max(0.0) / 60.0).round() as i64;
+    let h = total_minutes / 60;
+    let m = total_minutes % 60;
+    format!("{h:02}:{m:02}")
 }
 
 pub fn bar_bounds(

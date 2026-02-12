@@ -85,6 +85,8 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Added clear-all flow for recent locations in the city picker (selectable row + Delete shortcut + persisted wipe) -> gives users explicit history reset control.
 - 2026-02-12: Expanded city input to Unicode letters (`char::is_alphanumeric`) -> allows searches like "Åre" and other non-ASCII city names.
 - 2026-02-12: Made Basic16/NO_COLOR palette theme-aware for explicit themes and added Enter-to-cycle settings behavior -> ensures theme switching is visibly effective across capabilities.
+- 2026-02-12: Rebalanced information by timescale (hero=current + 24h trend summaries, hourly=per-hour table, daily=7-day aggregates/cues) -> removes repeated metrics across panels and improves scanability.
+- 2026-02-12: Switched hourly/daily vertical alignment to top-anchored adaptive sections with extra insight rows/columns on larger terminals -> improves full-screen space usage.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -111,6 +113,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 13:16: Added location-history clear-all UX and persistence in city picker, reran full gates, result: PASS.
 - 2026-02-12 13:18: Fixed city picker non-ASCII input rejection (`å/Å`), added regression tests, reran full gates, result: PASS.
 - 2026-02-12 13:22: Fixed "theme change does nothing" path (Basic16 explicit theme variation + Enter-to-change settings), added regression test, reran full gates, result: PASS.
+- 2026-02-12 14:07: Added high-value Open-Meteo fields (pressure/dew/visibility/cloud layers/precip totals/gust maxima), refactored hero+hourly+daily to avoid duplication and better use tall/wide layouts; initial snapshot gate failed (expected UI changes), snapshots updated, reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added

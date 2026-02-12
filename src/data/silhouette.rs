@@ -1,19 +1,15 @@
-use std::sync::OnceLock;
-
 use anyhow::{Context, Result};
-use font8x8::{BASIC_FONTS, UnicodeFonts};
-use img_to_ascii::{
-    convert::{char_rows_to_string, get_conversion_algorithm, get_converter, img_to_char_rows},
-    font::{Character, Font},
-    image::LumaImage as AsciiLumaImage,
-};
+use image::GenericImageView;
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::domain::weather::{Location, SilhouetteArt};
+use crate::domain::weather::{ColoredGlyph, Location, SilhouetteArt};
 
 const WIKI_SEARCH_URL: &str = "https://en.wikipedia.org/w/api.php";
 const WIKI_SUMMARY_BASE: &str = "https://en.wikipedia.org/api/rest_v1/page/summary";
+type ColoredRows = Vec<Vec<ColoredGlyph>>;
+const WEB_ART_RENDER_WIDTH: u32 = 420;
+const WEB_ART_RENDER_HEIGHT: u32 = 240;
 
 #[derive(Debug, Clone)]
 pub struct SilhouetteClient {
@@ -72,10 +68,13 @@ impl SilhouetteClient {
                     Err(_) => continue,
                 };
 
-                if let Some(lines) = image_to_ascii(&bytes, 96, 42) {
+                if let Some((lines, colored_lines)) =
+                    image_to_ascii(&bytes, WEB_ART_RENDER_WIDTH, WEB_ART_RENDER_HEIGHT)
+                {
                     return Ok(Some(SilhouetteArt {
                         label: title,
                         lines,
+                        colored_lines,
                     }));
                 }
             }
@@ -231,52 +230,111 @@ fn queries_for_location(location: &Location) -> Vec<String> {
     let mut out = if norm.contains("stockholm") {
         vec![
             "Stockholm City Hall".to_string(),
-            "Stockholm skyline".to_string(),
+            "Stockholm skyline silhouette".to_string(),
             "Gamla stan waterfront".to_string(),
         ]
     } else if norm.contains("paris") {
         vec![
             "Eiffel Tower".to_string(),
-            "Paris skyline".to_string(),
+            "Eiffel Tower silhouette".to_string(),
+            "Paris skyline silhouette".to_string(),
             "Notre-Dame de Paris".to_string(),
         ]
     } else if norm.contains("new york") || norm.contains("nyc") {
         vec![
+            "Manhattan skyline silhouette".to_string(),
             "New York City skyline".to_string(),
             "Statue of Liberty".to_string(),
-            "Manhattan skyline".to_string(),
         ]
     } else if norm.contains("tokyo") {
         vec![
             "Tokyo Tower".to_string(),
-            "Tokyo skyline".to_string(),
+            "Tokyo skyline silhouette".to_string(),
             "Tokyo Skytree".to_string(),
         ]
     } else if norm.contains("london") {
         vec![
             "Elizabeth Tower".to_string(),
-            "London skyline".to_string(),
+            "London skyline silhouette".to_string(),
             "Tower Bridge".to_string(),
         ]
     } else if norm.contains("sydney") {
         vec![
             "Sydney Opera House".to_string(),
-            "Sydney skyline".to_string(),
+            "Sydney skyline silhouette".to_string(),
             "Sydney Harbour Bridge".to_string(),
         ]
     } else if norm.contains("san diego") {
         vec![
+            "San Diego skyline silhouette".to_string(),
             "San Diego skyline".to_string(),
             "Balboa Park".to_string(),
             "Hotel del Coronado".to_string(),
-            "Cabrillo National Monument".to_string(),
             "Coronado Bridge".to_string(),
+        ]
+    } else if norm.contains("moscow") || norm.contains("moskva") {
+        vec![
+            "Moscow Kremlin".to_string(),
+            "Saint Basil's Cathedral".to_string(),
+            "Moscow skyline".to_string(),
+        ]
+    } else if norm.contains("dubai") {
+        vec![
+            "Burj Khalifa".to_string(),
+            "Dubai skyline".to_string(),
+            "Dubai Marina".to_string(),
+        ]
+    } else if norm.contains("rome") || norm.contains("roma") {
+        vec![
+            "Colosseum".to_string(),
+            "Rome skyline".to_string(),
+            "St. Peter's Basilica".to_string(),
+        ]
+    } else if norm.contains("berlin") {
+        vec![
+            "Brandenburg Gate".to_string(),
+            "Berlin skyline".to_string(),
+            "Fernsehturm Berlin".to_string(),
+        ]
+    } else if norm.contains("san francisco") {
+        vec![
+            "Golden Gate Bridge".to_string(),
+            "San Francisco skyline".to_string(),
+        ]
+    } else if norm.contains("chicago") {
+        vec![
+            "Chicago skyline".to_string(),
+            "Willis Tower".to_string(),
+            "Cloud Gate".to_string(),
+        ]
+    } else if norm.contains("rio") {
+        vec![
+            "Christ the Redeemer".to_string(),
+            "Rio de Janeiro skyline".to_string(),
+            "Sugarloaf Mountain".to_string(),
+        ]
+    } else if norm.contains("shanghai") {
+        vec![
+            "Shanghai skyline".to_string(),
+            "Oriental Pearl Tower".to_string(),
+            "The Bund".to_string(),
+        ]
+    } else if norm.contains("hong kong") {
+        vec![
+            "Hong Kong skyline".to_string(),
+            "Victoria Harbour".to_string(),
+        ]
+    } else if norm.contains("singapore") {
+        vec![
+            "Singapore skyline".to_string(),
+            "Marina Bay Sands".to_string(),
+            "Merlion".to_string(),
         ]
     } else {
         vec![
+            format!("{city} skyline silhouette"),
             format!("{city} skyline"),
             format!("{city} landmark"),
-            format!("{city} architecture"),
             city.to_string(),
         ]
     };
@@ -290,93 +348,57 @@ fn queries_for_location(location: &Location) -> Vec<String> {
     out
 }
 
-fn image_to_ascii(bytes: &[u8], width: u32, height: u32) -> Option<Vec<String>> {
-    let image = image::load_from_memory(bytes).ok()?;
-    let converter = get_converter("direction-and-intensity");
-    let algorithm = get_conversion_algorithm("edge-augmented");
-    let char_rows = img_to_char_rows(
-        ascii_font(),
-        &AsciiLumaImage::from(&image),
-        converter,
-        Some(width.max(8) as usize),
-        0.02,
-        &algorithm,
-    );
-    if char_rows.is_empty() {
-        return None;
+/// Half-block rendering: each terminal cell encodes two vertical pixels using
+/// `▀` (upper-half block) with fg = top pixel, bg = bottom pixel.  This is the
+/// same technique used by chafa/viu/timg and gives true-color representation
+/// with 2× vertical resolution compared to single-character approaches.
+fn image_to_ascii(
+    bytes: &[u8],
+    width: u32,
+    height: u32,
+) -> Option<(Vec<String>, Option<ColoredRows>)> {
+    let img = image::load_from_memory(bytes).ok()?;
+
+    let chars_w = width.max(8);
+    // Each character cell is 2 pixels tall, so we need 2× the pixel rows.
+    let chars_h = height.max(4);
+    let px_h = chars_h * 2;
+
+    let resized = img.resize(chars_w, px_h, image::imageops::FilterType::Lanczos3);
+    let (actual_w, actual_h) = resized.dimensions();
+
+    let mut colored_rows: ColoredRows = Vec::with_capacity(chars_h as usize);
+
+    let mut cy = 0u32;
+    while cy * 2 < actual_h {
+        let mut row = Vec::with_capacity(actual_w as usize);
+        for cx in 0..actual_w {
+            let top_y = cy * 2;
+            let bot_y = (cy * 2 + 1).min(actual_h - 1);
+
+            let [tr, tg, tb, _] = resized.get_pixel(cx, top_y).0;
+            let [br, bg, bb, _] = resized.get_pixel(cx, bot_y).0;
+
+            row.push(ColoredGlyph {
+                ch: '▀',
+                color: Some((tr, tg, tb)),
+                bg_color: Some((br, bg, bb)),
+            });
+        }
+        colored_rows.push(row);
+        cy += 1;
     }
 
-    let text = char_rows_to_string(&char_rows);
-    let lines = text
-        .lines()
-        .map(|line| line.to_string())
-        .collect::<Vec<_>>();
-    if lines.is_empty() || lines.iter().all(|line| line.trim().is_empty()) {
-        return None;
-    }
-
-    let mut lines = trim_ascii_whitespace(lines)?;
-
-    let limit = height.max(4) as usize;
-    if lines.len() > limit {
-        let start = (lines.len() - limit) / 2;
-        lines = lines[start..start + limit].to_vec();
-    }
-
-    let non_space = lines
+    let lines: Vec<String> = colored_rows
         .iter()
-        .flat_map(|line| line.chars())
-        .filter(|ch| !ch.is_whitespace())
-        .count();
-    let total = lines.iter().map(|line| line.chars().count()).sum::<usize>();
-    if total == 0 {
-        return None;
-    }
+        .map(|row| row.iter().map(|g| g.ch).collect())
+        .collect();
 
-    let ratio = non_space as f32 / total as f32;
-    if !(0.03..=0.85).contains(&ratio) {
-        return None;
-    }
-
-    Some(lines)
-}
-
-fn trim_ascii_whitespace(lines: Vec<String>) -> Option<Vec<String>> {
     if lines.is_empty() {
         return None;
     }
 
-    let top = lines.iter().position(|line| !line.trim().is_empty())?;
-    let bottom = lines.iter().rposition(|line| !line.trim().is_empty())?;
-    let rows = lines[top..=bottom].to_vec();
-
-    let mut left = usize::MAX;
-    let mut right = 0usize;
-    for row in &rows {
-        for (i, ch) in row.chars().enumerate() {
-            if !ch.is_whitespace() {
-                left = left.min(i);
-                right = right.max(i);
-            }
-        }
-    }
-    if left == usize::MAX || right < left {
-        return None;
-    }
-
-    let trimmed = rows
-        .into_iter()
-        .map(|row| {
-            row.chars()
-                .skip(left)
-                .take(right.saturating_sub(left) + 1)
-                .collect::<String>()
-                .trim_end()
-                .to_string()
-        })
-        .collect::<Vec<_>>();
-
-    Some(trimmed)
+    Some((lines, Some(colored_rows)))
 }
 
 fn image_is_useful(source: &str, width: Option<u32>, height: Option<u32>) -> bool {
@@ -410,35 +432,6 @@ fn image_is_useful(source: &str, width: Option<u32>, height: Option<u32>) -> boo
         }
     }
     true
-}
-
-fn ascii_font() -> &'static Font {
-    static FONT: OnceLock<Font> = OnceLock::new();
-    FONT.get_or_init(build_ascii_font)
-}
-
-fn build_ascii_font() -> Font {
-    let alphabet: Vec<char> =
-        " .'`^\",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
-            .chars()
-            .collect();
-    let mut chars = Vec::new();
-
-    for ch in alphabet.iter().copied() {
-        let Some(glyph) = BASIC_FONTS.get(ch) else {
-            continue;
-        };
-        let mut bitmap = Vec::with_capacity(64);
-        for row in glyph {
-            for bit in 0..8 {
-                let on = ((row >> bit) & 1) == 1;
-                bitmap.push(if on { 1.0 } else { 0.0 });
-            }
-        }
-        chars.push(Character::new(ch, bitmap, 8, 8));
-    }
-
-    Font::new(&chars, &alphabet)
 }
 
 fn normalize_key_part(input: &str) -> String {
@@ -509,7 +502,9 @@ fn title_score(
         score += 12;
     }
 
-    const LANDMARK_TOKENS: [&str; 16] = [
+    const LANDMARK_TOKENS: [&str; 18] = [
+        "silhouette",
+        "outline",
         "skyline",
         "tower",
         "bridge",
@@ -529,11 +524,15 @@ fn title_score(
     ];
     for token in LANDMARK_TOKENS {
         if norm.contains(token) {
-            score += if token == "skyline" { 42 } else { 18 };
+            score += match token {
+                "silhouette" | "outline" => 55,
+                "skyline" => 42,
+                _ => 18,
+            };
         }
     }
 
-    const BAD_TITLE_TOKENS: [&str; 20] = [
+    const BAD_TITLE_TOKENS: [&str; 34] = [
         " fc",
         " football club",
         " soccer",
@@ -554,6 +553,20 @@ fn title_score(
         " university",
         " high school",
         " airline",
+        "cruiser",
+        "battleship",
+        "destroyer",
+        "frigate",
+        "submarine",
+        "warship",
+        "class ship",
+        "aircraft carrier",
+        "regiment",
+        "brigade",
+        "battalion",
+        "massacre",
+        "earthquake",
+        "hurricane",
     ];
     for token in BAD_TITLE_TOKENS {
         if norm.contains(token) {

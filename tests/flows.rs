@@ -43,8 +43,14 @@ fn fixture_bundle() -> ForecastBundle {
         temperature_2m_c: 7.2,
         relative_humidity_2m: 73.0,
         apparent_temperature_c: 5.8,
+        dew_point_2m_c: 2.1,
         weather_code: 61,
+        precipitation_mm: 0.5,
+        cloud_cover: 48.0,
+        pressure_msl_hpa: 1006.8,
+        visibility_m: 10_400.0,
         wind_speed_10m: 12.0,
+        wind_gusts_10m: 20.0,
         wind_direction_10m: 220.0,
         is_day: true,
         high_today_c: Some(9.0),
@@ -59,6 +65,17 @@ fn fixture_bundle() -> ForecastBundle {
             weather_code: Some(61),
             relative_humidity_2m: Some(70.0),
             precipitation_probability: Some(35.0),
+            precipitation_mm: Some(0.4),
+            rain_mm: Some(0.4),
+            snowfall_cm: Some(0.0),
+            wind_speed_10m: Some(11.0),
+            wind_gusts_10m: Some(18.0),
+            pressure_msl_hpa: Some(1007.0),
+            visibility_m: Some(9_800.0),
+            cloud_cover: Some(45.0),
+            cloud_cover_low: Some(15.0),
+            cloud_cover_mid: Some(25.0),
+            cloud_cover_high: Some(35.0),
         })
         .collect::<Vec<_>>();
 
@@ -73,6 +90,13 @@ fn fixture_bundle() -> ForecastBundle {
             sunset: None,
             uv_index_max: Some(2.0),
             precipitation_probability_max: Some(40.0),
+            precipitation_sum_mm: Some(2.2),
+            rain_sum_mm: Some(2.0),
+            snowfall_sum_cm: Some(0.0),
+            precipitation_hours: Some(2.5),
+            wind_gusts_10m_max: Some(24.0),
+            daylight_duration_s: Some(9.0 * 3600.0),
+            sunshine_duration_s: Some(4.0 * 3600.0),
         })
         .collect::<Vec<_>>();
 

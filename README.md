@@ -4,12 +4,13 @@
 
 ## Features
 - Current weather hero panel with condition, temperature, H/L, and location
-- Rich hero telemetry: feels-like, humidity, wind, precipitation, cloud descriptor, UV max
+- Rich hero telemetry: feels-like, dew point, humidity, pressure trend, visibility, cloud layers, UV max
 - Responsive hourly strip (12/8/6 columns based on terminal width)
-- 7-day forecast with normalized temperature range bars
-- Weather-aware themes with day/night adaptation and color fallback tiers
+- Hourly grid with labeled rows (time, weather, temp, precip, gust, visibility, cloud/pressure when space allows)
+- 7-day forecast with normalized temperature range bars, optional precip/gust columns, and week insights
+- Weather-aware themes with day/night adaptation, plus curated presets from iTerm2-Color-Schemes
 - Landmark panel with known-city ASCII art, procedural skyline fallback, and optional web-sourced silhouette mode
-- Web silhouette conversion powered by `image-to-ascii` using edge-aware rendering
+- Web silhouette conversion powered by `rascii_art` using high-resolution RASCII block charset rendering
 - Large-terminal scaling: landmark art and top layout expand to better use full-screen terminal space
 - Particle animation engine (rain/snow/fog/thunder) with wind drift
 - Fresh/stale/offline state handling with retry backoff and last-good data retention
@@ -53,7 +54,7 @@ Options:
   --no-flash                     Disable thunder flash
   --ascii-icons                  Force ASCII icons
   --emoji-icons                  Force emoji icons
-  --theme <auto|aurora|mono|high-contrast>
+  --theme <auto|aurora|mono|high-contrast|dracula|gruvbox-material-dark|kanagawa-wave|ayu-mirage|ayu-light|poimandres-storm|selenized-dark|no-clown-fiesta>
                                  Visual theme override (default: auto)
   --silhouette-source <local|auto|web>
                                  Landmark art source strategy (default: auto)
@@ -69,10 +70,18 @@ Options:
 - `q` or `Esc`: quit
 - `r`: manual refresh
 - `s`: open/close settings panel
+- `l`: open/close city switcher
 - `f`: switch to Fahrenheit
 - `c`: switch to Celsius
 - `←` / `→`: scroll hourly strip
 - `1..5`: choose location during geocode disambiguation
+
+### City switcher controls
+- Type city name and press `Enter` to search
+- `1..9`: quick-switch to recent cities
+- `↑` / `↓`: select recent city, then `Enter` to switch
+- `Backspace`: edit query
+- Search/switch history is persisted in `~/.config/atmos-tui/settings.json`
 
 ### Settings panel controls
 - `↑` / `↓`: select setting row
@@ -97,6 +106,7 @@ Theme modes:
 - `aurora`: vivid cool palette
 - `mono`: monochrome palette
 - `high-contrast`: maximum text contrast
+- `dracula`, `gruvbox-material-dark`, `kanagawa-wave`, `ayu-mirage`, `ayu-light`, `poimandres-storm`, `selenized-dark`, `no-clown-fiesta`: presets sourced from [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes)
 
 ## Troubleshooting
 - Network/API failure:
@@ -108,7 +118,8 @@ Theme modes:
 - Unicode/icon width issues:
   - Use `--ascii-icons` for stable alignment on limited terminals.
 - Web silhouette issues:
-  - `--silhouette-source web` fetches meaningful landmark/page images from Wikipedia and converts them with `image-to-ascii`.
+  - `--silhouette-source web` fetches meaningful landmark/page images from Wikipedia and converts them with `rascii_art` block charset rendering.
+  - Web silhouettes keep source image colors (not theme-tinted) for maximum visual detail.
   - If fetch fails, `auto` mode falls back to built-in/procedural silhouettes.
 - Coordinate flags error:
   - `--lat` and `--lon` must be provided together.

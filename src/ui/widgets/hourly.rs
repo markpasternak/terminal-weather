@@ -86,47 +86,41 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         return;
     }
 
-    let times = Row::new(
-        slice
-            .iter()
-            .enumerate()
-            .map(|(idx, h)| {
+    let label_width = if inner.width >= 92 { 7 } else { 6 };
+    let mut rows = vec![
+        Row::new({
+            let mut cells = vec![Cell::from("Time").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().enumerate().map(|(idx, h)| {
                 let is_now = offset == 0 && idx == 0;
                 let label = if is_now {
                     "Now".to_string()
                 } else {
                     h.time.format("%H:%M").to_string()
                 };
-                let mut cell = Cell::from(label);
                 if is_now {
-                    cell = cell.style(
+                    Cell::from(label).style(
                         Style::default()
                             .fg(theme.accent)
                             .add_modifier(Modifier::BOLD),
-                    );
+                    )
                 } else {
-                    cell = cell.style(Style::default().fg(theme.muted_text));
+                    Cell::from(label).style(Style::default().fg(theme.muted_text))
                 }
-                cell
-            })
-            .collect::<Vec<_>>(),
-    );
-
-    let icons = Row::new(
-        slice
-            .iter()
-            .map(|h| {
+            }));
+            cells
+        }),
+        Row::new({
+            let mut cells = vec![Cell::from("Wx").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
                 let code = h.weather_code.unwrap_or(bundle.current.weather_code);
                 Cell::from(weather_icon(code, state.settings.icon_mode))
                     .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))))
-            })
-            .collect::<Vec<_>>(),
-    );
-
-    let temps = Row::new(
-        slice
-            .iter()
-            .map(|h| {
+            }));
+            cells
+        }),
+        Row::new({
+            let mut cells = vec![Cell::from("Temp").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
                 let temp = h.temperature_2m_c.map(|t| convert_temp(t, state.units));
                 Cell::from(
                     temp.map(|t| format!("{}°", round_temp(t)))
@@ -137,73 +131,78 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
                         .map(|t| temp_color(&theme, t))
                         .unwrap_or(theme.muted_text)),
                 )
-            })
-            .collect::<Vec<_>>(),
-    )
-    .style(Style::default().add_modifier(Modifier::BOLD));
-
-    let precip = Row::new(
-        slice
-            .iter()
-            .map(|h| {
-                let text = h
-                    .precipitation_probability
-                    .map(|p| format!("P{:>2}", p.round() as i32))
-                    .unwrap_or_else(|| "P--".to_string());
-                Cell::from(text).style(Style::default().fg(theme.info))
-            })
-            .collect::<Vec<_>>(),
-    );
-
-    let humidity = Row::new(
-        slice
-            .iter()
-            .map(|h| {
-                let text = h
-                    .relative_humidity_2m
-                    .map(|rh| format!("H{:>2}", rh.round() as i32))
-                    .unwrap_or_else(|| "H--".to_string());
-                Cell::from(text).style(Style::default().fg(theme.muted_text))
-            })
-            .collect::<Vec<_>>(),
-    );
-
-    let trend = Row::new(
-        slice
-            .iter()
-            .map(|h| {
-                let glyph = h
-                    .temperature_2m_c
-                    .map(|t| convert_temp(t, state.units))
-                    .map(temp_level_glyph)
-                    .unwrap_or('·');
-                Cell::from(glyph.to_string()).style(Style::default().fg(theme.accent))
-            })
-            .collect::<Vec<_>>(),
-    );
-
-    let mut rows = vec![times, icons, temps];
+            }));
+            cells
+        })
+        .style(Style::default().add_modifier(Modifier::BOLD)),
+    ];
     if inner.height >= 5 {
-        rows.push(precip);
+        rows.push(Row::new({
+            let mut cells = vec![Cell::from("P mm").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
+                let text = h
+                    .precipitation_mm
+                    .map(|p| format!("{:>4.1}", p.max(0.0)))
+                    .unwrap_or_else(|| "--.-".to_string());
+                Cell::from(text).style(Style::default().fg(theme.info))
+            }));
+            cells
+        }));
     }
     if inner.height >= 6 {
-        rows.push(humidity);
+        rows.push(Row::new({
+            let mut cells = vec![Cell::from("Gust").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
+                let text = h
+                    .wind_gusts_10m
+                    .map(|g| format!("{:>3}", g.round() as i32))
+                    .unwrap_or_else(|| "-- ".to_string());
+                Cell::from(text).style(Style::default().fg(theme.warning))
+            }));
+            cells
+        }));
     }
     if inner.height >= 7 {
-        rows.push(trend);
+        rows.push(Row::new({
+            let mut cells = vec![Cell::from("Vis").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
+                let text = h
+                    .visibility_m
+                    .map(|v| format!("{:>3}", (v / 1000.0).round() as i32))
+                    .unwrap_or_else(|| "-- ".to_string());
+                Cell::from(text).style(Style::default().fg(theme.success))
+            }));
+            cells
+        }));
+    }
+    if inner.height >= 8 {
+        rows.push(Row::new({
+            let mut cells = vec![Cell::from("Cloud").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
+                let text = h
+                    .cloud_cover
+                    .map(|c| format!("{:>3}%", c.round() as i32))
+                    .unwrap_or_else(|| "-- ".to_string());
+                Cell::from(text).style(Style::default().fg(theme.landmark_neutral))
+            }));
+            cells
+        }));
+    }
+    if inner.height >= 9 {
+        rows.push(Row::new({
+            let mut cells = vec![Cell::from("Press").style(Style::default().fg(theme.muted_text))];
+            cells.extend(slice.iter().map(|h| {
+                let text = h
+                    .pressure_msl_hpa
+                    .map(|p| format!("{:>4.0}", p))
+                    .unwrap_or_else(|| " -- ".to_string());
+                Cell::from(text).style(Style::default().fg(theme.info))
+            }));
+            cells
+        }));
     }
 
-    let needed = rows.len() as u16;
-    let table_area = if inner.height > needed {
-        Rect {
-            x: inner.x,
-            y: inner.y + (inner.height - needed) / 2,
-            width: inner.width,
-            height: needed,
-        }
-    } else {
-        inner
-    };
+    let table_area = inner;
 
     let column_spacing = if inner.width >= 140 {
         2
@@ -212,7 +211,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     } else {
         0
     };
-    let widths = vec![Constraint::Ratio(1, slice.len().max(1) as u32); slice.len()];
+    let mut widths = vec![Constraint::Length(label_width)];
+    widths.extend(vec![
+        Constraint::Ratio(1, slice.len().max(1) as u32);
+        slice.len()
+    ]);
     let table = Table::new(rows, widths)
         .column_spacing(column_spacing)
         .style(panel_style);
@@ -259,22 +262,4 @@ fn render_loading_placeholder(
         .column_spacing(1)
         .style(panel_style);
     frame.render_widget(table, area);
-}
-
-fn temp_level_glyph(temp: f32) -> char {
-    if temp <= -8.0 {
-        '▁'
-    } else if temp <= 0.0 {
-        '▂'
-    } else if temp <= 8.0 {
-        '▄'
-    } else if temp <= 16.0 {
-        '▅'
-    } else if temp <= 24.0 {
-        '▆'
-    } else if temp <= 30.0 {
-        '▇'
-    } else {
-        '█'
-    }
 }
