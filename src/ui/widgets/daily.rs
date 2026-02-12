@@ -1,8 +1,9 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Row, Table},
+    text::{Line, Span},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
 };
 
 use crate::{
@@ -24,16 +25,19 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
             capability,
             state.settings.theme,
         );
+        let panel_style = Style::default().fg(theme.text).bg(theme.surface_alt);
         let block = Block::default()
             .borders(Borders::ALL)
             .title("7-Day")
-            .border_style(Style::default().fg(theme.border));
+            .style(panel_style)
+            .border_style(Style::default().fg(theme.border).bg(theme.surface_alt));
         let inner = block.inner(area);
         frame.render_widget(block, area);
         render_loading_daily(
             frame,
             inner,
             state.frame_tick,
+            panel_style,
             theme.accent,
             theme.muted_text,
         );
@@ -55,11 +59,13 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         capability,
         state.settings.theme,
     );
+    let panel_style = Style::default().fg(theme.text).bg(theme.surface_alt);
 
     let block = Block::default()
         .borders(Borders::ALL)
         .title(title)
-        .border_style(Style::default().fg(theme.border));
+        .style(panel_style)
+        .border_style(Style::default().fg(theme.border).bg(theme.surface_alt));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -74,7 +80,20 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         .filter_map(|d| d.temperature_max_c)
         .fold(f32::NEG_INFINITY, f32::max);
 
-    let max_rows = layout.max_rows(inner.height);
+    let summary_enabled = inner.height >= 13;
+    let split = if summary_enabled {
+        Layout::vertical([Constraint::Min(6), Constraint::Length(3)]).split(inner)
+    } else {
+        Layout::vertical([Constraint::Min(1)]).split(inner)
+    };
+    let table_slot = split[0];
+    let summary_slot = if summary_enabled {
+        Some(split[1])
+    } else {
+        None
+    };
+
+    let max_rows = layout.max_rows(table_slot.height);
     if max_rows == 0 {
         return;
     }
@@ -112,11 +131,19 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
                 if layout.show_bar {
                     let (start, end) =
                         bar_bounds(min_c, max_c, global_min, global_max, layout.bar_width);
-                    let mut bar = String::with_capacity(layout.bar_width);
-                    for i in 0..layout.bar_width {
-                        bar.push(if i >= start && i <= end { '█' } else { '·' });
-                    }
-                    row_cells.push(Cell::from(bar).style(Style::default().fg(theme.accent)));
+                    let clamped_start = start.min(layout.bar_width);
+                    let clamped_end = end.min(layout.bar_width.saturating_sub(1));
+                    let before = "·".repeat(clamped_start);
+                    let fill_len = clamped_end.saturating_sub(clamped_start).saturating_add(1);
+                    let fill = "█".repeat(fill_len);
+                    let after =
+                        "·".repeat(layout.bar_width.saturating_sub(clamped_start + fill_len));
+                    let bar = Line::from(vec![
+                        Span::styled(before, Style::default().fg(theme.range_track)),
+                        Span::styled(fill, Style::default().fg(theme.accent)),
+                        Span::styled(after, Style::default().fg(theme.range_track)),
+                    ]);
+                    row_cells.push(Cell::from(bar));
                 }
 
                 row_cells.push(Cell::from(max_label).style(
@@ -143,7 +170,13 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     }
     widths.push(Constraint::Length(5));
 
-    let mut table = Table::new(rows, widths).column_spacing(1);
+    let row_count = rows.len() as u16;
+    let header_rows = if layout.show_header { 1 } else { 0 };
+    let table_height = row_count.saturating_add(header_rows);
+
+    let mut table = Table::new(rows, widths)
+        .column_spacing(layout.column_spacing)
+        .style(panel_style);
     if layout.show_header {
         let mut header_cells = vec!["Day"];
         if layout.show_icon {
@@ -157,13 +190,28 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         table = table.header(Row::new(header_cells).style(Style::default().fg(theme.muted_text)));
     }
 
-    frame.render_widget(table, inner);
+    let table_area = if table_slot.height > table_height {
+        Rect {
+            x: table_slot.x,
+            y: table_slot.y + (table_slot.height - table_height) / 2,
+            width: table_slot.width,
+            height: table_height,
+        }
+    } else {
+        table_slot
+    };
+    frame.render_widget(table, table_area);
+
+    if let Some(area) = summary_slot {
+        render_week_summary(frame, area, bundle, state.units, theme);
+    }
 }
 
 fn render_loading_daily(
     frame: &mut Frame,
     area: Rect,
     frame_tick: u64,
+    panel_style: Style,
     accent: Color,
     muted: Color,
 ) {
@@ -199,7 +247,8 @@ fn render_loading_daily(
             Constraint::Length(4),
         ],
     )
-    .column_spacing(1);
+    .column_spacing(1)
+    .style(panel_style);
 
     frame.render_widget(table, area);
 }
@@ -208,12 +257,81 @@ fn inner_title_width(area: Rect) -> u16 {
     area.width.saturating_sub(2)
 }
 
+fn render_week_summary(
+    frame: &mut Frame,
+    area: Rect,
+    bundle: &crate::domain::weather::ForecastBundle,
+    units: crate::domain::weather::Units,
+    theme: crate::ui::theme::Theme,
+) {
+    if area.width < 20 || area.height == 0 || bundle.daily.is_empty() {
+        return;
+    }
+
+    let mut global_min = f32::INFINITY;
+    let mut global_max = f32::NEG_INFINITY;
+    let mut warmest: Option<(String, f32)> = None;
+    let mut wettest: Option<(String, f32)> = None;
+
+    for day in &bundle.daily {
+        if let Some(v) = day.temperature_min_c {
+            global_min = global_min.min(v);
+        }
+        if let Some(v) = day.temperature_max_c {
+            global_max = global_max.max(v);
+            let tag = day.date.format("%a").to_string();
+            if warmest.as_ref().is_none_or(|(_, best)| v > *best) {
+                warmest = Some((tag, v));
+            }
+        }
+        if let Some(v) = day.precipitation_probability_max {
+            let tag = day.date.format("%a").to_string();
+            if wettest.as_ref().is_none_or(|(_, best)| v > *best) {
+                wettest = Some((tag, v));
+            }
+        }
+    }
+
+    let low = round_temp(convert_temp(global_min, units));
+    let high = round_temp(convert_temp(global_max, units));
+    let spread = high - low;
+    let warmest_txt = warmest
+        .map(|(day, temp)| format!("{day} {}°", round_temp(convert_temp(temp, units))))
+        .unwrap_or_else(|| "--".to_string());
+    let wettest_txt = wettest
+        .map(|(day, p)| format!("{day} {}%", p.round() as i32))
+        .unwrap_or_else(|| "--".to_string());
+
+    let lines = vec![
+        Line::from(vec![
+            Span::styled("Week ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                format!("{low}°..{high}°"),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  "),
+            Span::styled("Spread ", Style::default().fg(theme.muted_text)),
+            Span::styled(format!("{spread}°"), Style::default().fg(theme.accent)),
+        ]),
+        Line::from(vec![
+            Span::styled("Warmest ", Style::default().fg(theme.muted_text)),
+            Span::styled(warmest_txt, Style::default().fg(theme.warning)),
+            Span::raw("  "),
+            Span::styled("Wettest ", Style::default().fg(theme.muted_text)),
+            Span::styled(wettest_txt, Style::default().fg(theme.info)),
+        ]),
+    ];
+
+    frame.render_widget(Paragraph::new(lines), area);
+}
+
 #[derive(Debug, Clone, Copy)]
 struct DailyLayout {
     show_icon: bool,
     show_bar: bool,
     show_header: bool,
     bar_width: usize,
+    column_spacing: u16,
 }
 
 impl DailyLayout {
@@ -224,13 +342,23 @@ impl DailyLayout {
         // - wide: icon + bar + header
         // - medium: no icon, still show range bar + header
         // - narrow: low/high only
-        if inner_width >= 50 {
-            let bar_width = inner_width.saturating_sub(4 + 3 + 5 + 5 + 4).clamp(8, 28);
+        if inner_width >= 90 {
+            let bar_width = inner_width.saturating_sub(4 + 3 + 5 + 5 + 8).clamp(18, 54);
             Self {
                 show_icon: true,
                 show_bar: true,
                 show_header: true,
                 bar_width,
+                column_spacing: 2,
+            }
+        } else if inner_width >= 50 {
+            let bar_width = inner_width.saturating_sub(4 + 3 + 5 + 5 + 5).clamp(10, 34);
+            Self {
+                show_icon: true,
+                show_bar: true,
+                show_header: true,
+                bar_width,
+                column_spacing: 1,
             }
         } else if inner_width >= 36 {
             let bar_width = inner_width.saturating_sub(4 + 5 + 5 + 3).clamp(6, 18);
@@ -239,6 +367,7 @@ impl DailyLayout {
                 show_bar: true,
                 show_header: true,
                 bar_width,
+                column_spacing: 1,
             }
         } else {
             Self {
@@ -246,6 +375,7 @@ impl DailyLayout {
                 show_bar: false,
                 show_header: false,
                 bar_width: 0,
+                column_spacing: 1,
             }
         }
     }

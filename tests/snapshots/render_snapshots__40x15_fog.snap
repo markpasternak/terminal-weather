@@ -3,18 +3,18 @@ source: tests/render_snapshots.rs
 assertion_line: 131
 expression: "render_to_string(40, 15, 45)"
 ---
-┌Current · Press S for settings────────┐
+┌Current · L cities · S settings───────┐
 │7°C                                   │
 │Fog                                   │
 │H:9°  L:3°                            │
 │Stockholm, Stockholm, Sweden          │
 └──────────────────────────────────────┘
 ┌Hourly────────────────────────────────┐
-│Now    11:00 12:00  13:00 14:00  15:00│
+│Now   11:00  12:00 13:00 14:00  15:00 │
+│░     ░      ░     ░     ░      ░     │
 └──────────────────────────────────────┘
 ┌7-Day (Low .. Day Range .. High)──────┐
 │Day  Low   Range              High    │
 │Thu  1°    ███████████······· 8°      │
 │Fri  1°    ████████████······ 9°      │
-│Sat  2°    ·████████████····· 10°     │
 └──────────────────────────────────────┘

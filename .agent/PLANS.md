@@ -81,6 +81,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Improved full-screen utilization by scaling web silhouettes to available hero space and adapting panel/hero split for large terminals -> reduces empty space on wide/tall layouts.
 - 2026-02-12: Added contrast-enforced semantic colors with dedicated popup surface/text/border tokens -> keeps settings/selectors readable and visually separated in every theme/capability tier.
 - 2026-02-12: Applied theme tinting to web landmark art and themed the small-terminal guard + thunder flash overlay -> ensures the selected theme impacts all visible UI regions.
+- 2026-02-12: Added luxury polish pass with hero typography scaling, staged loading choreography, and wide-screen micro-spacing tuning (hourly density + daily range expansion) -> improves elegance and space usage on large terminals.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -103,6 +104,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 12:47: Enlarged/resampled web-sourced landmark art and tuned large-terminal layout proportions, reran full gates, result: PASS.
 - 2026-02-12 13:00: Fixed global contrast regressions (panel/popup readability and border separation), reran full gates, result: PASS.
 - 2026-02-12 13:06: Reviewed theme propagation and fixed remaining non-themed areas (landmark colorization, small-terminal guard, flash overlay), reran full gates, result: PASS.
+- 2026-02-12 13:12: Completed luxury polish pass (hero scale system, animated loading choreography, 120+ column spacing refinements, snapshot refresh), reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added

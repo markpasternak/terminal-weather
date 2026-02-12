@@ -76,7 +76,12 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         vec![inner]
     };
 
-    render_weather_info(frame, columns[0], state, theme, code);
+    let left_area = if columns[0].width >= 56 {
+        inset_rect(columns[0], 1, 0)
+    } else {
+        columns[0]
+    };
+    render_weather_info(frame, left_area, state, theme, code);
 
     if columns.len() > 1 {
         let right = columns[1];
@@ -85,7 +90,12 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
             .border_style(Style::default().fg(theme.border));
         let right_inner = separator.inner(right);
         frame.render_widget(separator, right);
-        render_landmark(frame, right_inner, state, is_day, theme, capability);
+        let right_content = if right_inner.width >= 48 {
+            inset_rect(right_inner, 2, 0)
+        } else {
+            right_inner
+        };
+        render_landmark(frame, right_content, state, is_day, theme, capability);
     }
 }
 
@@ -96,8 +106,9 @@ fn render_weather_info(
     theme: crate::ui::theme::Theme,
     code: u8,
 ) {
+    let scale = HeroScale::for_area(area);
     let mut lines = Vec::new();
-    let compact_metrics = area.width < 54 || area.height < 8;
+    let compact_metrics = scale.compact_metrics();
     let text_color = theme.text;
     let muted_color = theme.muted_text;
 
@@ -113,17 +124,33 @@ fn render_weather_info(
         } else {
             "F"
         };
-
-        lines.push(Line::from(vec![Span::styled(
-            format!("{temp}°{unit_symbol}"),
-            Style::default().fg(text_color).add_modifier(Modifier::BOLD),
-        )]));
-        lines.push(Line::from(Span::styled(
-            weather_label(code),
-            Style::default()
-                .fg(condition_color(&theme, weather_code_to_category(code)))
-                .add_modifier(Modifier::BOLD),
-        )));
+        let metric_gap = scale.metric_gap();
+        if matches!(scale, HeroScale::Deluxe) {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("{temp}°{unit_symbol}"),
+                    Style::default().fg(text_color).add_modifier(Modifier::BOLD),
+                ),
+                Span::raw("  ·  "),
+                Span::styled(
+                    weather_label(code),
+                    Style::default()
+                        .fg(condition_color(&theme, weather_code_to_category(code)))
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]));
+        } else {
+            lines.push(Line::from(vec![Span::styled(
+                format!("{temp}°{unit_symbol}"),
+                Style::default().fg(text_color).add_modifier(Modifier::BOLD),
+            )]));
+            lines.push(Line::from(Span::styled(
+                weather_label(code),
+                Style::default()
+                    .fg(condition_color(&theme, weather_code_to_category(code)))
+                    .add_modifier(Modifier::BOLD),
+            )));
+        }
         if let Some((high, low)) = weather.high_low(state.units) {
             lines.push(Line::from(Span::styled(
                 format!("H:{high}°  L:{low}°"),
@@ -163,7 +190,7 @@ fn render_weather_info(
                     format!("{wind} km/h {wind_dir}"),
                     Style::default().fg(theme.success),
                 ),
-                Span::raw("  "),
+                Span::raw(metric_gap),
                 Span::styled("Hum ", Style::default().fg(muted_color)),
                 Span::styled(format!("{humidity}%"), Style::default().fg(theme.info)),
             ]));
@@ -171,7 +198,7 @@ fn render_weather_info(
             lines.push(Line::from(vec![
                 Span::styled("Feels ", Style::default().fg(muted_color)),
                 Span::styled(format!("{feels}°"), Style::default().fg(text_color)),
-                Span::raw("  "),
+                Span::raw(metric_gap),
                 Span::styled("Humidity ", Style::default().fg(muted_color)),
                 Span::styled(format!("{humidity}%"), Style::default().fg(theme.info)),
             ]));
@@ -181,14 +208,14 @@ fn render_weather_info(
                     format!("{wind} km/h {wind_dir}"),
                     Style::default().fg(theme.success),
                 ),
-                Span::raw("  "),
+                Span::raw(metric_gap),
                 Span::styled("Precip ", Style::default().fg(muted_color)),
                 Span::styled(precip_now, Style::default().fg(theme.accent)),
             ]));
             lines.push(Line::from(vec![
                 Span::styled("Clouds ", Style::default().fg(muted_color)),
                 Span::styled(cloud, Style::default().fg(theme.landmark_neutral)),
-                Span::raw("  "),
+                Span::raw(metric_gap),
                 Span::styled("UV ", Style::default().fg(muted_color)),
                 Span::styled(uv_today, Style::default().fg(theme.warning)),
             ]));
@@ -241,30 +268,8 @@ fn render_weather_info(
             )));
         }
     } else {
-        let spinner = loading_spinner(state.frame_tick);
-        let stage = loading_stage(state.frame_tick);
-        let bar = indeterminate_bar(state.frame_tick, 18);
-
-        lines.push(Line::from(Span::styled(
-            format!("{spinner} Preparing atmosphere"),
-            Style::default().fg(text_color).add_modifier(Modifier::BOLD),
-        )));
-        lines.push(Line::from(Span::styled(
-            stage,
-            Style::default().fg(text_color),
-        )));
-        lines.push(Line::from(Span::styled(
-            bar,
-            Style::default().fg(muted_color),
-        )));
-        lines.push(Line::from(Span::styled(
-            state.loading_message.clone(),
-            Style::default().fg(text_color),
-        )));
-        lines.push(Line::from(Span::styled(
-            "Tip: press l for cities, s for settings, r to retry, q to quit",
-            Style::default().fg(muted_color),
-        )));
+        render_loading_choreography(frame, area, state, theme, scale);
+        return;
     }
 
     frame.render_widget(Paragraph::new(lines), area);
@@ -278,9 +283,10 @@ fn render_weather_info_expanded(
     weather: &crate::domain::weather::ForecastBundle,
     code: u8,
 ) {
-    let sections = if area.height >= 18 {
+    let scale = HeroScale::for_area(area);
+    let sections = if area.height >= 20 {
         Layout::vertical([
-            Constraint::Length(5),
+            Constraint::Length(6),
             Constraint::Length(5),
             Constraint::Min(4),
         ])
@@ -405,8 +411,12 @@ fn render_weather_info_expanded(
     )));
     frame.render_widget(Paragraph::new(top_lines), top_area);
 
-    let metric_cols = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(metrics_area);
+    let metric_cols = Layout::horizontal(if matches!(scale, HeroScale::Deluxe) {
+        [Constraint::Percentage(46), Constraint::Percentage(54)]
+    } else {
+        [Constraint::Percentage(50), Constraint::Percentage(50)]
+    })
+    .split(metrics_area);
     let left_metrics = vec![
         Line::from(vec![
             Span::styled("Feels ", Style::default().fg(theme.muted_text)),
@@ -446,7 +456,10 @@ fn render_weather_info_expanded(
     ];
     frame.render_widget(Paragraph::new(right_metrics), metric_cols[1]);
 
-    let chart_width = trend_area.width.saturating_sub(14).clamp(12, 48) as usize;
+    let chart_width = trend_area
+        .width
+        .saturating_sub(scale.chart_left_padding())
+        .clamp(12, scale.chart_max_width()) as usize;
     let temp_values = weather
         .hourly
         .iter()
@@ -536,6 +549,45 @@ fn render_weather_info_expanded(
         ]));
     }
     frame.render_widget(Paragraph::new(trend_lines), trend_area);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HeroScale {
+    Compact,
+    Standard,
+    Deluxe,
+}
+
+impl HeroScale {
+    fn for_area(area: Rect) -> Self {
+        if area.width >= 84 && area.height >= 14 {
+            Self::Deluxe
+        } else if area.width >= 56 && area.height >= 9 {
+            Self::Standard
+        } else {
+            Self::Compact
+        }
+    }
+
+    fn compact_metrics(self) -> bool {
+        matches!(self, Self::Compact)
+    }
+
+    fn metric_gap(self) -> &'static str {
+        if matches!(self, Self::Deluxe) {
+            "    "
+        } else {
+            "  "
+        }
+    }
+
+    fn chart_left_padding(self) -> u16 {
+        if matches!(self, Self::Deluxe) { 10 } else { 14 }
+    }
+
+    fn chart_max_width(self) -> u16 {
+        if matches!(self, Self::Deluxe) { 64 } else { 48 }
+    }
 }
 
 fn sparkline(values: &[f32], width: usize) -> String {
@@ -733,18 +785,118 @@ fn colored_line_from_glyphs(
     Line::from(spans)
 }
 
+fn render_loading_choreography(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+    theme: crate::ui::theme::Theme,
+    scale: HeroScale,
+) {
+    let stage_idx = loading_stage_index(state.frame_tick);
+    let spinner = loading_spinner(state.frame_tick);
+    let bar = indeterminate_bar(
+        state.frame_tick,
+        match scale {
+            HeroScale::Compact => 18,
+            HeroScale::Standard => 24,
+            HeroScale::Deluxe => 34,
+        },
+    );
+
+    let stage_labels = [
+        "Locate city context",
+        "Fetch weather layers",
+        "Compose ambient scene",
+    ];
+    let mut stage_spans = Vec::new();
+    for (idx, label) in stage_labels.into_iter().enumerate() {
+        let (marker, color) = if idx < stage_idx {
+            ("● ", theme.success)
+        } else if idx == stage_idx {
+            ("◉ ", theme.accent)
+        } else {
+            ("○ ", theme.muted_text)
+        };
+        stage_spans.push(Span::styled(marker, Style::default().fg(color)));
+        stage_spans.push(Span::styled(label, Style::default().fg(color)));
+        if idx + 1 < stage_labels.len() {
+            stage_spans.push(Span::raw("   "));
+        }
+    }
+
+    let mut lines = vec![
+        Line::from(Span::styled(
+            format!("{spinner} Preparing atmosphere"),
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(stage_spans),
+        Line::from(Span::styled(bar, Style::default().fg(theme.info))),
+        Line::from(Span::styled(
+            state.loading_message.clone(),
+            Style::default().fg(theme.text),
+        )),
+    ];
+
+    if area.height >= 9 {
+        lines.push(Line::from(""));
+        let skeleton_width = usize::from(area.width).saturating_sub(4).clamp(16, 56);
+        lines.push(Line::from(vec![
+            Span::styled("Hero   ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                loading_skeleton_row(state.frame_tick, skeleton_width, 0),
+                Style::default().fg(theme.accent),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Hourly ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                loading_skeleton_row(state.frame_tick, skeleton_width, 1),
+                Style::default().fg(theme.info),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Daily  ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                loading_skeleton_row(state.frame_tick, skeleton_width, 2),
+                Style::default().fg(theme.success),
+            ),
+        ]));
+    }
+
+    lines.push(Line::from(Span::styled(
+        "Tip: press l for cities, s for settings, r to retry, q to quit",
+        Style::default().fg(theme.muted_text),
+    )));
+
+    frame.render_widget(Paragraph::new(lines), area);
+}
+
+fn loading_skeleton_row(frame_tick: u64, width: usize, lane: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+    let mut chars = vec!['·'; width];
+    let head = ((frame_tick as usize) + lane * 5) % width;
+    chars[head] = '█';
+    if head > 0 {
+        chars[head - 1] = '▓';
+    }
+    if head + 1 < width {
+        chars[head + 1] = '▓';
+    }
+    if head + 2 < width {
+        chars[head + 2] = '▒';
+    }
+    chars.into_iter().collect()
+}
+
 fn loading_spinner(frame_tick: u64) -> &'static str {
     const FRAMES: [&str; 8] = ["-", "\\", "|", "/", "-", "\\", "|", "/"];
     FRAMES[(frame_tick as usize) % FRAMES.len()]
 }
 
-fn loading_stage(frame_tick: u64) -> &'static str {
-    const STAGES: [&str; 3] = [
-        "Locating city context",
-        "Fetching weather layers",
-        "Composing terminal scene",
-    ];
-    STAGES[((frame_tick / 14) as usize) % STAGES.len()]
+fn loading_stage_index(frame_tick: u64) -> usize {
+    ((frame_tick / 14) as usize) % 3
 }
 
 fn indeterminate_bar(frame_tick: u64, width: usize) -> String {
@@ -921,4 +1073,15 @@ fn indexed_color_to_rgb(idx: u8) -> (u8, u8, u8) {
     }
     let gray = 8 + (idx - 232) * 10;
     (gray, gray, gray)
+}
+
+fn inset_rect(area: Rect, horizontal: u16, vertical: u16) -> Rect {
+    let h = horizontal.min(area.width.saturating_sub(1) / 2);
+    let v = vertical.min(area.height.saturating_sub(1) / 2);
+    Rect {
+        x: area.x.saturating_add(h),
+        y: area.y.saturating_add(v),
+        width: area.width.saturating_sub(h.saturating_mul(2)),
+        height: area.height.saturating_sub(v.saturating_mul(2)),
+    }
 }
