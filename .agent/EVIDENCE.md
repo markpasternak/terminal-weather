@@ -49,6 +49,8 @@ Total tests passing: 18
 - `src/ui/widgets/hero.rs`
 - `src/ui/theme.rs`
 - `src/domain/weather.rs`
+- `src/ui/widgets/landmark.rs`
+- `src/ui/widgets/hourly.rs`
 
 ## Open Risks / Follow-ups
 1. CPU and frame-time p95 targets need explicit benchmark harness in CI/release profiles.
