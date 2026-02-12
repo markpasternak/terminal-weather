@@ -73,6 +73,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Use rustup bootstrap gate -> user confirmed -> machine initially lacked rust toolchain.
 - 2026-02-12: Rust stack: tokio + crossterm + ratatui + reqwest -> chosen for async TUI/event-stream integration.
 - 2026-02-12: Snapshot tests stabilized by removing wall-clock dependency from expected render output.
+- 2026-02-12: 7-day widget switched to adaptive width/height modes with explicit column labels -> improves readability and use of available terminal space.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -84,6 +85,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 09:21: Completed M4 particle engine + wind drift + reduced-motion/no-flash/no-animation controls, ran full gates, result: PASS.
 - 2026-02-12 09:22: Completed M5 refresh jitter + backoff retries + fresh/stale/offline + last-good retention, ran full gates, result: PASS.
 - 2026-02-12 09:24: Completed M6 tests/docs/evidence hardening and final gate run, result: PASS.
+- 2026-02-12 09:30: Completed post-M6 UI refinement (hero contrast + 7-day responsiveness/clarity), reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added
