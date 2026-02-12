@@ -40,6 +40,8 @@ pub struct AppState {
     pub backoff: Backoff,
     pub fetch_in_flight: bool,
     pub last_frame_at: Instant,
+    pub frame_tick: u64,
+    pub animate_ui: bool,
 }
 
 impl AppState {
@@ -64,6 +66,8 @@ impl AppState {
             backoff: Backoff::new(10, 300),
             fetch_in_flight: false,
             last_frame_at: Instant::now(),
+            frame_tick: 0,
+            animate_ui: !cli.no_animation && !cli.reduced_motion,
         }
     }
 
@@ -91,6 +95,7 @@ impl AppState {
                 let now = Instant::now();
                 let delta = now.duration_since(self.last_frame_at);
                 self.last_frame_at = now;
+                self.frame_tick = self.frame_tick.saturating_add(1);
 
                 self.particles.update(
                     self.weather.as_ref().map(|w| w.current_weather_code()),

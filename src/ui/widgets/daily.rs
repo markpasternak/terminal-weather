@@ -2,13 +2,16 @@ use ratatui::{
     Frame,
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Row, Table},
+    widgets::{Block, Borders, Cell, Row, Table},
 };
 
 use crate::{
     app::state::AppState,
     cli::Cli,
-    domain::weather::{convert_temp, round_temp, weather_icon},
+    domain::weather::{
+        WeatherCategory, convert_temp, round_temp, weather_code_to_category, weather_icon,
+    },
+    ui::theme::{detect_color_capability, theme_for},
 };
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
@@ -27,7 +30,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         "7-Day (Low/High)"
     };
 
-    let block = Block::default().borders(Borders::ALL).title(title);
+    let capability = detect_color_capability();
+    let theme = theme_for(
+        weather_code_to_category(bundle.current.weather_code),
+        bundle.current.is_day,
+        capability,
+    );
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .border_style(Style::default().fg(theme.muted_text));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -60,13 +73,21 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
             let min_label = format!("{}°", round_temp(convert_temp(min_c, state.units)));
             let max_label = format!("{}°", round_temp(convert_temp(max_c, state.units)));
 
-            let mut cells = vec![day.date.format("%a").to_string()];
+            let mut row_cells = vec![
+                Cell::from(day.date.format("%a").to_string())
+                    .style(Style::default().fg(theme.text)),
+            ];
             if layout.show_icon {
-                cells.push(
-                    weather_icon(day.weather_code.unwrap_or(3), crate::icon_mode(cli)).to_string(),
+                let code = day.weather_code.unwrap_or(3);
+                row_cells.push(
+                    Cell::from(weather_icon(code, crate::icon_mode(cli)))
+                        .style(Style::default().fg(icon_color_for(code))),
                 );
             }
-            cells.push(min_label);
+            row_cells.push(
+                Cell::from(min_label)
+                    .style(Style::default().fg(temp_color_for(convert_temp(min_c, state.units)))),
+            );
 
             if layout.show_bar {
                 let (start, end) =
@@ -75,19 +96,18 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
                 for i in 0..layout.bar_width {
                     bar.push(if i >= start && i <= end { '█' } else { '·' });
                 }
-                cells.push(bar);
+                row_cells.push(Cell::from(bar).style(Style::default().fg(theme.accent)));
             }
 
-            cells.push(max_label);
+            row_cells.push(
+                Cell::from(max_label)
+                    .style(Style::default().fg(temp_color_for(convert_temp(max_c, state.units)))),
+            );
 
-            let row = Row::new(cells);
+            let row = Row::new(row_cells);
 
             if is_today {
-                row.style(
-                    Style::default()
-                        .fg(Color::Cyan)
-                        .add_modifier(Modifier::BOLD),
-                )
+                row.style(Style::default().add_modifier(Modifier::BOLD))
             } else {
                 row
             }
@@ -115,10 +135,36 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
             header_cells.push("Range");
         }
         header_cells.push("High");
-        table = table.header(Row::new(header_cells).style(Style::default().fg(Color::Gray)));
+        table = table.header(Row::new(header_cells).style(Style::default().fg(theme.muted_text)));
     }
 
     frame.render_widget(table, inner);
+}
+
+fn icon_color_for(code: u8) -> Color {
+    match weather_code_to_category(code) {
+        WeatherCategory::Clear => Color::Yellow,
+        WeatherCategory::Cloudy => Color::Gray,
+        WeatherCategory::Rain => Color::Cyan,
+        WeatherCategory::Snow => Color::White,
+        WeatherCategory::Fog => Color::DarkGray,
+        WeatherCategory::Thunder => Color::Magenta,
+        WeatherCategory::Unknown => Color::LightBlue,
+    }
+}
+
+fn temp_color_for(temp: f32) -> Color {
+    if temp <= -5.0 {
+        Color::LightBlue
+    } else if temp <= 5.0 {
+        Color::Cyan
+    } else if temp <= 18.0 {
+        Color::Green
+    } else if temp <= 28.0 {
+        Color::Yellow
+    } else {
+        Color::Red
+    }
 }
 
 fn inner_title_width(area: Rect) -> u16 {
