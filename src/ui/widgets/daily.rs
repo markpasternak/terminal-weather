@@ -12,13 +12,24 @@ use crate::{
 };
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
-    let block = Block::default().borders(Borders::ALL).title("7-Day");
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
     let Some(bundle) = &state.weather else {
+        let block = Block::default().borders(Borders::ALL).title("7-Day");
+        frame.render_widget(block, area);
         return;
     };
+
+    let layout = DailyLayout::for_area(area);
+    let title = if layout.show_bar && inner_title_width(area) >= 34 {
+        "7-Day (Low .. Day Range .. High)"
+    } else if layout.show_bar {
+        "7-Day (Low..High)"
+    } else {
+        "7-Day (Low/High)"
+    };
+
+    let block = Block::default().borders(Borders::ALL).title(title);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
 
     let global_min = bundle
         .daily
@@ -31,12 +42,15 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         .filter_map(|d| d.temperature_max_c)
         .fold(f32::NEG_INFINITY, f32::max);
 
-    let range = (global_max - global_min).max(1.0);
+    let max_rows = layout.max_rows(inner.height);
+    if max_rows == 0 {
+        return;
+    }
 
     let rows = bundle
         .daily
         .iter()
-        .take(7)
+        .take(max_rows)
         .enumerate()
         .map(|(idx, day)| {
             let is_today = idx == 0;
@@ -46,25 +60,27 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
             let min_label = format!("{}°", round_temp(convert_temp(min_c, state.units)));
             let max_label = format!("{}°", round_temp(convert_temp(max_c, state.units)));
 
-            let start = (((min_c - global_min) / range) * 12.0)
-                .round()
-                .clamp(0.0, 12.0) as usize;
-            let end = (((max_c - global_min) / range) * 12.0)
-                .round()
-                .clamp(0.0, 12.0) as usize;
+            let mut cells = vec![day.date.format("%a").to_string()];
+            if layout.show_icon {
+                cells.push(
+                    weather_icon(day.weather_code.unwrap_or(3), crate::icon_mode(cli)).to_string(),
+                );
+            }
+            cells.push(min_label);
 
-            let mut bar = String::with_capacity(12);
-            for i in 0..12 {
-                bar.push(if i >= start && i <= end { '█' } else { '·' });
+            if layout.show_bar {
+                let (start, end) =
+                    bar_bounds(min_c, max_c, global_min, global_max, layout.bar_width);
+                let mut bar = String::with_capacity(layout.bar_width);
+                for i in 0..layout.bar_width {
+                    bar.push(if i >= start && i <= end { '█' } else { '·' });
+                }
+                cells.push(bar);
             }
 
-            let row = Row::new(vec![
-                day.date.format("%a").to_string(),
-                weather_icon(day.weather_code.unwrap_or(3), crate::icon_mode(cli)).to_string(),
-                min_label,
-                bar,
-                max_label,
-            ]);
+            cells.push(max_label);
+
+            let row = Row::new(cells);
 
             if is_today {
                 row.style(
@@ -78,15 +94,83 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         })
         .collect::<Vec<_>>();
 
-    let widths = [
-        Constraint::Length(5),
-        Constraint::Length(5),
-        Constraint::Length(6),
-        Constraint::Length(14),
-        Constraint::Length(6),
-    ];
+    let mut widths = vec![Constraint::Length(4)];
+    if layout.show_icon {
+        widths.push(Constraint::Length(3));
+    }
+    widths.push(Constraint::Length(5));
+    if layout.show_bar {
+        widths.push(Constraint::Length(layout.bar_width as u16));
+    }
+    widths.push(Constraint::Length(5));
 
-    frame.render_widget(Table::new(rows, widths), inner);
+    let mut table = Table::new(rows, widths).column_spacing(1);
+    if layout.show_header {
+        let mut header_cells = vec!["Day"];
+        if layout.show_icon {
+            header_cells.push("Wx");
+        }
+        header_cells.push("Low");
+        if layout.show_bar {
+            header_cells.push("Range");
+        }
+        header_cells.push("High");
+        table = table.header(Row::new(header_cells).style(Style::default().fg(Color::Gray)));
+    }
+
+    frame.render_widget(table, inner);
+}
+
+fn inner_title_width(area: Rect) -> u16 {
+    area.width.saturating_sub(2)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DailyLayout {
+    show_icon: bool,
+    show_bar: bool,
+    show_header: bool,
+    bar_width: usize,
+}
+
+impl DailyLayout {
+    fn for_area(area: Rect) -> Self {
+        let inner_width = area.width.saturating_sub(2) as usize;
+
+        // Width tiers:
+        // - wide: icon + bar + header
+        // - medium: no icon, still show range bar + header
+        // - narrow: low/high only
+        if inner_width >= 50 {
+            let bar_width = inner_width.saturating_sub(4 + 3 + 5 + 5 + 4).clamp(8, 28);
+            Self {
+                show_icon: true,
+                show_bar: true,
+                show_header: true,
+                bar_width,
+            }
+        } else if inner_width >= 36 {
+            let bar_width = inner_width.saturating_sub(4 + 5 + 5 + 3).clamp(6, 18);
+            Self {
+                show_icon: false,
+                show_bar: true,
+                show_header: true,
+                bar_width,
+            }
+        } else {
+            Self {
+                show_icon: false,
+                show_bar: false,
+                show_header: false,
+                bar_width: 0,
+            }
+        }
+    }
+
+    fn max_rows(self, inner_height: u16) -> usize {
+        let reserved = if self.show_header { 1 } else { 0 };
+        usize::from(inner_height.saturating_sub(reserved)).min(7)
+    }
 }
 
 pub fn bar_bounds(
@@ -116,5 +200,38 @@ mod tests {
         assert!(start <= 12);
         assert!(end <= 12);
         assert!(start <= end);
+    }
+
+    #[test]
+    fn daily_layout_changes_by_width() {
+        let wide = DailyLayout::for_area(Rect {
+            x: 0,
+            y: 0,
+            width: 80,
+            height: 10,
+        });
+        assert!(wide.show_icon);
+        assert!(wide.show_bar);
+        assert!(wide.show_header);
+
+        let medium = DailyLayout::for_area(Rect {
+            x: 0,
+            y: 0,
+            width: 44,
+            height: 10,
+        });
+        assert!(!medium.show_icon);
+        assert!(medium.show_bar);
+        assert!(medium.show_header);
+
+        let narrow = DailyLayout::for_area(Rect {
+            x: 0,
+            y: 0,
+            width: 32,
+            height: 10,
+        });
+        assert!(!narrow.show_icon);
+        assert!(!narrow.show_bar);
+        assert!(!narrow.show_header);
     }
 }
