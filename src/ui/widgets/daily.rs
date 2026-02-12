@@ -14,11 +14,16 @@ use crate::{
     ui::theme::{detect_color_capability, icon_color, temp_color, theme_for},
 };
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     let capability = detect_color_capability();
 
     let Some(bundle) = &state.weather else {
-        let theme = theme_for(WeatherCategory::Unknown, true, capability, cli.theme);
+        let theme = theme_for(
+            WeatherCategory::Unknown,
+            true,
+            capability,
+            state.settings.theme,
+        );
         let block = Block::default()
             .borders(Borders::ALL)
             .title("7-Day")
@@ -48,7 +53,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         weather_code_to_category(bundle.current.weather_code),
         bundle.current.is_day,
         capability,
-        cli.theme,
+        state.settings.theme,
     );
 
     let block = Block::default()
@@ -94,9 +99,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
                 ];
                 if layout.show_icon {
                     let code = day.weather_code.unwrap_or(3);
-                    row_cells.push(Cell::from(weather_icon(code, crate::icon_mode(cli))).style(
-                        Style::default().fg(icon_color(&theme, weather_code_to_category(code))),
-                    ));
+                    row_cells.push(
+                        Cell::from(weather_icon(code, state.settings.icon_mode)).style(
+                            Style::default().fg(icon_color(&theme, weather_code_to_category(code))),
+                        ),
+                    );
                 }
                 row_cells.push(Cell::from(min_label).style(
                     Style::default().fg(temp_color(&theme, convert_temp(min_c, state.units))),

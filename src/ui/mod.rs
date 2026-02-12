@@ -42,14 +42,16 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     widgets::hourly::render(frame, chunks[1], state, cli);
     widgets::daily::render(frame, chunks[2], state, cli);
 
-    render_status_badge(frame, area, state, cli);
+    render_status_badge(frame, area, state);
 
     if state.mode == AppMode::SelectingLocation {
         widgets::selector::render(frame, centered_rect(70, 60, area), state);
+    } else if state.settings_open {
+        widgets::settings::render(frame, centered_rect(68, 74, area), state);
     }
 }
 
-fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
+fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
     let capability = detect_color_capability();
     let (category, is_day) = state
         .weather
@@ -61,7 +63,7 @@ fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cl
             )
         })
         .unwrap_or((WeatherCategory::Unknown, false));
-    let theme = theme_for(category, is_day, capability, cli.theme);
+    let theme = theme_for(category, is_day, capability, state.settings.theme);
 
     let label = match state.refresh_meta.state {
         FreshnessState::Offline => Some(("⚠ offline".to_string(), theme.danger)),

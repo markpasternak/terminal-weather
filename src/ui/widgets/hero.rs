@@ -19,7 +19,7 @@ use crate::{
     ui::widgets::landmark::{LandmarkTint, scene_for_location, scene_from_web_art},
 };
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     let (category, is_day, code) = state
         .weather
         .as_ref()
@@ -34,7 +34,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         .unwrap_or((WeatherCategory::Unknown, false, 0));
 
     let capability = detect_color_capability();
-    let theme = theme_for(category, is_day, capability, cli.theme);
+    let theme = theme_for(category, is_day, capability, state.settings.theme);
 
     let bg = GradientBackground {
         top: theme.top,
@@ -72,7 +72,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
             .border_style(Style::default().fg(theme.border));
         let right_inner = separator.inner(right);
         frame.render_widget(separator, right);
-        render_landmark(frame, right_inner, state, is_day, cli, theme);
+        render_landmark(frame, right_inner, state, is_day, theme);
     }
 }
 
@@ -257,7 +257,6 @@ fn render_landmark(
     area: Rect,
     state: &AppState,
     is_day: bool,
-    cli: &Cli,
     theme: crate::ui::theme::Theme,
 ) {
     if area.width < 10 || area.height < 4 {
@@ -272,7 +271,7 @@ fn render_landmark(
         .unwrap_or("Local");
 
     let scene = if matches!(
-        cli.silhouette_source,
+        state.settings.silhouette_source,
         SilhouetteSourceArg::Web | SilhouetteSourceArg::Auto
     ) {
         state
@@ -287,7 +286,7 @@ fn render_landmark(
                 )
             })
             .unwrap_or_else(|| {
-                if matches!(cli.silhouette_source, SilhouetteSourceArg::Web)
+                if matches!(state.settings.silhouette_source, SilhouetteSourceArg::Web)
                     && state
                         .active_location_key
                         .as_ref()

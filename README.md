@@ -67,10 +67,18 @@ Options:
 ## Keybindings
 - `q` or `Esc`: quit
 - `r`: manual refresh
+- `s`: open/close settings panel
 - `f`: switch to Fahrenheit
 - `c`: switch to Celsius
 - `←` / `→`: scroll hourly strip
 - `1..5`: choose location during geocode disambiguation
+
+### Settings panel controls
+- `↑` / `↓`: select setting row
+- `←` / `→`: cycle selected setting value
+- `Enter`: run selected action (`Refresh now` / `Close`)
+- Settings are persisted across sessions in `~/.config/atmos-tui/settings.json`
+- Optional override for settings location: `ATMOS_TUI_CONFIG_DIR` (directory path)
 
 ## Terminal Compatibility and Color Fallback
 Color rendering degrades in this order:

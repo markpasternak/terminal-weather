@@ -39,6 +39,16 @@ impl ParticleEngine {
         self.particles.clear();
     }
 
+    pub fn set_options(&mut self, disabled: bool, reduced_motion: bool, no_flash: bool) {
+        let mode_changed = self.disabled != disabled || self.reduced_motion != reduced_motion;
+        self.disabled = disabled;
+        self.reduced_motion = reduced_motion;
+        self.no_flash = no_flash;
+        if mode_changed || disabled {
+            self.reset();
+        }
+    }
+
     pub fn flash_active(&self) -> bool {
         !self.no_flash && self.flash_timer > 0.0
     }

@@ -77,6 +77,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Theme system moved to contrast-first semantic tokens + explicit CLI overrides -> prevents light-on-light failures across terminal capabilities.
 - 2026-02-12: Added async web-sourced silhouette pipeline via Wikipedia thumbnail fetch + ASCII conversion + local fallback -> enables dynamic landmark visuals without blocking UI.
 - 2026-02-12: Switched web silhouette rendering to `image-to-ascii` with edge-aware conversion and meaningful Wikipedia page-image selection -> improves landmark quality and recognizability.
+- 2026-02-12: Added in-app settings panel with persistent runtime preferences (theme, units, motion, flash, icons, silhouette source, refresh interval) -> enables live UX customization across sessions.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -95,6 +96,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 11:42: Completed contrast/theming hardening (semantic palette, basic16-safe backgrounds, theme override CLI), reran full gates, result: PASS.
 - 2026-02-12 11:42: Added web-sourced silhouette mode (Wikipedia image search/summary, ASCII conversion cache, async fetch event path with fallback), reran full gates, result: PASS.
 - 2026-02-12 12:18: Upgraded silhouette engine to `image-to-ascii`, added better Wikipedia landmark image selection/fallback filtering, reran full gates, result: PASS.
+- 2026-02-12 12:34: Implemented settings overlay (`s`) with live toggles + persistent config file (`~/.config/atmos-tui/settings.json`), reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added

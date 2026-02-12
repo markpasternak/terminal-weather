@@ -46,6 +46,8 @@ Total tests passing: 19
 - `.agent/EVIDENCE.md`
 - `README.md`
 - `src/data/silhouette.rs`
+- `src/app/settings.rs`
+- `src/ui/widgets/settings.rs`
 - `src/ui/widgets/daily.rs`
 - `src/ui/widgets/hero.rs`
 - `src/ui/theme.rs`
@@ -59,3 +61,4 @@ Total tests passing: 19
 3. Unicode width variance remains terminal-dependent; `--ascii-icons` is mitigation.
 4. Web silhouette quality depends on available Wikipedia thumbnails; fallback scenes mitigate missing or noisy images.
 5. `image-to-ascii` adds build-time/dependency weight; consider feature-gating silhouette conversion for minimal builds.
+6. Auto-refresh interval changes from settings are persisted, but active background refresh schedule updates on next launch.

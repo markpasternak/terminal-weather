@@ -3,3 +3,4 @@ pub mod hero;
 pub mod hourly;
 pub mod landmark;
 pub mod selector;
+pub mod settings;

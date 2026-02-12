@@ -1,5 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
+    io::IsTerminal,
+    path::PathBuf,
     time::Instant,
 };
 
@@ -8,8 +10,11 @@ use crossterm::event::{Event, KeyCode, KeyEventKind};
 use tokio::sync::mpsc;
 
 use crate::{
-    app::events::{AppEvent, schedule_retry, start_frame_task, start_refresh_task},
-    cli::{Cli, SilhouetteSourceArg, UnitsArg},
+    app::{
+        events::{AppEvent, schedule_retry, start_frame_task, start_refresh_task},
+        settings::{MotionSetting, RuntimeSettings, load_runtime_settings, save_runtime_settings},
+    },
+    cli::{Cli, IconMode, SilhouetteSourceArg, ThemeArg},
     data::{
         forecast::ForecastClient,
         geocode::GeocodeClient,
@@ -23,6 +28,19 @@ use crate::{
     ui::particles::ParticleEngine,
 };
 
+const SETTINGS_UNITS: usize = 0;
+const SETTINGS_THEME: usize = 1;
+const SETTINGS_MOTION: usize = 2;
+const SETTINGS_FLASH: usize = 3;
+const SETTINGS_ICONS: usize = 4;
+const SETTINGS_SILHOUETTE: usize = 5;
+const SETTINGS_REFRESH_INTERVAL: usize = 6;
+const SETTINGS_REFRESH_NOW: usize = 7;
+const SETTINGS_CLOSE: usize = 8;
+const SETTINGS_COUNT: usize = 9;
+
+const REFRESH_OPTIONS: [u64; 4] = [300, 600, 900, 1800];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {
     Loading,
@@ -30,6 +48,13 @@ pub enum AppMode {
     Ready,
     Error,
     Quit,
+}
+
+#[derive(Debug, Clone)]
+pub struct SettingsEntry {
+    pub label: &'static str,
+    pub value: String,
+    pub editable: bool,
 }
 
 #[derive(Debug)]
@@ -53,14 +78,17 @@ pub struct AppState {
     pub active_location_key: Option<String>,
     pub web_silhouettes: HashMap<String, SilhouetteArt>,
     pub silhouettes_in_flight: HashSet<String>,
+    pub settings: RuntimeSettings,
+    pub settings_open: bool,
+    pub settings_selected: usize,
+    settings_path: Option<PathBuf>,
 }
 
 impl AppState {
     pub fn new(cli: &Cli) -> Self {
-        let units = match cli.units {
-            UnitsArg::Celsius => Units::Celsius,
-            UnitsArg::Fahrenheit => Units::Fahrenheit,
-        };
+        let (settings, settings_path) = load_runtime_settings(cli, std::io::stdout().is_terminal());
+        let disabled = matches!(settings.motion, MotionSetting::Off);
+        let reduced = matches!(settings.motion, MotionSetting::Reduced);
 
         Self {
             mode: AppMode::Loading,
@@ -71,18 +99,99 @@ impl AppState {
             pending_locations: Vec::new(),
             weather: None,
             refresh_meta: RefreshMetadata::default(),
-            units,
+            units: settings.units,
             hourly_offset: 0,
-            particles: ParticleEngine::new(cli.no_animation, cli.reduced_motion, cli.no_flash),
+            particles: ParticleEngine::new(disabled, reduced, settings.no_flash),
             backoff: Backoff::new(10, 300),
             fetch_in_flight: false,
             last_frame_at: Instant::now(),
             frame_tick: 0,
-            animate_ui: !cli.no_animation && !cli.reduced_motion,
+            animate_ui: matches!(settings.motion, MotionSetting::Full),
             active_location_key: None,
             web_silhouettes: HashMap::new(),
             silhouettes_in_flight: HashSet::new(),
+            settings,
+            settings_open: false,
+            settings_selected: 0,
+            settings_path,
         }
+    }
+
+    pub fn settings_entries(&self) -> Vec<SettingsEntry> {
+        vec![
+            SettingsEntry {
+                label: "Units",
+                value: match self.settings.units {
+                    Units::Celsius => "Celsius".to_string(),
+                    Units::Fahrenheit => "Fahrenheit".to_string(),
+                },
+                editable: true,
+            },
+            SettingsEntry {
+                label: "Theme",
+                value: match self.settings.theme {
+                    ThemeArg::Auto => "Auto".to_string(),
+                    ThemeArg::Aurora => "Aurora".to_string(),
+                    ThemeArg::Mono => "Mono".to_string(),
+                    ThemeArg::HighContrast => "High contrast".to_string(),
+                },
+                editable: true,
+            },
+            SettingsEntry {
+                label: "Motion",
+                value: match self.settings.motion {
+                    MotionSetting::Full => "Full".to_string(),
+                    MotionSetting::Reduced => "Reduced".to_string(),
+                    MotionSetting::Off => "Off".to_string(),
+                },
+                editable: true,
+            },
+            SettingsEntry {
+                label: "Thunder Flash",
+                value: if self.settings.no_flash {
+                    "Off".to_string()
+                } else {
+                    "On".to_string()
+                },
+                editable: true,
+            },
+            SettingsEntry {
+                label: "Icons",
+                value: match self.settings.icon_mode {
+                    IconMode::Unicode => "Unicode".to_string(),
+                    IconMode::Ascii => "ASCII".to_string(),
+                    IconMode::Emoji => "Emoji".to_string(),
+                },
+                editable: true,
+            },
+            SettingsEntry {
+                label: "Silhouette",
+                value: match self.settings.silhouette_source {
+                    SilhouetteSourceArg::Local => "Local".to_string(),
+                    SilhouetteSourceArg::Auto => "Auto".to_string(),
+                    SilhouetteSourceArg::Web => "Web".to_string(),
+                },
+                editable: true,
+            },
+            SettingsEntry {
+                label: "Auto Refresh",
+                value: format!(
+                    "{} min (next launch)",
+                    self.settings.refresh_interval_secs / 60
+                ),
+                editable: true,
+            },
+            SettingsEntry {
+                label: "Action",
+                value: "Refresh now".to_string(),
+                editable: false,
+            },
+            SettingsEntry {
+                label: "Panel",
+                value: "Close".to_string(),
+                editable: false,
+            },
+        ]
     }
 
     pub async fn handle_event(
@@ -94,15 +203,13 @@ impl AppState {
         match event {
             AppEvent::Bootstrap => {
                 cli.validate()?;
-                start_frame_task(
-                    tx.clone(),
-                    if cli.reduced_motion {
-                        cli.fps.min(20)
-                    } else {
-                        cli.fps
-                    },
-                );
-                start_refresh_task(tx.clone(), cli.refresh_interval);
+                let frame_fps = match self.settings.motion {
+                    MotionSetting::Full => cli.fps,
+                    MotionSetting::Reduced => cli.fps.min(20),
+                    MotionSetting::Off => 15,
+                };
+                start_frame_task(tx.clone(), frame_fps);
+                start_refresh_task(tx.clone(), self.settings.refresh_interval_secs);
                 self.start_fetch(tx, cli).await?;
             }
             AppEvent::TickFrame => {
@@ -167,7 +274,7 @@ impl AppState {
                 self.backoff.reset();
                 self.hourly_offset = 0;
                 self.active_location_key = Some(cache_key(&location));
-                self.maybe_fetch_silhouette(tx, cli, &location);
+                self.maybe_fetch_silhouette(tx, &location);
             }
             AppEvent::FetchFailed(err) => {
                 self.fetch_in_flight = false;
@@ -202,40 +309,59 @@ impl AppState {
         cli: &Cli,
     ) -> Result<()> {
         match event {
-            Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
-                KeyCode::Esc | KeyCode::Char('q') => {
-                    tx.send(AppEvent::Quit).await?;
+            Event::Key(key) if key.kind == KeyEventKind::Press => {
+                if self.settings_open {
+                    self.handle_settings_key(key.code, tx, cli).await?;
+                    return Ok(());
                 }
-                KeyCode::Char('r') => {
-                    self.start_fetch(tx, cli).await?;
-                }
-                KeyCode::Char('f') => {
-                    self.units = Units::Fahrenheit;
-                }
-                KeyCode::Char('c') => {
-                    self.units = Units::Celsius;
-                }
-                KeyCode::Left => {
-                    self.hourly_offset = self.hourly_offset.saturating_sub(1);
-                }
-                KeyCode::Right => {
-                    if let Some(bundle) = &self.weather {
-                        let max_visible = 6;
-                        let max_offset = bundle.hourly.len().saturating_sub(max_visible);
-                        self.hourly_offset = (self.hourly_offset + 1).min(max_offset);
+
+                match key.code {
+                    KeyCode::Esc | KeyCode::Char('q') => {
+                        tx.send(AppEvent::Quit).await?;
                     }
-                }
-                KeyCode::Char(digit @ '1'..='5') if self.mode == AppMode::SelectingLocation => {
-                    let idx = (digit as usize) - ('1' as usize);
-                    if let Some(selected) = self.pending_locations.get(idx).cloned() {
-                        self.selected_location = Some(selected.clone());
-                        self.pending_locations.clear();
-                        self.mode = AppMode::Loading;
-                        self.fetch_forecast(tx, selected).await?;
+                    KeyCode::Char('s') if self.mode != AppMode::SelectingLocation => {
+                        self.settings_open = true;
+                        self.settings_selected = 0;
                     }
+                    KeyCode::Char('r') => {
+                        self.start_fetch(tx, cli).await?;
+                    }
+                    KeyCode::Char('f') => {
+                        if self.settings.units != Units::Fahrenheit {
+                            self.settings.units = Units::Fahrenheit;
+                            self.apply_runtime_settings();
+                            self.persist_settings();
+                        }
+                    }
+                    KeyCode::Char('c') => {
+                        if self.settings.units != Units::Celsius {
+                            self.settings.units = Units::Celsius;
+                            self.apply_runtime_settings();
+                            self.persist_settings();
+                        }
+                    }
+                    KeyCode::Left => {
+                        self.hourly_offset = self.hourly_offset.saturating_sub(1);
+                    }
+                    KeyCode::Right => {
+                        if let Some(bundle) = &self.weather {
+                            let max_visible = 6;
+                            let max_offset = bundle.hourly.len().saturating_sub(max_visible);
+                            self.hourly_offset = (self.hourly_offset + 1).min(max_offset);
+                        }
+                    }
+                    KeyCode::Char(digit @ '1'..='5') if self.mode == AppMode::SelectingLocation => {
+                        let idx = (digit as usize) - ('1' as usize);
+                        if let Some(selected) = self.pending_locations.get(idx).cloned() {
+                            self.selected_location = Some(selected.clone());
+                            self.pending_locations.clear();
+                            self.mode = AppMode::Loading;
+                            self.fetch_forecast(tx, selected).await?;
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
-            },
+            }
             Event::Resize(_, _) => {
                 self.particles.reset();
             }
@@ -243,6 +369,140 @@ impl AppState {
         }
 
         Ok(())
+    }
+
+    async fn handle_settings_key(
+        &mut self,
+        code: KeyCode,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> Result<()> {
+        match code {
+            KeyCode::Esc | KeyCode::Char('s') | KeyCode::Char('q') => {
+                self.settings_open = false;
+            }
+            KeyCode::Up => {
+                self.settings_selected = self.settings_selected.saturating_sub(1);
+            }
+            KeyCode::Down => {
+                self.settings_selected = (self.settings_selected + 1).min(SETTINGS_COUNT - 1);
+            }
+            KeyCode::Left => {
+                self.adjust_selected_setting(-1, tx);
+            }
+            KeyCode::Right => {
+                self.adjust_selected_setting(1, tx);
+            }
+            KeyCode::Enter => {
+                if self.settings_selected == SETTINGS_REFRESH_NOW {
+                    self.start_fetch(tx, cli).await?;
+                } else if self.settings_selected == SETTINGS_CLOSE {
+                    self.settings_open = false;
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    fn adjust_selected_setting(&mut self, direction: i8, tx: &mpsc::Sender<AppEvent>) {
+        let mut changed = false;
+        match self.settings_selected {
+            SETTINGS_UNITS => {
+                self.settings.units = cycle(
+                    &[Units::Celsius, Units::Fahrenheit],
+                    self.settings.units,
+                    direction,
+                );
+                changed = true;
+            }
+            SETTINGS_THEME => {
+                self.settings.theme = cycle(
+                    &[
+                        ThemeArg::Auto,
+                        ThemeArg::Aurora,
+                        ThemeArg::Mono,
+                        ThemeArg::HighContrast,
+                    ],
+                    self.settings.theme,
+                    direction,
+                );
+                changed = true;
+            }
+            SETTINGS_MOTION => {
+                self.settings.motion = cycle(
+                    &[
+                        MotionSetting::Full,
+                        MotionSetting::Reduced,
+                        MotionSetting::Off,
+                    ],
+                    self.settings.motion,
+                    direction,
+                );
+                changed = true;
+            }
+            SETTINGS_FLASH => {
+                self.settings.no_flash = !self.settings.no_flash;
+                changed = true;
+            }
+            SETTINGS_ICONS => {
+                self.settings.icon_mode = cycle(
+                    &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
+                    self.settings.icon_mode,
+                    direction,
+                );
+                changed = true;
+            }
+            SETTINGS_SILHOUETTE => {
+                self.settings.silhouette_source = cycle(
+                    &[
+                        SilhouetteSourceArg::Local,
+                        SilhouetteSourceArg::Auto,
+                        SilhouetteSourceArg::Web,
+                    ],
+                    self.settings.silhouette_source,
+                    direction,
+                );
+                changed = true;
+            }
+            SETTINGS_REFRESH_INTERVAL => {
+                self.settings.refresh_interval_secs = cycle(
+                    &REFRESH_OPTIONS,
+                    self.settings.refresh_interval_secs,
+                    direction,
+                );
+                changed = true;
+            }
+            SETTINGS_REFRESH_NOW | SETTINGS_CLOSE => {}
+            _ => {}
+        }
+
+        if changed {
+            self.apply_runtime_settings();
+            self.persist_settings();
+            if let Some(location) = self.weather.as_ref().map(|w| w.location.clone()) {
+                self.maybe_fetch_silhouette(tx, &location);
+            }
+        }
+    }
+
+    fn apply_runtime_settings(&mut self) {
+        self.units = self.settings.units;
+        self.animate_ui = matches!(self.settings.motion, MotionSetting::Full);
+        self.particles.set_options(
+            matches!(self.settings.motion, MotionSetting::Off),
+            matches!(self.settings.motion, MotionSetting::Reduced),
+            self.settings.no_flash,
+        );
+    }
+
+    fn persist_settings(&mut self) {
+        if let Some(path) = &self.settings_path
+            && let Err(err) = save_runtime_settings(path, self.settings)
+        {
+            self.last_error = Some(format!("Failed to save settings: {err}"));
+        }
     }
 
     async fn start_fetch(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
@@ -304,13 +564,8 @@ impl AppState {
         Ok(())
     }
 
-    fn maybe_fetch_silhouette(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-        location: &Location,
-    ) {
-        if matches!(cli.silhouette_source, SilhouetteSourceArg::Local) {
+    fn maybe_fetch_silhouette(&mut self, tx: &mpsc::Sender<AppEvent>, location: &Location) {
+        if matches!(self.settings.silhouette_source, SilhouetteSourceArg::Local) {
             return;
         }
 
@@ -328,4 +583,15 @@ impl AppState {
             let _ = tx2.send(AppEvent::SilhouetteFetched { key, art }).await;
         });
     }
+}
+
+fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
+    if values.is_empty() {
+        return current;
+    }
+    let idx = values.iter().position(|v| *v == current).unwrap_or(0) as i32;
+    let step = if direction >= 0 { 1 } else { -1 };
+    let len = values.len() as i32;
+    let next = (idx + step).rem_euclid(len) as usize;
+    values[next]
 }

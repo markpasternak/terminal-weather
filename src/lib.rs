@@ -10,7 +10,7 @@ use std::io::{self, Stdout};
 use anyhow::Result;
 use app::events::{AppEvent, spawn_input_task};
 use app::state::{AppMode, AppState};
-use cli::{Cli, IconMode};
+use cli::Cli;
 use crossterm::{
     event::DisableMouseCapture,
     execute,
@@ -77,16 +77,6 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result
     )?;
     terminal.show_cursor()?;
     Ok(())
-}
-
-pub fn icon_mode(cli: &Cli) -> IconMode {
-    if cli.ascii_icons {
-        IconMode::Ascii
-    } else if cli.emoji_icons {
-        IconMode::Emoji
-    } else {
-        IconMode::Unicode
-    }
 }
 
 fn install_panic_hook() {

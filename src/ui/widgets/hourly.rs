@@ -13,7 +13,7 @@ use crate::{
     ui::theme::{detect_color_capability, icon_color, temp_color, theme_for},
 };
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     let capability = detect_color_capability();
 
     let Some(bundle) = &state.weather else {
@@ -21,7 +21,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
             crate::domain::weather::WeatherCategory::Unknown,
             true,
             capability,
-            cli.theme,
+            state.settings.theme,
         );
         let block = Block::default()
             .borders(Borders::ALL)
@@ -43,7 +43,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         weather_code_to_category(bundle.current.weather_code),
         bundle.current.is_day,
         capability,
-        cli.theme,
+        state.settings.theme,
     );
 
     let block = Block::default()
@@ -100,7 +100,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
             .iter()
             .map(|h| {
                 let code = h.weather_code.unwrap_or(bundle.current.weather_code);
-                Cell::from(weather_icon(code, crate::icon_mode(cli)))
+                Cell::from(weather_icon(code, state.settings.icon_mode))
                     .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))))
             })
             .collect::<Vec<_>>(),

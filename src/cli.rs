@@ -1,4 +1,5 @@
 use clap::{Parser, ValueEnum};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum UnitsArg {
@@ -6,14 +7,14 @@ pub enum UnitsArg {
     Fahrenheit,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IconMode {
     Unicode,
     Ascii,
     Emoji,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeArg {
     Auto,
     Aurora,
@@ -21,7 +22,7 @@ pub enum ThemeArg {
     HighContrast,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SilhouetteSourceArg {
     Local,
     Auto,

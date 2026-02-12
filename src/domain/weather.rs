@@ -1,8 +1,9 @@
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use crate::{cli::IconMode, resilience::freshness::FreshnessState};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Units {
     Celsius,
     Fahrenheit,
