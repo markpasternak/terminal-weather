@@ -263,7 +263,8 @@ impl AppState {
                     .to_string()
             }
             SETTINGS_MOTION => {
-                "Motion controls particles and ambient animations across the dashboard".to_string()
+                "Motion controls the moving effects: weather particles + animated hero scene (Full/Reduced/Off)"
+                    .to_string()
             }
             SETTINGS_ICONS => {
                 "Icon mode affects weather symbols in Hourly and 7-Day panels".to_string()

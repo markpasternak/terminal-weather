@@ -855,13 +855,13 @@ fn tint_for_category(category: WeatherCategory) -> LandmarkTint {
 
 fn scene_name(category: WeatherCategory, is_day: bool) -> &'static str {
     match (category, is_day) {
-        (WeatherCategory::Clear, true) => "Solar Ridge",
-        (WeatherCategory::Clear, false) => "Lunar Ridge",
-        (WeatherCategory::Cloudy, _) => "Cloud Terrace",
-        (WeatherCategory::Rain, _) => "Rain Front",
-        (WeatherCategory::Snow, _) => "Snow Front",
-        (WeatherCategory::Fog, _) => "Fog Bank",
-        (WeatherCategory::Thunder, _) => "Storm Front",
-        (WeatherCategory::Unknown, _) => "Weather Field",
+        (WeatherCategory::Clear, true) => "Clear sky",
+        (WeatherCategory::Clear, false) => "Clear night",
+        (WeatherCategory::Cloudy, _) => "Cloudy",
+        (WeatherCategory::Rain, _) => "Rain",
+        (WeatherCategory::Snow, _) => "Snow",
+        (WeatherCategory::Fog, _) => "Fog",
+        (WeatherCategory::Thunder, _) => "Thunderstorm",
+        (WeatherCategory::Unknown, _) => "Unknown",
     }
 }
