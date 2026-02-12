@@ -13,6 +13,21 @@ pub enum IconMode {
     Emoji,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum ThemeArg {
+    Auto,
+    Aurora,
+    Mono,
+    HighContrast,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum SilhouetteSourceArg {
+    Local,
+    Auto,
+    Web,
+}
+
 #[derive(Debug, Parser, Clone)]
 #[command(
     name = "atmos-tui",
@@ -50,6 +65,14 @@ pub struct Cli {
     /// Force emoji icons
     #[arg(long)]
     pub emoji_icons: bool,
+
+    /// Theme override
+    #[arg(long, value_enum, default_value_t = ThemeArg::Auto)]
+    pub theme: ThemeArg,
+
+    /// Silhouette source
+    #[arg(long, value_enum, default_value_t = SilhouetteSourceArg::Auto)]
+    pub silhouette_source: SilhouetteSourceArg,
 
     /// Geocode bias (ISO2)
     #[arg(long)]

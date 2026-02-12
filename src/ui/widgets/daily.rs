@@ -11,18 +11,18 @@ use crate::{
     domain::weather::{
         WeatherCategory, convert_temp, round_temp, weather_code_to_category, weather_icon,
     },
-    ui::theme::{detect_color_capability, theme_for},
+    ui::theme::{detect_color_capability, icon_color, temp_color, theme_for},
 };
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
     let capability = detect_color_capability();
 
     let Some(bundle) = &state.weather else {
-        let theme = theme_for(WeatherCategory::Unknown, true, capability);
+        let theme = theme_for(WeatherCategory::Unknown, true, capability, cli.theme);
         let block = Block::default()
             .borders(Borders::ALL)
             .title("7-Day")
-            .border_style(Style::default().fg(theme.muted_text));
+            .border_style(Style::default().fg(theme.border));
         let inner = block.inner(area);
         frame.render_widget(block, area);
         render_loading_daily(
@@ -48,12 +48,13 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         weather_code_to_category(bundle.current.weather_code),
         bundle.current.is_day,
         capability,
+        cli.theme,
     );
 
     let block = Block::default()
         .borders(Borders::ALL)
         .title(title)
-        .border_style(Style::default().fg(theme.muted_text));
+        .border_style(Style::default().fg(theme.border));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -73,59 +74,57 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         return;
     }
 
-    let rows = bundle
-        .daily
-        .iter()
-        .take(max_rows)
-        .enumerate()
-        .map(|(idx, day)| {
-            let is_today = idx == 0;
-            let min_c = day.temperature_min_c.unwrap_or(global_min);
-            let max_c = day.temperature_max_c.unwrap_or(global_max);
+    let rows =
+        bundle
+            .daily
+            .iter()
+            .take(max_rows)
+            .enumerate()
+            .map(|(idx, day)| {
+                let is_today = idx == 0;
+                let min_c = day.temperature_min_c.unwrap_or(global_min);
+                let max_c = day.temperature_max_c.unwrap_or(global_max);
 
-            let min_label = format!("{}°", round_temp(convert_temp(min_c, state.units)));
-            let max_label = format!("{}°", round_temp(convert_temp(max_c, state.units)));
+                let min_label = format!("{}°", round_temp(convert_temp(min_c, state.units)));
+                let max_label = format!("{}°", round_temp(convert_temp(max_c, state.units)));
 
-            let mut row_cells = vec![
-                Cell::from(day.date.format("%a").to_string())
-                    .style(Style::default().fg(theme.text)),
-            ];
-            if layout.show_icon {
-                let code = day.weather_code.unwrap_or(3);
-                row_cells.push(
-                    Cell::from(weather_icon(code, crate::icon_mode(cli)))
-                        .style(Style::default().fg(icon_color_for(code))),
-                );
-            }
-            row_cells.push(
-                Cell::from(min_label)
-                    .style(Style::default().fg(temp_color_for(convert_temp(min_c, state.units)))),
-            );
-
-            if layout.show_bar {
-                let (start, end) =
-                    bar_bounds(min_c, max_c, global_min, global_max, layout.bar_width);
-                let mut bar = String::with_capacity(layout.bar_width);
-                for i in 0..layout.bar_width {
-                    bar.push(if i >= start && i <= end { '█' } else { '·' });
+                let mut row_cells = vec![
+                    Cell::from(day.date.format("%a").to_string())
+                        .style(Style::default().fg(theme.text)),
+                ];
+                if layout.show_icon {
+                    let code = day.weather_code.unwrap_or(3);
+                    row_cells.push(Cell::from(weather_icon(code, crate::icon_mode(cli))).style(
+                        Style::default().fg(icon_color(&theme, weather_code_to_category(code))),
+                    ));
                 }
-                row_cells.push(Cell::from(bar).style(Style::default().fg(theme.accent)));
-            }
+                row_cells.push(Cell::from(min_label).style(
+                    Style::default().fg(temp_color(&theme, convert_temp(min_c, state.units))),
+                ));
 
-            row_cells.push(
-                Cell::from(max_label)
-                    .style(Style::default().fg(temp_color_for(convert_temp(max_c, state.units)))),
-            );
+                if layout.show_bar {
+                    let (start, end) =
+                        bar_bounds(min_c, max_c, global_min, global_max, layout.bar_width);
+                    let mut bar = String::with_capacity(layout.bar_width);
+                    for i in 0..layout.bar_width {
+                        bar.push(if i >= start && i <= end { '█' } else { '·' });
+                    }
+                    row_cells.push(Cell::from(bar).style(Style::default().fg(theme.accent)));
+                }
 
-            let row = Row::new(row_cells);
+                row_cells.push(Cell::from(max_label).style(
+                    Style::default().fg(temp_color(&theme, convert_temp(max_c, state.units))),
+                ));
 
-            if is_today {
-                row.style(Style::default().add_modifier(Modifier::BOLD))
-            } else {
-                row
-            }
-        })
-        .collect::<Vec<_>>();
+                let row = Row::new(row_cells);
+
+                if is_today {
+                    row.style(Style::default().add_modifier(Modifier::BOLD))
+                } else {
+                    row
+                }
+            })
+            .collect::<Vec<_>>();
 
     let mut widths = vec![Constraint::Length(4)];
     if layout.show_icon {
@@ -196,32 +195,6 @@ fn render_loading_daily(
     .column_spacing(1);
 
     frame.render_widget(table, area);
-}
-
-fn icon_color_for(code: u8) -> Color {
-    match weather_code_to_category(code) {
-        WeatherCategory::Clear => Color::Yellow,
-        WeatherCategory::Cloudy => Color::Gray,
-        WeatherCategory::Rain => Color::Cyan,
-        WeatherCategory::Snow => Color::White,
-        WeatherCategory::Fog => Color::DarkGray,
-        WeatherCategory::Thunder => Color::Magenta,
-        WeatherCategory::Unknown => Color::LightBlue,
-    }
-}
-
-fn temp_color_for(temp: f32) -> Color {
-    if temp <= -5.0 {
-        Color::LightBlue
-    } else if temp <= 5.0 {
-        Color::Cyan
-    } else if temp <= 18.0 {
-        Color::Green
-    } else if temp <= 28.0 {
-        Color::Yellow
-    } else {
-        Color::Red
-    }
 }
 
 fn inner_title_width(area: Rect) -> u16 {

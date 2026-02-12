@@ -6,7 +6,7 @@ pub mod widgets;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::Line,
     widgets::{Block, Borders, Paragraph},
 };
@@ -14,7 +14,9 @@ use ratatui::{
 use crate::{
     app::state::{AppMode, AppState},
     cli::Cli,
+    domain::weather::{WeatherCategory, weather_code_to_category},
     resilience::freshness::FreshnessState,
+    ui::theme::{detect_color_capability, theme_for},
 };
 
 pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
@@ -40,21 +42,33 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     widgets::hourly::render(frame, chunks[1], state, cli);
     widgets::daily::render(frame, chunks[2], state, cli);
 
-    render_status_badge(frame, area, state);
+    render_status_badge(frame, area, state, cli);
 
     if state.mode == AppMode::SelectingLocation {
         widgets::selector::render(frame, centered_rect(70, 60, area), state);
     }
 }
 
-fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
+fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
+    let capability = detect_color_capability();
+    let (category, is_day) = state
+        .weather
+        .as_ref()
+        .map(|w| {
+            (
+                weather_code_to_category(w.current.weather_code),
+                w.current.is_day,
+            )
+        })
+        .unwrap_or((WeatherCategory::Unknown, false));
+    let theme = theme_for(category, is_day, capability, cli.theme);
+
     let label = match state.refresh_meta.state {
-        FreshnessState::Offline => Some(("⚠ offline".to_string(), Color::LightRed)),
-        FreshnessState::Stale => Some(("⚠ stale".to_string(), Color::Yellow)),
-        FreshnessState::Fresh if state.fetch_in_flight => Some((
-            format!("{} syncing", spinner(state.frame_tick)),
-            Color::Cyan,
-        )),
+        FreshnessState::Offline => Some(("⚠ offline".to_string(), theme.danger)),
+        FreshnessState::Stale => Some(("⚠ stale".to_string(), theme.warning)),
+        FreshnessState::Fresh if state.fetch_in_flight => {
+            Some((format!("{} syncing", spinner(state.frame_tick)), theme.info))
+        }
         FreshnessState::Fresh => None,
     };
 
@@ -66,12 +80,8 @@ fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
             width,
             height: 1,
         };
-        let badge = Paragraph::new(Line::from(text)).style(
-            Style::default()
-                .fg(color)
-                .bg(Color::Black)
-                .add_modifier(Modifier::BOLD),
-        );
+        let badge = Paragraph::new(Line::from(text))
+            .style(Style::default().fg(color).add_modifier(Modifier::BOLD));
         frame.render_widget(badge, badge_area);
     }
 }

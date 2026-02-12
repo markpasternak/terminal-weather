@@ -1,6 +1,6 @@
 use atmos_tui::{
     app::{events::AppEvent, state::AppState},
-    cli::{Cli, UnitsArg},
+    cli::{Cli, SilhouetteSourceArg, ThemeArg, UnitsArg},
     domain::weather::{
         CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location, Units,
     },
@@ -19,6 +19,8 @@ fn cli() -> Cli {
         no_flash: true,
         ascii_icons: false,
         emoji_icons: false,
+        theme: ThemeArg::Auto,
+        silhouette_source: SilhouetteSourceArg::Local,
         country_code: None,
         lat: None,
         lon: None,

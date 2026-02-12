@@ -74,6 +74,8 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Rust stack: tokio + crossterm + ratatui + reqwest -> chosen for async TUI/event-stream integration.
 - 2026-02-12: Snapshot tests stabilized by removing wall-clock dependency from expected render output.
 - 2026-02-12: 7-day widget switched to adaptive width/height modes with explicit column labels -> improves readability and use of available terminal space.
+- 2026-02-12: Theme system moved to contrast-first semantic tokens + explicit CLI overrides -> prevents light-on-light failures across terminal capabilities.
+- 2026-02-12: Added async web-sourced silhouette pipeline via Wikipedia thumbnail fetch + ASCII conversion + local fallback -> enables dynamic landmark visuals without blocking UI.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -89,6 +91,8 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 09:38: Added animated location-aware landmark ASCII hero panel and richer color styling in hourly/daily widgets, reran full gates, result: PASS.
 - 2026-02-12 09:45: Refined loading UX with staged animated loader, shimmer placeholders, and syncing status animation; reran full gates, result: PASS.
 - 2026-02-12 09:52: Added dynamic procedural city-signature skyline fallback and expanded hero weather metrics (feels-like, humidity, wind, precip, clouds, UV), reran full gates, result: PASS.
+- 2026-02-12 11:42: Completed contrast/theming hardening (semantic palette, basic16-safe backgrounds, theme override CLI), reran full gates, result: PASS.
+- 2026-02-12 11:42: Added web-sourced silhouette mode (Wikipedia image search/summary, ASCII conversion cache, async fetch event path with fallback), reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added

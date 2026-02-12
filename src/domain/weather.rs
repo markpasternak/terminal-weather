@@ -19,6 +19,12 @@ pub struct Location {
     pub population: Option<u64>,
 }
 
+#[derive(Debug, Clone)]
+pub struct SilhouetteArt {
+    pub label: String,
+    pub lines: Vec<String>,
+}
+
 impl Location {
     pub fn from_coords(lat: f64, lon: f64) -> Self {
         Self {
@@ -124,7 +130,8 @@ pub enum ParticleKind {
 pub fn weather_code_to_category(code: u8) -> WeatherCategory {
     match code {
         0 | 1 => WeatherCategory::Clear,
-        2 | 3 | 45 | 48 => WeatherCategory::Cloudy,
+        2 | 3 => WeatherCategory::Cloudy,
+        45 | 48 => WeatherCategory::Fog,
         51..=57 | 61..=67 | 80..=82 => WeatherCategory::Rain,
         71..=77 | 85..=86 => WeatherCategory::Snow,
         95 | 96 | 99 => WeatherCategory::Thunder,

@@ -14,12 +14,12 @@ cargo build --release
 Result: PASS
 
 ## Test Inventory and Results
-- Unit tests: 7 passing
+- Unit tests: 8 passing
 - Flow/integration tests: 5 passing (`flows`, `freshness_integration`, `geocode_ambiguity`)
 - Property tests: 1 passing (`property_range_bar`)
 - Snapshot tests: 5 passing (`120x40`, `80x24`, `60x20`, `40x15` with clear/rain/snow/fog/thunder fixtures)
 
-Total tests passing: 18
+Total tests passing: 19
 
 ## User Flow Evidence
 1. Startup + render: PASS (manual TTY run + rendered loading/forecast output observed)
@@ -45,6 +45,7 @@ Total tests passing: 18
 - `.agent/PLANS.md`
 - `.agent/EVIDENCE.md`
 - `README.md`
+- `src/data/silhouette.rs`
 - `src/ui/widgets/daily.rs`
 - `src/ui/widgets/hero.rs`
 - `src/ui/theme.rs`
@@ -56,3 +57,4 @@ Total tests passing: 18
 1. CPU and frame-time p95 targets need explicit benchmark harness in CI/release profiles.
 2. RSS measurement should be captured with scripted runtime sampling on representative terminals.
 3. Unicode width variance remains terminal-dependent; `--ascii-icons` is mitigation.
+4. Web silhouette quality depends on available Wikipedia thumbnails; fallback scenes mitigate missing or noisy images.

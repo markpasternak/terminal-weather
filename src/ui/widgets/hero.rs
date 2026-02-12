@@ -11,15 +11,15 @@ use ratatui::{
 
 use crate::{
     app::state::{AppMode, AppState},
-    cli::Cli,
+    cli::{Cli, SilhouetteSourceArg},
     domain::weather::{
         WeatherCategory, convert_temp, round_temp, weather_code_to_category, weather_label,
     },
-    ui::theme::{detect_color_capability, theme_for},
-    ui::widgets::landmark::{LandmarkTint, scene_for_location},
+    ui::theme::{condition_color, detect_color_capability, theme_for},
+    ui::widgets::landmark::{LandmarkTint, scene_for_location, scene_from_web_art},
 };
 
-pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
+pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
     let (category, is_day, code) = state
         .weather
         .as_ref()
@@ -34,7 +34,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         .unwrap_or((WeatherCategory::Unknown, false, 0));
 
     let capability = detect_color_capability();
-    let theme = theme_for(category, is_day, capability);
+    let theme = theme_for(category, is_day, capability, cli.theme);
 
     let bg = GradientBackground {
         top: theme.top,
@@ -49,7 +49,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Current")
-        .border_style(Style::default().fg(theme.text));
+        .border_style(Style::default().fg(theme.border));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -63,16 +63,16 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         vec![inner]
     };
 
-    render_weather_info(frame, columns[0], state, theme.text, theme.muted_text, code);
+    render_weather_info(frame, columns[0], state, theme, code);
 
     if columns.len() > 1 {
         let right = columns[1];
         let separator = Block::default()
             .borders(Borders::LEFT)
-            .border_style(Style::default().fg(theme.muted_text));
+            .border_style(Style::default().fg(theme.border));
         let right_inner = separator.inner(right);
         frame.render_widget(separator, right);
-        render_landmark(frame, right_inner, state, is_day, theme);
+        render_landmark(frame, right_inner, state, is_day, cli, theme);
     }
 }
 
@@ -80,12 +80,13 @@ fn render_weather_info(
     frame: &mut Frame,
     area: Rect,
     state: &AppState,
-    text_color: Color,
-    muted_color: Color,
+    theme: crate::ui::theme::Theme,
     code: u8,
 ) {
     let mut lines = Vec::new();
     let compact_metrics = area.width < 54 || area.height < 8;
+    let text_color = theme.text;
+    let muted_color = theme.muted_text;
 
     if let Some(weather) = &state.weather {
         let temp = weather.current_temp(state.units);
@@ -102,7 +103,7 @@ fn render_weather_info(
         lines.push(Line::from(Span::styled(
             weather_label(code),
             Style::default()
-                .fg(condition_color(code))
+                .fg(condition_color(&theme, weather_code_to_category(code)))
                 .add_modifier(Modifier::BOLD),
         )));
         if let Some((high, low)) = weather.high_low(state.units) {
@@ -142,11 +143,11 @@ fn render_weather_info(
                 Span::styled("Wind ", Style::default().fg(muted_color)),
                 Span::styled(
                     format!("{wind} km/h {wind_dir}"),
-                    Style::default().fg(Color::Green),
+                    Style::default().fg(theme.success),
                 ),
                 Span::raw("  "),
                 Span::styled("Hum ", Style::default().fg(muted_color)),
-                Span::styled(format!("{humidity}%"), Style::default().fg(Color::Cyan)),
+                Span::styled(format!("{humidity}%"), Style::default().fg(theme.info)),
             ]));
         } else {
             lines.push(Line::from(vec![
@@ -154,24 +155,24 @@ fn render_weather_info(
                 Span::styled(format!("{feels}°"), Style::default().fg(text_color)),
                 Span::raw("  "),
                 Span::styled("Humidity ", Style::default().fg(muted_color)),
-                Span::styled(format!("{humidity}%"), Style::default().fg(Color::Cyan)),
+                Span::styled(format!("{humidity}%"), Style::default().fg(theme.info)),
             ]));
             lines.push(Line::from(vec![
                 Span::styled("Wind ", Style::default().fg(muted_color)),
                 Span::styled(
                     format!("{wind} km/h {wind_dir}"),
-                    Style::default().fg(Color::Green),
+                    Style::default().fg(theme.success),
                 ),
                 Span::raw("  "),
                 Span::styled("Precip ", Style::default().fg(muted_color)),
-                Span::styled(precip_now, Style::default().fg(Color::LightBlue)),
+                Span::styled(precip_now, Style::default().fg(theme.accent)),
             ]));
             lines.push(Line::from(vec![
                 Span::styled("Clouds ", Style::default().fg(muted_color)),
-                Span::styled(cloud, Style::default().fg(Color::Gray)),
+                Span::styled(cloud, Style::default().fg(theme.landmark_neutral)),
                 Span::raw("  "),
                 Span::styled("UV ", Style::default().fg(muted_color)),
-                Span::styled(uv_today, Style::default().fg(Color::Yellow)),
+                Span::styled(uv_today, Style::default().fg(theme.warning)),
             ]));
         }
 
@@ -185,7 +186,10 @@ fn render_weather_info(
             lines.push(Line::from(Span::styled(
                 flag,
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(match state.refresh_meta.state {
+                        crate::resilience::freshness::FreshnessState::Offline => theme.danger,
+                        _ => theme.warning,
+                    })
                     .add_modifier(Modifier::BOLD),
             )));
         }
@@ -253,6 +257,7 @@ fn render_landmark(
     area: Rect,
     state: &AppState,
     is_day: bool,
+    cli: &Cli,
     theme: crate::ui::theme::Theme,
 ) {
     if area.width < 10 || area.height < 4 {
@@ -266,19 +271,65 @@ fn render_landmark(
         .or_else(|| state.selected_location.as_ref().map(|l| l.name.as_str()))
         .unwrap_or("Local");
 
-    let scene = scene_for_location(
-        location_name,
-        is_day,
-        state.frame_tick,
-        state.animate_ui,
-        area.width.saturating_sub(2),
-        area.height.saturating_sub(2),
-    );
+    let scene = if matches!(
+        cli.silhouette_source,
+        SilhouetteSourceArg::Web | SilhouetteSourceArg::Auto
+    ) {
+        state
+            .active_location_key
+            .as_ref()
+            .and_then(|key| state.web_silhouettes.get(key))
+            .map(|art| {
+                scene_from_web_art(
+                    art,
+                    area.width.saturating_sub(2),
+                    area.height.saturating_sub(2),
+                )
+            })
+            .unwrap_or_else(|| {
+                if matches!(cli.silhouette_source, SilhouetteSourceArg::Web)
+                    && state
+                        .active_location_key
+                        .as_ref()
+                        .is_some_and(|key| state.silhouettes_in_flight.contains(key))
+                {
+                    scene_from_web_art(
+                        &crate::domain::weather::SilhouetteArt {
+                            label: "Fetching web silhouette".to_string(),
+                            lines: vec![
+                                "  searching landmark image...".to_string(),
+                                "  converting image to ascii...".to_string(),
+                            ],
+                        },
+                        area.width.saturating_sub(2),
+                        area.height.saturating_sub(2),
+                    )
+                } else {
+                    scene_for_location(
+                        location_name,
+                        is_day,
+                        state.frame_tick,
+                        state.animate_ui,
+                        area.width.saturating_sub(2),
+                        area.height.saturating_sub(2),
+                    )
+                }
+            })
+    } else {
+        scene_for_location(
+            location_name,
+            is_day,
+            state.frame_tick,
+            state.animate_ui,
+            area.width.saturating_sub(2),
+            area.height.saturating_sub(2),
+        )
+    };
 
     let tint = match scene.tint {
-        LandmarkTint::Warm => Color::LightYellow,
-        LandmarkTint::Cool => Color::LightCyan,
-        LandmarkTint::Neutral => theme.muted_text,
+        LandmarkTint::Warm => theme.landmark_warm,
+        LandmarkTint::Cool => theme.landmark_cool,
+        LandmarkTint::Neutral => theme.landmark_neutral,
     };
 
     let mut lines = Vec::new();
@@ -288,9 +339,7 @@ fn render_landmark(
             if state.animate_ui { "~>" } else { "--" },
             scene.label
         ),
-        Style::default()
-            .fg(theme.muted_text)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
     )));
 
     for line in scene.lines {
@@ -353,18 +402,6 @@ fn cloud_descriptor(code: u8) -> &'static str {
         71..=86 => "Snow clouds",
         95 | 96 | 99 => "Storm clouds",
         _ => "Variable",
-    }
-}
-
-fn condition_color(code: u8) -> Color {
-    match weather_code_to_category(code) {
-        WeatherCategory::Clear => Color::Yellow,
-        WeatherCategory::Cloudy => Color::LightBlue,
-        WeatherCategory::Rain => Color::Cyan,
-        WeatherCategory::Snow => Color::White,
-        WeatherCategory::Fog => Color::Gray,
-        WeatherCategory::Thunder => Color::Magenta,
-        WeatherCategory::Unknown => Color::LightBlue,
     }
 }
 

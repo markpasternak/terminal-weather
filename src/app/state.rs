@@ -1,4 +1,7 @@
-use std::time::Instant;
+use std::{
+    collections::{HashMap, HashSet},
+    time::Instant,
+};
 
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEventKind};
@@ -6,10 +9,15 @@ use tokio::sync::mpsc;
 
 use crate::{
     app::events::{AppEvent, schedule_retry, start_frame_task, start_refresh_task},
-    cli::{Cli, UnitsArg},
-    data::{forecast::ForecastClient, geocode::GeocodeClient},
+    cli::{Cli, SilhouetteSourceArg, UnitsArg},
+    data::{
+        forecast::ForecastClient,
+        geocode::GeocodeClient,
+        silhouette::{SilhouetteClient, cache_key},
+    },
     domain::weather::{
-        ForecastBundle, GeocodeResolution, Location, RefreshMetadata, Units, evaluate_freshness,
+        ForecastBundle, GeocodeResolution, Location, RefreshMetadata, SilhouetteArt, Units,
+        evaluate_freshness,
     },
     resilience::backoff::Backoff,
     ui::particles::ParticleEngine,
@@ -42,6 +50,9 @@ pub struct AppState {
     pub last_frame_at: Instant,
     pub frame_tick: u64,
     pub animate_ui: bool,
+    pub active_location_key: Option<String>,
+    pub web_silhouettes: HashMap<String, SilhouetteArt>,
+    pub silhouettes_in_flight: HashSet<String>,
 }
 
 impl AppState {
@@ -68,6 +79,9 @@ impl AppState {
             last_frame_at: Instant::now(),
             frame_tick: 0,
             animate_ui: !cli.no_animation && !cli.reduced_motion,
+            active_location_key: None,
+            web_silhouettes: HashMap::new(),
+            silhouettes_in_flight: HashSet::new(),
         }
     }
 
@@ -144,6 +158,7 @@ impl AppState {
                 }
             },
             AppEvent::FetchSucceeded(bundle) => {
+                let location = bundle.location.clone();
                 self.fetch_in_flight = false;
                 self.weather = Some(bundle);
                 self.mode = AppMode::Ready;
@@ -151,6 +166,8 @@ impl AppState {
                 self.refresh_meta.mark_success();
                 self.backoff.reset();
                 self.hourly_offset = 0;
+                self.active_location_key = Some(cache_key(&location));
+                self.maybe_fetch_silhouette(tx, cli, &location);
             }
             AppEvent::FetchFailed(err) => {
                 self.fetch_in_flight = false;
@@ -163,6 +180,12 @@ impl AppState {
                 );
                 let delay = self.backoff.next_delay();
                 schedule_retry(tx.clone(), delay);
+            }
+            AppEvent::SilhouetteFetched { key, art } => {
+                self.silhouettes_in_flight.remove(&key);
+                if let Some(art) = art {
+                    self.web_silhouettes.insert(key, art);
+                }
             }
             AppEvent::Quit => {
                 self.mode = AppMode::Quit;
@@ -279,5 +302,30 @@ impl AppState {
             }
         });
         Ok(())
+    }
+
+    fn maybe_fetch_silhouette(
+        &mut self,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+        location: &Location,
+    ) {
+        if matches!(cli.silhouette_source, SilhouetteSourceArg::Local) {
+            return;
+        }
+
+        let key = cache_key(location);
+        if self.web_silhouettes.contains_key(&key) || self.silhouettes_in_flight.contains(&key) {
+            return;
+        }
+
+        self.silhouettes_in_flight.insert(key.clone());
+        let tx2 = tx.clone();
+        let location = location.clone();
+        tokio::spawn(async move {
+            let client = SilhouetteClient::new();
+            let art = client.fetch_for_location(&location).await.ok().flatten();
+            let _ = tx2.send(AppEvent::SilhouetteFetched { key, art }).await;
+        });
     }
 }

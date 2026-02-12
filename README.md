@@ -4,9 +4,11 @@
 
 ## Features
 - Current weather hero panel with condition, temperature, H/L, and location
+- Rich hero telemetry: feels-like, humidity, wind, precipitation, cloud descriptor, UV max
 - Responsive hourly strip (12/8/6 columns based on terminal width)
 - 7-day forecast with normalized temperature range bars
 - Weather-aware themes with day/night adaptation and color fallback tiers
+- Landmark panel with known-city ASCII art, procedural skyline fallback, and optional web-sourced silhouette mode
 - Particle animation engine (rain/snow/fog/thunder) with wind drift
 - Fresh/stale/offline state handling with retry backoff and last-good data retention
 - Deterministic geocode ranking with in-app disambiguation selector (keys `1..5`)
@@ -33,6 +35,8 @@ cargo run -- --units fahrenheit Tokyo
 cargo run -- --ascii-icons --no-animation Reykjavik
 cargo run -- --reduced-motion --no-flash London
 cargo run -- --lat 59.3293 --lon 18.0686
+cargo run -- --theme high-contrast Stockholm
+cargo run -- --silhouette-source web Stockholm
 ```
 
 ### CLI flags
@@ -47,6 +51,10 @@ Options:
   --no-flash                     Disable thunder flash
   --ascii-icons                  Force ASCII icons
   --emoji-icons                  Force emoji icons
+  --theme <auto|aurora|mono|high-contrast>
+                                 Visual theme override (default: auto)
+  --silhouette-source <local|auto|web>
+                                 Landmark art source strategy (default: auto)
   --country-code <ISO2>          Geocode bias (e.g., SE, US)
   --lat <FLOAT>                  Direct latitude (requires --lon)
   --lon <FLOAT>                  Direct longitude (requires --lat)
@@ -74,6 +82,12 @@ Icon rendering modes:
 - `--ascii-icons`: fixed-width ASCII-safe labels
 - `--emoji-icons`: emoji set
 
+Theme modes:
+- `auto`: weather/day-aware palette
+- `aurora`: vivid cool palette
+- `mono`: monochrome palette
+- `high-contrast`: maximum text contrast
+
 ## Troubleshooting
 - Network/API failure:
   - App keeps last known good weather visible.
@@ -83,6 +97,9 @@ Icon rendering modes:
   - Below `30x15`, app shows a resize warning only.
 - Unicode/icon width issues:
   - Use `--ascii-icons` for stable alignment on limited terminals.
+- Web silhouette issues:
+  - `--silhouette-source web` fetches landmark thumbnails from Wikipedia and converts them to ASCII.
+  - If fetch fails, `auto` mode falls back to built-in/procedural silhouettes.
 - Coordinate flags error:
   - `--lat` and `--lon` must be provided together.
 

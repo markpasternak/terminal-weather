@@ -12,6 +12,25 @@ pub struct LandmarkScene {
     pub tint: LandmarkTint,
 }
 
+pub fn scene_from_web_art(art: &SilhouetteArt, width: u16, height: u16) -> LandmarkScene {
+    let mut lines = art
+        .lines
+        .iter()
+        .map(|line| fit_line(line, width as usize))
+        .take(height as usize)
+        .collect::<Vec<_>>();
+
+    if lines.is_empty() {
+        lines.push(fit_line(" silhouette unavailable ", width as usize));
+    }
+
+    LandmarkScene {
+        label: art.label.clone(),
+        lines,
+        tint: LandmarkTint::Neutral,
+    }
+}
+
 pub fn scene_for_location(
     location_name: &str,
     is_day: bool,
@@ -372,3 +391,4 @@ fn fit_line(line: &str, width: usize) -> String {
     }
     out
 }
+use crate::domain::weather::SilhouetteArt;
