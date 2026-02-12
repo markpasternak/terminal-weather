@@ -869,7 +869,10 @@ fn scene_char_color(
             }
         }
         HeroVisualArg::SkyObservatory => {
-            if matches!(ch, '◉' | '○' | '◑' | '◐' | '◔' | '◕' | '◖' | '◗' | '●') {
+            if matches!(
+                ch,
+                '◉' | '☀' | '○' | '◑' | '◐' | '◔' | '◕' | '◖' | '◗' | '●' | '✶'
+            ) {
                 theme.warning
             } else if matches!(ch, '█' | '▓' | '▒' | '░') {
                 theme.info

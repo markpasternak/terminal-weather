@@ -324,11 +324,15 @@ pub fn scene_for_sky_observatory(
     let marker_x = (progress * (w.saturating_sub(1)) as f32).round() as usize;
 
     let marker_y = locate_arc_y(marker_x, w, arc_top, arc_bottom);
-    canvas[marker_y][marker_x] = if bundle.current.is_day {
-        '◉'
-    } else {
-        moon_phase(bundle)
-    };
+    draw_celestial_icon(
+        &mut canvas,
+        marker_x,
+        marker_y,
+        bundle.current.is_day,
+        moon_phase(bundle),
+        w,
+        h,
+    );
     if marker_x > 0 {
         let y = locate_arc_y(0, w, arc_top, arc_bottom);
         canvas[y][0] = '⌂';
@@ -637,6 +641,82 @@ fn locate_arc_y(x: usize, width: usize, top: usize, bottom: usize) -> usize {
     (bottom as f32 - (1.0 - dx * dx).max(0.0) * (bottom - top) as f32)
         .round()
         .clamp(top as f32, bottom as f32) as usize
+}
+
+fn draw_celestial_icon(
+    canvas: &mut [Vec<char>],
+    x: usize,
+    y: usize,
+    is_day: bool,
+    moon_symbol: char,
+    width: usize,
+    height: usize,
+) {
+    let large = width >= 44 && height >= 11;
+    let huge = width >= 70 && height >= 14;
+    let center = if is_day {
+        if large { '☀' } else { '◉' }
+    } else {
+        moon_symbol
+    };
+    paint_char(canvas, x as isize, y as isize, center, true);
+
+    if is_day && large {
+        for (dx, dy) in [
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+            (-1, 0),
+            (1, 0),
+            (-1, 1),
+            (0, 1),
+            (1, 1),
+        ] {
+            paint_char(canvas, x as isize + dx, y as isize + dy, '✶', false);
+        }
+        if huge {
+            for (dx, dy) in [(-2, 0), (2, 0), (0, -2), (0, 2)] {
+                paint_char(canvas, x as isize + dx, y as isize + dy, '✶', false);
+            }
+        }
+    } else if !is_day && large {
+        for (dx, dy) in [
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+            (-1, 0),
+            (1, 0),
+            (-1, 1),
+            (0, 1),
+            (1, 1),
+        ] {
+            paint_char(canvas, x as isize + dx, y as isize + dy, '·', false);
+        }
+        if huge {
+            for (dx, dy) in [(-2, 0), (2, 0), (0, -2), (0, 2)] {
+                paint_char(canvas, x as isize + dx, y as isize + dy, '·', false);
+            }
+        }
+    }
+}
+
+fn paint_char(canvas: &mut [Vec<char>], x: isize, y: isize, ch: char, force: bool) {
+    if canvas.is_empty() || canvas[0].is_empty() {
+        return;
+    }
+    if x < 0 || y < 0 {
+        return;
+    }
+    let ux = x as usize;
+    let uy = y as usize;
+    if uy >= canvas.len() || ux >= canvas[0].len() {
+        return;
+    }
+
+    let current = canvas[uy][ux];
+    if force || matches!(current, ' ' | '·') {
+        canvas[uy][ux] = ch;
+    }
 }
 
 fn symbol_for_code(code: u8) -> char {
