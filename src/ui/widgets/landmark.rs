@@ -142,13 +142,49 @@ pub fn scene_for_gauge_cluster(bundle: &ForecastBundle, width: u16, height: u16)
     let vis_norm = (vis_km / 12.0).clamp(0.0, 1.0);
     let precip_now = current.precipitation_mm.max(0.0);
     let cloud = current.cloud_cover.clamp(0.0, 100.0);
-    let left_col_width = if w >= 74 {
+    let left_col_width = if w >= 86 {
+        w.saturating_mul(58) / 100
+    } else if w >= 74 {
         w.saturating_mul(62) / 100
     } else {
         w
     };
 
-    let left_lines = vec![
+    let sunrise = bundle
+        .daily
+        .first()
+        .and_then(|d| d.sunrise)
+        .map(|t| t.format("%H:%M").to_string())
+        .unwrap_or_else(|| "--:--".to_string());
+    let sunset = bundle
+        .daily
+        .first()
+        .and_then(|d| d.sunset)
+        .map(|t| t.format("%H:%M").to_string())
+        .unwrap_or_else(|| "--:--".to_string());
+
+    let temp_track = bundle
+        .hourly
+        .iter()
+        .take(24)
+        .filter_map(|h| h.temperature_2m_c)
+        .collect::<Vec<_>>();
+    let precip_track = bundle
+        .hourly
+        .iter()
+        .take(24)
+        .map(|h| h.precipitation_mm.unwrap_or(0.0))
+        .collect::<Vec<_>>();
+    let gust_track = bundle
+        .hourly
+        .iter()
+        .take(24)
+        .map(|h| h.wind_gusts_10m.unwrap_or(0.0))
+        .collect::<Vec<_>>();
+    let trend_width = w.saturating_sub(left_col_width + 12).clamp(8, 28);
+
+    let left_lines = [
+        "Live instruments".to_string(),
         format!("Temp   {} {:>4}C", meter(temp_norm, meter_w), temp_c),
         format!(
             "Hum    {} {:>4.0}%",
@@ -171,33 +207,15 @@ pub fn scene_for_gauge_cluster(bundle: &ForecastBundle, width: u16, height: u16)
     ];
     let mut lines = if w >= 74 && h >= 9 {
         let right_lines = [
+            "Overview".to_string(),
             format!("Condition {}", scene_name(category, bundle.current.is_day)),
             format!("Cloud {:>3.0}%   Rain now {:>3.1}mm", cloud, precip_now),
-            format!(
-                "Sun arc {:>2}:{:02} -> {:>2}:{:02}",
-                bundle
-                    .daily
-                    .first()
-                    .and_then(|d| d.sunrise.map(|t| t.hour() as i32))
-                    .unwrap_or(6),
-                bundle
-                    .daily
-                    .first()
-                    .and_then(|d| d.sunrise.map(|t| t.minute() as i32))
-                    .unwrap_or(0),
-                bundle
-                    .daily
-                    .first()
-                    .and_then(|d| d.sunset.map(|t| t.hour() as i32))
-                    .unwrap_or(18),
-                bundle
-                    .daily
-                    .first()
-                    .and_then(|d| d.sunset.map(|t| t.minute() as i32))
-                    .unwrap_or(0)
-            ),
+            format!("Sun arc {sunrise} -> {sunset}"),
+            format!("T24 {}", sparkline_blocks(&temp_track, trend_width)),
+            format!("R24 {}", sparkline_blocks(&precip_track, trend_width)),
+            format!("G24 {}", sparkline_blocks(&gust_track, trend_width)),
             format!("Visibility {:>4.1}km", vis_km),
-            "Compass".to_string(),
+            "Compass rose".to_string(),
             "    N".to_string(),
             format!(
                 "  W {} E   dir {}",
@@ -222,7 +240,7 @@ pub fn scene_for_gauge_cluster(bundle: &ForecastBundle, width: u16, height: u16)
         }
         merged
     } else {
-        left_lines
+        left_lines.to_vec()
     };
 
     if h >= 12 && w < 74 {
@@ -243,7 +261,11 @@ pub fn scene_for_gauge_cluster(bundle: &ForecastBundle, width: u16, height: u16)
 
     LandmarkScene {
         label: "Gauge Cluster · Live Instruments".to_string(),
-        lines: fit_lines(lines, w, h),
+        lines: if h >= 12 {
+            fit_lines_centered(lines, w, h)
+        } else {
+            fit_lines(lines, w, h)
+        },
         tint: tint_for_category(category),
     }
 }
@@ -632,11 +654,61 @@ fn symbol_for_code(code: u8) -> char {
 fn meter(norm: f32, width: usize) -> String {
     let width = width.max(4);
     let fill = (norm.clamp(0.0, 1.0) * width as f32).round() as usize;
-    format!(
-        "[{}{}]",
-        "█".repeat(fill),
-        "·".repeat(width.saturating_sub(fill))
-    )
+    let mut bar = String::with_capacity(width + 2);
+    bar.push('[');
+    for idx in 0..width {
+        let ch = if idx < fill {
+            '█'
+        } else if idx == fill {
+            '▓'
+        } else if idx == fill.saturating_add(1) {
+            '▒'
+        } else {
+            '·'
+        };
+        bar.push(ch);
+    }
+    bar.push(']');
+    bar
+}
+
+fn sparkline_blocks(values: &[f32], width: usize) -> String {
+    const BARS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    if values.is_empty() || width == 0 {
+        return String::new();
+    }
+    let min = values.iter().copied().fold(f32::INFINITY, f32::min);
+    let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let span = (max - min).max(0.001);
+    (0..width)
+        .map(|idx| {
+            let src = (idx * values.len() / width).min(values.len().saturating_sub(1));
+            let norm = ((values[src] - min) / span).clamp(0.0, 1.0);
+            BARS[(norm * (BARS.len() - 1) as f32).round() as usize]
+        })
+        .collect()
+}
+
+fn fit_lines_centered(lines: Vec<String>, width: usize, height: usize) -> Vec<String> {
+    let trimmed = lines
+        .into_iter()
+        .map(|line| fit_line(&line, width))
+        .take(height)
+        .collect::<Vec<_>>();
+    if trimmed.len() >= height {
+        return trimmed;
+    }
+
+    let pad = (height - trimmed.len()) / 2;
+    let mut out = Vec::with_capacity(height);
+    for _ in 0..pad {
+        out.push(" ".repeat(width));
+    }
+    out.extend(trimmed);
+    while out.len() < height {
+        out.push(" ".repeat(width));
+    }
+    out
 }
 
 fn compass_arrow(deg: f32) -> char {

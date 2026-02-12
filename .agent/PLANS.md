@@ -91,6 +91,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12: Coupled hourly scroll bounds to active viewport density (`6/8/12/16`) via shared layout helper -> fixes right-scroll overshoot on wide terminals.
 - 2026-02-12: Promoted Unicode-aware matching in geocode normalization + recent-location dedupe -> improves non-ASCII city behavior (e.g., `Åre`).
 - 2026-02-12: Added per-glyph thematic coloring in hero visuals and expanded wide-screen gauge/daily/hourly density -> makes theme changes more perceptible and uses fullscreen space better.
+- 2026-02-12: Applied luxury widescreen composition tuning (hero split rebalance, centered gauge choreography, prioritized weekly profile lanes) -> improves premium feel and space utilization at 120+ columns.
 
 ## Progress Log
 - 2026-02-12 09:08: Completed P0 verification, ran tool checks (rustup/rustc/cargo/clippy/rustfmt), result: PASS.
@@ -120,6 +121,7 @@ Build atmos-tui v1.1 end-to-end and satisfy Definition of Done.
 - 2026-02-12 14:07: Added high-value Open-Meteo fields (pressure/dew/visibility/cloud layers/precip totals/gust maxima), refactored hero+hourly+daily to avoid duplication and better use tall/wide layouts; initial snapshot gate failed (expected UI changes), snapshots updated, reran full gates, result: PASS.
 - 2026-02-12 15:02: Added configurable hero visual modes + settings descriptions, removed web silhouette module/dependencies, refreshed snapshots, and added public README screenshot workflow/script; full gate suite rerun, result: PASS.
 - 2026-02-12 15:43: Completed high-impact review fixes (responsive hourly clamp, Unicode matching/dedupe, modifier-safe input with Ctrl+C quit, panic-path hardening, fuller wide-screen panel density, stronger hero theme coloration), reran full gates, result: PASS.
+- 2026-02-12 16:07: Completed luxury widescreen polish pass (hero proportions, gauge composition, daily premium profile lanes); snapshot 120x40 updated intentionally, reran full gates, result: PASS.
 
 ## Final Report Checklist
 - [x] Local run commands added

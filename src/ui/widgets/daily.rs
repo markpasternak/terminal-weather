@@ -411,7 +411,7 @@ fn render_week_summary(
         ]),
         Line::from(vec![
             Span::styled("Breeziest ", Style::default().fg(theme.muted_text)),
-            Span::styled(breeziest_txt, Style::default().fg(theme.warning)),
+            Span::styled(breeziest_txt.clone(), Style::default().fg(theme.warning)),
             Span::raw("  "),
             Span::styled("Wettest ", Style::default().fg(theme.muted_text)),
             Span::styled(wettest_txt, Style::default().fg(theme.info)),
@@ -424,20 +424,89 @@ fn render_week_summary(
             Span::styled(uv_peak, Style::default().fg(theme.warning)),
             Span::raw("  "),
             Span::styled("Week span ", Style::default().fg(theme.muted_text)),
-            Span::styled(week_thermal, Style::default().fg(theme.accent)),
+            Span::styled(week_thermal.clone(), Style::default().fg(theme.accent)),
         ]),
     ];
 
-    let remaining = area.height.saturating_sub(lines.len() as u16);
-    if remaining >= 2 {
+    let highs = bundle
+        .daily
+        .iter()
+        .filter_map(|d| d.temperature_max_c)
+        .map(|t| convert_temp(t, units))
+        .collect::<Vec<_>>();
+    let precip = bundle
+        .daily
+        .iter()
+        .map(|d| d.precipitation_sum_mm.unwrap_or(0.0))
+        .collect::<Vec<_>>();
+    let gusts = bundle
+        .daily
+        .iter()
+        .map(|d| d.wind_gusts_10m_max.unwrap_or(0.0))
+        .collect::<Vec<_>>();
+
+    let mut remaining_rows = (area.height as usize).saturating_sub(lines.len());
+    if area.width >= 72 && remaining_rows >= 4 {
+        lines.push(Line::from(Span::styled(
+            "Week profiles",
+            Style::default()
+                .fg(theme.muted_text)
+                .add_modifier(Modifier::BOLD),
+        )));
+        remaining_rows = remaining_rows.saturating_sub(1);
+
+        let profile_width = area.width.saturating_sub(28).clamp(10, 56) as usize;
+        if remaining_rows > 0 && !highs.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("Temp arc    ", Style::default().fg(theme.muted_text)),
+                Span::styled(
+                    profile_bar(&highs, profile_width),
+                    Style::default().fg(theme.accent),
+                ),
+                Span::raw(" "),
+                Span::styled(week_thermal.clone(), Style::default().fg(theme.accent)),
+            ]));
+            remaining_rows = remaining_rows.saturating_sub(1);
+        }
+        if remaining_rows > 0 && !precip.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("Precip lane ", Style::default().fg(theme.muted_text)),
+                Span::styled(
+                    profile_bar(&precip, profile_width),
+                    Style::default().fg(theme.info),
+                ),
+                Span::raw(" "),
+                Span::styled(
+                    format!("{precip_total:.1}mm"),
+                    Style::default().fg(theme.info),
+                ),
+            ]));
+            remaining_rows = remaining_rows.saturating_sub(1);
+        }
+        if remaining_rows > 0 && !gusts.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("Wind lane   ", Style::default().fg(theme.muted_text)),
+                Span::styled(
+                    profile_bar(&gusts, profile_width),
+                    Style::default().fg(theme.warning),
+                ),
+                Span::raw(" "),
+                Span::styled(breeziest_txt.clone(), Style::default().fg(theme.warning)),
+            ]));
+            remaining_rows = remaining_rows.saturating_sub(1);
+        }
+    }
+
+    if remaining_rows >= 2 {
         lines.push(Line::from(Span::styled(
             "Day cues",
             Style::default()
                 .fg(theme.muted_text)
                 .add_modifier(Modifier::BOLD),
         )));
+        remaining_rows = remaining_rows.saturating_sub(1);
 
-        let cue_rows = usize::from(area.height.saturating_sub(lines.len() as u16));
+        let cue_rows = remaining_rows.min(bundle.daily.len());
         for day in bundle.daily.iter().take(cue_rows) {
             lines.push(Line::from(vec![
                 Span::styled(
@@ -447,28 +516,12 @@ fn render_week_summary(
                 Span::styled(day_cue(day), Style::default().fg(theme.text)),
             ]));
         }
+        remaining_rows = remaining_rows.saturating_sub(cue_rows);
     }
 
-    if (area.height as usize).saturating_sub(lines.len()) > 0 && area.width >= 32 {
-        let highs = bundle
-            .daily
-            .iter()
-            .filter_map(|d| d.temperature_max_c)
-            .map(|t| convert_temp(t, units))
-            .collect::<Vec<_>>();
-        let precip = bundle
-            .daily
-            .iter()
-            .map(|d| d.precipitation_sum_mm.unwrap_or(0.0))
-            .collect::<Vec<_>>();
-        let gusts = bundle
-            .daily
-            .iter()
-            .map(|d| d.wind_gusts_10m_max.unwrap_or(0.0))
-            .collect::<Vec<_>>();
-        let profile_width = area.width.saturating_sub(16).clamp(8, 42) as usize;
-
-        if (area.height as usize).saturating_sub(lines.len()) > 0 && !highs.is_empty() {
+    if remaining_rows > 0 && area.width >= 32 {
+        let profile_width = area.width.saturating_sub(18).clamp(8, 40) as usize;
+        if remaining_rows > 0 && !highs.is_empty() {
             lines.push(Line::from(vec![
                 Span::styled("Temp profile ", Style::default().fg(theme.muted_text)),
                 Span::styled(
@@ -476,8 +529,9 @@ fn render_week_summary(
                     Style::default().fg(theme.accent),
                 ),
             ]));
+            remaining_rows = remaining_rows.saturating_sub(1);
         }
-        if (area.height as usize).saturating_sub(lines.len()) > 0 && !precip.is_empty() {
+        if remaining_rows > 0 && !precip.is_empty() {
             lines.push(Line::from(vec![
                 Span::styled("Precip lane  ", Style::default().fg(theme.muted_text)),
                 Span::styled(
@@ -485,8 +539,9 @@ fn render_week_summary(
                     Style::default().fg(theme.info),
                 ),
             ]));
+            remaining_rows = remaining_rows.saturating_sub(1);
         }
-        if (area.height as usize).saturating_sub(lines.len()) > 0 && !gusts.is_empty() {
+        if remaining_rows > 0 && !gusts.is_empty() {
             lines.push(Line::from(vec![
                 Span::styled("Wind lane    ", Style::default().fg(theme.muted_text)),
                 Span::styled(

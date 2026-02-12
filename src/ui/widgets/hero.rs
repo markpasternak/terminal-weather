@@ -59,10 +59,14 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     frame.render_widget(block, area);
 
     let columns = if inner.width >= 58 && inner.height >= 8 {
-        let (left_pct, right_pct) = if inner.width >= 120 {
-            (44, 56)
+        let (left_pct, right_pct) = if inner.width >= 170 {
+            (38, 62)
+        } else if inner.width >= 140 {
+            (40, 60)
+        } else if inner.width >= 120 {
+            (42, 58)
         } else if inner.width >= 96 {
-            (50, 50)
+            (48, 52)
         } else {
             (58, 42)
         };
@@ -92,7 +96,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
             .border_style(Style::default().fg(theme.border));
         let right_inner = separator.inner(right);
         frame.render_widget(separator, right);
-        let right_content = if right_inner.width >= 48 {
+        let right_content = if right_inner.width >= 78 && right_inner.height >= 14 {
+            inset_rect(right_inner, 3, 1)
+        } else if right_inner.width >= 60 && right_inner.height >= 10 {
+            inset_rect(right_inner, 2, 1)
+        } else if right_inner.width >= 48 {
             inset_rect(right_inner, 2, 0)
         } else {
             right_inner
