@@ -1,3 +1,4 @@
+pub mod city_picker;
 pub mod daily;
 pub mod hero;
 pub mod hourly;

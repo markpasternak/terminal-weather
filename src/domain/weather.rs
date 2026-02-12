@@ -20,22 +20,6 @@ pub struct Location {
     pub population: Option<u64>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ColoredGlyph {
-    pub ch: char,
-    pub color: Option<(u8, u8, u8)>,
-    /// Background color — used by half-block rendering where each cell
-    /// encodes two vertical pixels (fg = top, bg = bottom via `▀`).
-    pub bg_color: Option<(u8, u8, u8)>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SilhouetteArt {
-    pub label: String,
-    pub lines: Vec<String>,
-    pub colored_lines: Option<Vec<Vec<ColoredGlyph>>>,
-}
-
 impl Location {
     pub fn from_coords(lat: f64, lon: f64) -> Self {
         Self {

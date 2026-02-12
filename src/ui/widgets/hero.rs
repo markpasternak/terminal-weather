@@ -11,13 +11,15 @@ use ratatui::{
 
 use crate::{
     app::state::{AppMode, AppState},
-    cli::{Cli, SilhouetteSourceArg},
+    cli::{Cli, HeroVisualArg},
     domain::weather::{
-        ColoredGlyph, HourlyForecast, WeatherCategory, convert_temp, round_temp,
-        weather_code_to_category, weather_label,
+        HourlyForecast, WeatherCategory, convert_temp, round_temp, weather_code_to_category,
+        weather_label,
     },
-    ui::theme::{ColorCapability, condition_color, detect_color_capability, quantize, theme_for},
-    ui::widgets::landmark::{LandmarkTint, scene_for_location, scene_from_web_art},
+    ui::theme::{condition_color, detect_color_capability, theme_for},
+    ui::widgets::landmark::{
+        LandmarkTint, scene_for_gauge_cluster, scene_for_sky_observatory, scene_for_weather,
+    },
 };
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
@@ -95,7 +97,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         } else {
             right_inner
         };
-        render_landmark(frame, right_content, state, is_day, theme, capability);
+        render_landmark(frame, right_content, state, is_day, theme);
     }
 }
 
@@ -712,73 +714,49 @@ fn render_landmark(
     state: &AppState,
     is_day: bool,
     theme: crate::ui::theme::Theme,
-    capability: ColorCapability,
 ) {
     if area.width < 10 || area.height < 4 {
         return;
     }
 
-    let location_name = state
-        .weather
-        .as_ref()
-        .map(|w| w.location.name.as_str())
-        .or_else(|| state.selected_location.as_ref().map(|l| l.name.as_str()))
-        .unwrap_or("Local");
-
-    let scene = if matches!(
-        state.settings.silhouette_source,
-        SilhouetteSourceArg::Web | SilhouetteSourceArg::Auto
-    ) {
-        state
-            .active_location_key
-            .as_ref()
-            .and_then(|key| state.web_silhouettes.get(key))
-            .map(|art| {
-                scene_from_web_art(
-                    art,
+    let scene = match state.settings.hero_visual {
+        HeroVisualArg::AtmosCanvas => {
+            if let Some(bundle) = state.weather.as_ref() {
+                scene_for_weather(
+                    bundle,
+                    state.frame_tick,
+                    state.animate_ui,
                     area.width.saturating_sub(2),
                     area.height.saturating_sub(2),
                 )
-            })
-            .unwrap_or_else(|| {
-                if matches!(state.settings.silhouette_source, SilhouetteSourceArg::Web)
-                    && state
-                        .active_location_key
-                        .as_ref()
-                        .is_some_and(|key| state.silhouettes_in_flight.contains(key))
-                {
-                    scene_from_web_art(
-                        &crate::domain::weather::SilhouetteArt {
-                            label: "Fetching web silhouette".to_string(),
-                            lines: vec![
-                                "  searching landmark image...".to_string(),
-                                "  converting image to ascii...".to_string(),
-                            ],
-                            colored_lines: None,
-                        },
-                        area.width.saturating_sub(2),
-                        area.height.saturating_sub(2),
-                    )
-                } else {
-                    scene_for_location(
-                        location_name,
-                        is_day,
-                        state.frame_tick,
-                        state.animate_ui,
-                        area.width.saturating_sub(2),
-                        area.height.saturating_sub(2),
-                    )
-                }
-            })
-    } else {
-        scene_for_location(
-            location_name,
-            is_day,
-            state.frame_tick,
-            state.animate_ui,
-            area.width.saturating_sub(2),
-            area.height.saturating_sub(2),
-        )
+            } else {
+                loading_scene("Atmos Canvas", area.width, area.height, is_day)
+            }
+        }
+        HeroVisualArg::GaugeCluster => {
+            if let Some(bundle) = state.weather.as_ref() {
+                scene_for_gauge_cluster(
+                    bundle,
+                    area.width.saturating_sub(2),
+                    area.height.saturating_sub(2),
+                )
+            } else {
+                loading_scene("Gauge Cluster", area.width, area.height, is_day)
+            }
+        }
+        HeroVisualArg::SkyObservatory => {
+            if let Some(bundle) = state.weather.as_ref() {
+                scene_for_sky_observatory(
+                    bundle,
+                    state.frame_tick,
+                    state.animate_ui,
+                    area.width.saturating_sub(2),
+                    area.height.saturating_sub(2),
+                )
+            } else {
+                loading_scene("Sky Observatory", area.width, area.height, is_day)
+            }
+        }
     };
 
     let tint = match scene.tint {
@@ -786,10 +764,8 @@ fn render_landmark(
         LandmarkTint::Cool => theme.landmark_cool,
         LandmarkTint::Neutral => theme.landmark_neutral,
     };
-    let scene_label = scene.label.clone();
+    let scene_label = scene.label;
     let scene_lines = scene.lines;
-    let colored_lines = scene.colored_lines;
-    let has_colored = colored_lines.is_some();
 
     let mut lines = Vec::new();
     lines.push(Line::from(Span::styled(
@@ -801,100 +777,13 @@ fn render_landmark(
         Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
     )));
 
-    if let Some(color_rows) = colored_lines {
-        for row in color_rows {
-            lines.push(colored_line_from_glyphs(
-                &row,
-                tint,
-                theme.accent,
-                capability,
-            ));
-        }
-    } else {
-        for line in scene_lines {
-            lines.push(Line::from(Span::styled(line, Style::default().fg(tint))));
-        }
+    for line in scene_lines {
+        lines.push(Line::from(Span::styled(line, Style::default().fg(tint))));
     }
 
-    let mut text = Text::from(lines);
-    if !has_colored {
-        text = text.patch_style(Style::default().fg(tint));
-    }
+    let text = Text::from(lines).patch_style(Style::default().fg(tint));
     let paragraph = Paragraph::new(text);
     frame.render_widget(paragraph, area);
-}
-
-fn colored_line_from_glyphs(
-    glyphs: &[ColoredGlyph],
-    fallback: Color,
-    theme_tint: Color,
-    capability: ColorCapability,
-) -> Line<'static> {
-    if glyphs.is_empty() {
-        return Line::from("");
-    }
-
-    let fallback_rgb = color_to_rgb(fallback);
-    let theme_rgb = color_to_rgb(theme_tint);
-    let themed = |glyph: &ColoredGlyph| -> Color {
-        let base = glyph.color.unwrap_or(fallback_rgb);
-        let with_theme = blend_rgb(
-            base,
-            theme_rgb,
-            if glyph.color.is_some() { 0.34 } else { 0.58 },
-        );
-        let stabilized = blend_rgb(
-            with_theme,
-            fallback_rgb,
-            if glyph.color.is_some() { 0.14 } else { 0.22 },
-        );
-        quantize(
-            Color::Rgb(stabilized.0, stabilized.1, stabilized.2),
-            capability,
-        )
-    };
-
-    let mut spans = Vec::new();
-    let mut run = String::new();
-    let mut current = themed(&glyphs[0]);
-
-    let themed_bg = |glyph: &ColoredGlyph| -> Option<Color> {
-        glyph.bg_color.map(|base| {
-            let with_theme = blend_rgb(base, theme_rgb, 0.34);
-            let stabilized = blend_rgb(with_theme, fallback_rgb, 0.14);
-            quantize(
-                Color::Rgb(stabilized.0, stabilized.1, stabilized.2),
-                capability,
-            )
-        })
-    };
-
-    let mut current_bg = themed_bg(&glyphs[0]);
-
-    for glyph in glyphs {
-        let next = themed(glyph);
-        let next_bg = themed_bg(glyph);
-        if next != current || next_bg != current_bg {
-            let mut style = Style::default().fg(current);
-            if let Some(bg) = current_bg {
-                style = style.bg(bg);
-            }
-            spans.push(Span::styled(std::mem::take(&mut run), style));
-            current = next;
-            current_bg = next_bg;
-        }
-        run.push(glyph.ch);
-    }
-
-    if !run.is_empty() {
-        let mut style = Style::default().fg(current);
-        if let Some(bg) = current_bg {
-            style = style.bg(bg);
-        }
-        spans.push(Span::styled(run, style));
-    }
-
-    Line::from(spans)
 }
 
 fn render_loading_choreography(
@@ -1222,73 +1111,37 @@ fn lerp_color(a: Color, b: Color, t: f32) -> Color {
     }
 }
 
-fn blend_rgb(a: (u8, u8, u8), b: (u8, u8, u8), t: f32) -> (u8, u8, u8) {
-    let t = t.clamp(0.0, 1.0);
-    let lerp = |x: u8, y: u8| -> u8 {
-        (f32::from(x) + (f32::from(y) - f32::from(x)) * t)
-            .round()
-            .clamp(0.0, 255.0) as u8
-    };
-    (lerp(a.0, b.0), lerp(a.1, b.1), lerp(a.2, b.2))
-}
-
-fn color_to_rgb(color: Color) -> (u8, u8, u8) {
-    match color {
-        Color::Rgb(r, g, b) => (r, g, b),
-        Color::Black => (0, 0, 0),
-        Color::Red => (205, 49, 49),
-        Color::Green => (13, 188, 121),
-        Color::Yellow => (229, 229, 16),
-        Color::Blue => (36, 114, 200),
-        Color::Magenta => (188, 63, 188),
-        Color::Cyan => (17, 168, 205),
-        Color::Gray => (229, 229, 229),
-        Color::DarkGray => (102, 102, 102),
-        Color::LightRed => (241, 76, 76),
-        Color::LightGreen => (35, 209, 139),
-        Color::LightYellow => (245, 245, 67),
-        Color::LightBlue => (59, 142, 234),
-        Color::LightMagenta => (214, 112, 214),
-        Color::LightCyan => (41, 184, 219),
-        Color::White => (255, 255, 255),
-        Color::Indexed(idx) => indexed_color_to_rgb(idx),
-        Color::Reset => (255, 255, 255),
-    }
-}
-
-fn indexed_color_to_rgb(idx: u8) -> (u8, u8, u8) {
-    const ANSI: [(u8, u8, u8); 16] = [
-        (0, 0, 0),
-        (205, 49, 49),
-        (13, 188, 121),
-        (229, 229, 16),
-        (36, 114, 200),
-        (188, 63, 188),
-        (17, 168, 205),
-        (229, 229, 229),
-        (102, 102, 102),
-        (241, 76, 76),
-        (35, 209, 139),
-        (245, 245, 67),
-        (59, 142, 234),
-        (214, 112, 214),
-        (41, 184, 219),
-        (255, 255, 255),
+fn loading_scene(
+    name: &str,
+    width: u16,
+    height: u16,
+    is_day: bool,
+) -> crate::ui::widgets::landmark::LandmarkScene {
+    let label = format!("{name} · waiting for weather");
+    let icon = if is_day { "o" } else { "*" };
+    let mut lines = vec![
+        " ".repeat(width as usize),
+        format!("   preparing {name}"),
+        format!("   collecting forecast lanes {icon}"),
     ];
-
-    if idx < 16 {
-        return ANSI[idx as usize];
+    while lines.len() < height as usize {
+        lines.push(" ".repeat(width as usize));
     }
-    if idx <= 231 {
-        let n = idx - 16;
-        let r = n / 36;
-        let g = (n % 36) / 6;
-        let b = n % 6;
-        let convert = |v: u8| -> u8 { if v == 0 { 0 } else { 55 + v * 40 } };
-        return (convert(r), convert(g), convert(b));
+    crate::ui::widgets::landmark::LandmarkScene {
+        label,
+        lines: lines
+            .into_iter()
+            .map(|line| {
+                let mut s = line.chars().take(width as usize).collect::<String>();
+                let len = s.chars().count();
+                if len < width as usize {
+                    s.push_str(&" ".repeat(width as usize - len));
+                }
+                s
+            })
+            .collect(),
+        tint: LandmarkTint::Neutral,
     }
-    let gray = 8 + (idx - 232) * 10;
-    (gray, gray, gray)
 }
 
 fn inset_rect(area: Rect, horizontal: u16, vertical: u16) -> Rect {

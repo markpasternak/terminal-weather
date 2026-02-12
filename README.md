@@ -1,28 +1,31 @@
 # atmos-tui
 
-`atmos-tui` is a terminal weather dashboard with animated weather ambience, responsive panels, deterministic geocoding, and resilient freshness/offline semantics.
+`atmos-tui` is a terminal-first weather dashboard focused on ambient visuals, clear hierarchy, and resilient live data updates.
 
-## Features
-- Current weather hero panel with condition, temperature, H/L, and location
-- Rich hero telemetry: feels-like, dew point, humidity, pressure trend, visibility, cloud layers, UV max
-- Responsive hourly strip (12/8/6 columns based on terminal width)
-- Hourly grid with labeled rows (time, weather, temp, precip, gust, visibility, cloud/pressure when space allows)
-- 7-day forecast with normalized temperature range bars, optional precip/gust columns, and week insights
-- Weather-aware themes with day/night adaptation, plus curated presets from iTerm2-Color-Schemes
-- Landmark panel with known-city ASCII art, procedural skyline fallback, and optional web-sourced silhouette mode
-- Web silhouette conversion powered by `rascii_art` using high-resolution RASCII block charset rendering
-- Large-terminal scaling: landmark art and top layout expand to better use full-screen terminal space
-- Particle animation engine (rain/snow/fog/thunder) with wind drift
-- Fresh/stale/offline state handling with retry backoff and last-good data retention
-- Deterministic geocode ranking with in-app disambiguation selector (keys `1..5`)
-- Accessibility controls: `--no-animation`, `--reduced-motion`, `--no-flash`, `--ascii-icons`
+![atmos-tui preview](assets/screenshots/app-preview.svg)
+
+## Highlights
+- Three-panel responsive layout: `Current` / `Hourly` / `7-Day`
+- High-value weather signals:
+  - current: temp, feels-like, dew point, humidity, pressure trend, visibility, wind/gust, cloud layers, UV
+  - hourly: time, icon, temp, precipitation, gusts, visibility, cloud/pressure rows (space-adaptive)
+  - daily: min/max range bars, precip totals, gust maxima, week summaries and day cues
+- Hero visual modes (right side of Current panel):
+  - `Atmos Canvas`: data-driven terrain + condition overlays
+  - `Gauge Cluster`: live instrument panel
+  - `Sky Observatory`: sun/moon arc + condition/precip lanes
+- Theme system with contrast-safe semantic colors and multiple presets
+- Particle ambience (rain/snow/fog/thunder) with reduced-motion and flash controls
+- Deterministic geocoding + ambiguity selector
+- Resilience model with fresh/stale/offline states and retry backoff
+- Persistent settings + location history across sessions
 
 ## Prerequisites
 - Rust stable toolchain (`rustup`, `cargo`, `rustc`)
-- Terminal with UTF-8 support (TrueColor preferred)
-- Network access for Open-Meteo API calls
+- UTF-8 capable terminal (TrueColor recommended)
+- Network access (Open-Meteo APIs)
 
-## Installation
+## Install
 ```bash
 git clone <repo-url>
 cd terminal-weather
@@ -30,101 +33,105 @@ rustup default stable
 cargo build --release
 ```
 
-## Usage
+## Run
 ```bash
 cargo run -- Stockholm
-cargo run -- "São Paulo"
 cargo run -- --units fahrenheit Tokyo
+cargo run -- --hero-visual gauge-cluster --theme dracula "San Diego"
+cargo run -- --hero-visual sky-observatory --reduced-motion London
 cargo run -- --ascii-icons --no-animation Reykjavik
-cargo run -- --reduced-motion --no-flash London
 cargo run -- --lat 59.3293 --lon 18.0686
-cargo run -- --theme high-contrast Stockholm
-cargo run -- --silhouette-source web Stockholm
 ```
 
-### CLI flags
+## CLI
 ```bash
 atmos-tui [CITY]
 
+Arguments:
+  [CITY]                              City name (default: Stockholm)
+
 Options:
-  --units <celsius|fahrenheit>   Default: celsius
-  --fps <N>                      15..60 (default: 30)
-  --no-animation                 Disable particle animation
-  --reduced-motion               Lower motion mode
-  --no-flash                     Disable thunder flash
-  --ascii-icons                  Force ASCII icons
-  --emoji-icons                  Force emoji icons
+  --units <celsius|fahrenheit>        Default: celsius
+  --fps <N>                           15..60 (default: 30)
+  --no-animation                      Disable particle animation
+  --reduced-motion                    Lower motion mode
+  --no-flash                          Disable thunder flash
+  --ascii-icons                       Force ASCII icons
+  --emoji-icons                       Force emoji icons
   --theme <auto|aurora|mono|high-contrast|dracula|gruvbox-material-dark|kanagawa-wave|ayu-mirage|ayu-light|poimandres-storm|selenized-dark|no-clown-fiesta>
-                                 Visual theme override (default: auto)
-  --silhouette-source <local|auto|web>
-                                 Landmark art source strategy (default: auto)
-  --country-code <ISO2>          Geocode bias (e.g., SE, US)
-  --lat <FLOAT>                  Direct latitude (requires --lon)
-  --lon <FLOAT>                  Direct longitude (requires --lat)
-  --refresh-interval <secs>      Default 600
+                                      Theme override (default: auto)
+  --hero-visual <atmos-canvas|gauge-cluster|sky-observatory>
+                                      Current-panel visual mode (default: atmos-canvas)
+  --country-code <ISO2>               Geocode bias (e.g. SE, US)
+  --lat <FLOAT>                       Direct latitude (requires --lon)
+  --lon <FLOAT>                       Direct longitude (requires --lat)
+  --refresh-interval <secs>           Default: 600
   --help
   --version
 ```
 
 ## Keybindings
-- `q` or `Esc`: quit
+- `q` / `Esc`: quit
 - `r`: manual refresh
-- `s`: open/close settings panel
+- `s`: open/close settings
 - `l`: open/close city switcher
 - `f`: switch to Fahrenheit
 - `c`: switch to Celsius
 - `←` / `→`: scroll hourly strip
-- `1..5`: choose location during geocode disambiguation
+- `1..5`: choose city during ambiguity selection
 
-### City switcher controls
-- Type city name and press `Enter` to search
-- `1..9`: quick-switch to recent cities
-- `↑` / `↓`: select recent city, then `Enter` to switch
-- `Backspace`: edit query
-- Search/switch history is persisted in `~/.config/atmos-tui/settings.json`
+## Settings (Persisted)
+Stored at `~/.config/atmos-tui/settings.json` (override directory via `ATMOS_TUI_CONFIG_DIR`).
 
-### Settings panel controls
-- `↑` / `↓`: select setting row
-- `←` / `→`: cycle selected setting value
-- `Enter`: run selected action (`Refresh now` / `Close`)
-- Settings are persisted across sessions in `~/.config/atmos-tui/settings.json`
-- Optional override for settings location: `ATMOS_TUI_CONFIG_DIR` (directory path)
+Settings include:
+- units
+- theme
+- motion level
+- thunder flash
+- icon mode
+- hero visual mode
+- refresh interval
+- recent city history
 
-## Terminal Compatibility and Color Fallback
-Color rendering degrades in this order:
-1. TrueColor (`COLORTERM=truecolor`/`24bit`)
-2. xterm-256 quantized palette
-3. 16-color semantic fallback (`NO_COLOR` forces this mode)
+## Color and Terminal Compatibility
+Color capability fallback:
+1. TrueColor (`COLORTERM=truecolor` / `24bit`)
+2. xterm-256 quantized
+3. 16-color semantic fallback (`NO_COLOR`)
 
-Icon rendering modes:
-- Default: Unicode symbols
-- `--ascii-icons`: fixed-width ASCII-safe labels
-- `--emoji-icons`: emoji set
+Icon fallback:
+- Unicode (default)
+- ASCII (`--ascii-icons`)
+- Emoji (`--emoji-icons`)
 
-Theme modes:
-- `auto`: weather/day-aware palette
-- `aurora`: vivid cool palette
-- `mono`: monochrome palette
-- `high-contrast`: maximum text contrast
-- `dracula`, `gruvbox-material-dark`, `kanagawa-wave`, `ayu-mirage`, `ayu-light`, `poimandres-storm`, `selenized-dark`, `no-clown-fiesta`: presets sourced from [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes)
+## Screenshot Workflow (for GitHub updates)
+Use the one-off script:
+
+```bash
+./scripts/capture_fullscreen_screenshot.sh
+```
+
+Optional output path:
+
+```bash
+./scripts/capture_fullscreen_screenshot.sh assets/screenshots/generated-fullscreen.png
+```
+
+This script is macOS-focused (`screencapture`) and captures your full display after a short countdown.
 
 ## Troubleshooting
-- Network/API failure:
-  - App keeps last known good weather visible.
-  - Status moves to `⚠ stale` then `⚠ offline` based on age/failures.
-  - Manual retry with `r`.
-- Terminal too small:
-  - Below `30x15`, app shows a resize warning only.
-- Unicode/icon width issues:
-  - Use `--ascii-icons` for stable alignment on limited terminals.
-- Web silhouette issues:
-  - `--silhouette-source web` fetches meaningful landmark/page images from Wikipedia and converts them with `rascii_art` block charset rendering.
-  - Web silhouettes keep source image colors (not theme-tinted) for maximum visual detail.
-  - If fetch fails, `auto` mode falls back to built-in/procedural silhouettes.
-- Coordinate flags error:
-  - `--lat` and `--lon` must be provided together.
+- API/network errors:
+  - app keeps last known good data visible
+  - status progresses to `stale` / `offline` with retries
+  - press `r` for manual refresh
+- Tiny terminal:
+  - below `30x15`, app shows resize warning only
+- Icon width/alignment issues:
+  - use `--ascii-icons`
+- Coordinate input errors:
+  - `--lat` and `--lon` must be passed together
 
-## Development Commands
+## Development
 ```bash
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
@@ -133,5 +140,5 @@ cargo test --all --all-features
 cargo build --release
 ```
 
-## Weather Data Attribution
-Weather and geocoding data are provided by [Open-Meteo](https://open-meteo.com/).
+## Attribution
+Weather + geocoding data: [Open-Meteo](https://open-meteo.com/)

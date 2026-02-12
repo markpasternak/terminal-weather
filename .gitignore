@@ -1,1 +1,20 @@
 /target
+
+# OS/editor noise
+.DS_Store
+*.swp
+*.swo
+*.tmp
+*.log
+
+# IDEs
+.idea/
+.vscode/
+
+# Local env files
+.env
+.env.*
+
+# Optional local artifacts
+/assets/screenshots/generated-*.png
+/assets/screenshots/generated-*.jpg

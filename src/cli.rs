@@ -20,13 +20,25 @@ pub enum ThemeArg {
     Aurora,
     Mono,
     HighContrast,
+    Dracula,
+    GruvboxMaterialDark,
+    KanagawaWave,
+    AyuMirage,
+    AyuLight,
+    PoimandresStorm,
+    SelenizedDark,
+    NoClownFiesta,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SilhouetteSourceArg {
-    Local,
-    Auto,
-    Web,
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum HeroVisualArg {
+    #[serde(alias = "Auto", alias = "auto")]
+    #[default]
+    AtmosCanvas,
+    #[serde(alias = "Local", alias = "local")]
+    GaugeCluster,
+    #[serde(alias = "Web", alias = "web")]
+    SkyObservatory,
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -71,9 +83,9 @@ pub struct Cli {
     #[arg(long, value_enum, default_value_t = ThemeArg::Auto)]
     pub theme: ThemeArg,
 
-    /// Silhouette source
-    #[arg(long, value_enum, default_value_t = SilhouetteSourceArg::Auto)]
-    pub silhouette_source: SilhouetteSourceArg,
+    /// Hero visual mode
+    #[arg(long, value_enum, default_value_t = HeroVisualArg::AtmosCanvas)]
+    pub hero_visual: HeroVisualArg,
 
     /// Geocode bias (ISO2)
     #[arg(long)]

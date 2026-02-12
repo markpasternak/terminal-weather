@@ -1,9 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    io::IsTerminal,
-    path::PathBuf,
-    time::Instant,
-};
+use std::{io::IsTerminal, path::PathBuf, time::Instant};
 
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEventKind};
@@ -17,15 +12,10 @@ use crate::{
             save_runtime_settings,
         },
     },
-    cli::{Cli, IconMode, SilhouetteSourceArg, ThemeArg},
-    data::{
-        forecast::ForecastClient,
-        geocode::GeocodeClient,
-        silhouette::{SilhouetteClient, cache_key},
-    },
+    cli::{Cli, HeroVisualArg, IconMode, ThemeArg},
+    data::{forecast::ForecastClient, geocode::GeocodeClient},
     domain::weather::{
-        ForecastBundle, GeocodeResolution, Location, RefreshMetadata, SilhouetteArt, Units,
-        evaluate_freshness,
+        ForecastBundle, GeocodeResolution, Location, RefreshMetadata, Units, evaluate_freshness,
     },
     resilience::backoff::Backoff,
     ui::particles::ParticleEngine,
@@ -36,7 +26,7 @@ const SETTINGS_THEME: usize = 1;
 const SETTINGS_MOTION: usize = 2;
 const SETTINGS_FLASH: usize = 3;
 const SETTINGS_ICONS: usize = 4;
-const SETTINGS_SILHOUETTE: usize = 5;
+const SETTINGS_HERO_VISUAL: usize = 5;
 const SETTINGS_REFRESH_INTERVAL: usize = 6;
 const SETTINGS_REFRESH_NOW: usize = 7;
 const SETTINGS_CLOSE: usize = 8;
@@ -80,9 +70,6 @@ pub struct AppState {
     pub last_frame_at: Instant,
     pub frame_tick: u64,
     pub animate_ui: bool,
-    pub active_location_key: Option<String>,
-    pub web_silhouettes: HashMap<String, SilhouetteArt>,
-    pub silhouettes_in_flight: HashSet<String>,
     pub settings: RuntimeSettings,
     pub settings_open: bool,
     pub settings_selected: usize,
@@ -116,9 +103,6 @@ impl AppState {
             last_frame_at: Instant::now(),
             frame_tick: 0,
             animate_ui: matches!(settings.motion, MotionSetting::Full),
-            active_location_key: None,
-            web_silhouettes: HashMap::new(),
-            silhouettes_in_flight: HashSet::new(),
             settings,
             settings_open: false,
             settings_selected: 0,
@@ -186,11 +170,11 @@ impl AppState {
                 editable: true,
             },
             SettingsEntry {
-                label: "Silhouette",
-                value: match self.settings.silhouette_source {
-                    SilhouetteSourceArg::Local => "Local".to_string(),
-                    SilhouetteSourceArg::Auto => "Auto".to_string(),
-                    SilhouetteSourceArg::Web => "Web".to_string(),
+                label: "Hero Visual",
+                value: match self.settings.hero_visual {
+                    HeroVisualArg::AtmosCanvas => "Atmos Canvas".to_string(),
+                    HeroVisualArg::GaugeCluster => "Gauge Cluster".to_string(),
+                    HeroVisualArg::SkyObservatory => "Sky Observatory".to_string(),
                 },
                 editable: true,
             },
@@ -213,6 +197,39 @@ impl AppState {
                 editable: false,
             },
         ]
+    }
+
+    pub fn settings_hint(&self) -> String {
+        match self.settings_selected {
+            SETTINGS_HERO_VISUAL => match self.settings.hero_visual {
+                HeroVisualArg::AtmosCanvas => {
+                    "Current panel right side: data-driven terrain + condition sky overlays"
+                        .to_string()
+                }
+                HeroVisualArg::GaugeCluster => {
+                    "Current panel right side: live instrument panel (temp, humidity, wind, pressure, UV)"
+                        .to_string()
+                }
+                HeroVisualArg::SkyObservatory => {
+                    "Current panel right side: sun/moon arc with weather strip and precipitation lane"
+                        .to_string()
+                }
+            },
+            SETTINGS_THEME => {
+                "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status"
+                    .to_string()
+            }
+            SETTINGS_MOTION => {
+                "Motion controls particles and ambient animations across the dashboard".to_string()
+            }
+            SETTINGS_ICONS => {
+                "Icon mode affects weather symbols in Hourly and 7-Day panels".to_string()
+            }
+            SETTINGS_REFRESH_INTERVAL => {
+                "Auto-refresh cadence persists and applies on next launch".to_string()
+            }
+            _ => "Use left/right or Enter to change the selected setting".to_string(),
+        }
     }
 
     pub async fn handle_event(
@@ -295,11 +312,9 @@ impl AppState {
                 self.refresh_meta.mark_success();
                 self.backoff.reset();
                 self.hourly_offset = 0;
-                self.active_location_key = Some(cache_key(&location));
                 self.push_recent_location(&location);
                 self.persist_settings();
                 self.city_status = None;
-                self.maybe_fetch_silhouette(tx, &location);
             }
             AppEvent::FetchFailed(err) => {
                 self.fetch_in_flight = false;
@@ -314,12 +329,6 @@ impl AppState {
                 );
                 let delay = self.backoff.next_delay();
                 schedule_retry(tx.clone(), delay);
-            }
-            AppEvent::SilhouetteFetched { key, art } => {
-                self.silhouettes_in_flight.remove(&key);
-                if let Some(art) = art {
-                    self.web_silhouettes.insert(key, art);
-                }
             }
             AppEvent::Quit => {
                 self.mode = AppMode::Quit;
@@ -428,10 +437,10 @@ impl AppState {
                 self.settings_selected = (self.settings_selected + 1).min(SETTINGS_COUNT - 1);
             }
             KeyCode::Left => {
-                self.adjust_selected_setting(-1, tx);
+                self.adjust_selected_setting(-1);
             }
             KeyCode::Right => {
-                self.adjust_selected_setting(1, tx);
+                self.adjust_selected_setting(1);
             }
             KeyCode::Enter => {
                 if self.settings_selected == SETTINGS_REFRESH_NOW {
@@ -439,7 +448,7 @@ impl AppState {
                 } else if self.settings_selected == SETTINGS_CLOSE {
                     self.settings_open = false;
                 } else {
-                    self.adjust_selected_setting(1, tx);
+                    self.adjust_selected_setting(1);
                 }
             }
             _ => {}
@@ -509,7 +518,7 @@ impl AppState {
         Ok(())
     }
 
-    fn adjust_selected_setting(&mut self, direction: i8, tx: &mpsc::Sender<AppEvent>) {
+    fn adjust_selected_setting(&mut self, direction: i8) {
         let mut changed = false;
         match self.settings_selected {
             SETTINGS_UNITS => {
@@ -565,14 +574,14 @@ impl AppState {
                 );
                 changed = true;
             }
-            SETTINGS_SILHOUETTE => {
-                self.settings.silhouette_source = cycle(
+            SETTINGS_HERO_VISUAL => {
+                self.settings.hero_visual = cycle(
                     &[
-                        SilhouetteSourceArg::Local,
-                        SilhouetteSourceArg::Auto,
-                        SilhouetteSourceArg::Web,
+                        HeroVisualArg::AtmosCanvas,
+                        HeroVisualArg::GaugeCluster,
+                        HeroVisualArg::SkyObservatory,
                     ],
-                    self.settings.silhouette_source,
+                    self.settings.hero_visual,
                     direction,
                 );
                 changed = true;
@@ -592,9 +601,6 @@ impl AppState {
         if changed {
             self.apply_runtime_settings();
             self.persist_settings();
-            if let Some(location) = self.weather.as_ref().map(|w| w.location.clone()) {
-                self.maybe_fetch_silhouette(tx, &location);
-            }
         }
     }
 
@@ -753,26 +759,6 @@ impl AppState {
             }
         });
         Ok(())
-    }
-
-    fn maybe_fetch_silhouette(&mut self, tx: &mpsc::Sender<AppEvent>, location: &Location) {
-        if matches!(self.settings.silhouette_source, SilhouetteSourceArg::Local) {
-            return;
-        }
-
-        let key = cache_key(location);
-        if self.web_silhouettes.contains_key(&key) || self.silhouettes_in_flight.contains(&key) {
-            return;
-        }
-
-        self.silhouettes_in_flight.insert(key.clone());
-        let tx2 = tx.clone();
-        let location = location.clone();
-        tokio::spawn(async move {
-            let client = SilhouetteClient::new();
-            let art = client.fetch_for_location(&location).await.ok().flatten();
-            let _ = tx2.send(AppEvent::SilhouetteFetched { key, art }).await;
-        });
     }
 }
 

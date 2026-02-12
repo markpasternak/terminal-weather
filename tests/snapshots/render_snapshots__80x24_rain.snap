@@ -4,10 +4,10 @@ assertion_line: 149
 expression: "render_to_string(80, 24, 61)"
 ---
 ┌Current · L cities · S settings───────────────────────────────────────────────┐
-│7°C                                          │-- Stockholm City Hall          │
-│Slight rain                                  │    |/|                         │
-│H:9°  L:3°                                   │ __|_|.__                       │
-│Stockholm, Stockholm, Sweden                 │ |_[]_|_|                       │
+│7°C                                          │-- Atmos Canvas · Rain Front    │
+│Slight rain                                  │  .-~~~~-.                      │
+│H:9°  L:3°                                   │ (  ____ )                      │
+│Stockholm, Stockholm, Sweden                 │  / / / /                       │
 │Wind 12/21 km/h SW  P 1008↗                  │                                │
 │Dew 2°  Vis 11.2km                           │                                │
 │Last updated: --:--                          │                                │

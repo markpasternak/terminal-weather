@@ -14,12 +14,12 @@ cargo build --release
 Result: PASS
 
 ## Test Inventory and Results
-- Unit tests: 11 passing
+- Unit tests: 10 passing
 - Flow/integration tests: 5 passing (`flows`, `freshness_integration`, `geocode_ambiguity`)
 - Property tests: 1 passing (`property_range_bar`)
 - Snapshot tests: 5 passing (`120x40`, `80x24`, `60x20`, `40x15` with clear/rain/snow/fog/thunder fixtures)
 
-Total tests passing: 22
+Total tests passing: 21
 
 ## User Flow Evidence
 1. Startup + render: PASS (manual TTY run + rendered loading/forecast output observed)
@@ -42,6 +42,16 @@ Total tests passing: 22
 - First-loading/frame/CPU/RSS precise p95 targets: PARTIAL (not fully benchmarked in automated harness in this iteration)
 
 ## Updated Artifacts
+- `.gitignore`
+- `assets/screenshots/app-preview.svg`
+- `scripts/capture_fullscreen_screenshot.sh`
+- `src/cli.rs`
+- `src/app/events.rs`
+- `src/app/settings.rs`
+- `src/app/state.rs`
+- `src/data/mod.rs`
+- `src/ui/widgets/landmark.rs`
+- `tests/flows.rs`
 - `src/data/forecast.rs`
 - `src/domain/weather.rs`
 - `src/ui/mod.rs`
@@ -57,24 +67,8 @@ Total tests passing: 22
 - `.agent/PLANS.md`
 - `.agent/EVIDENCE.md`
 - `README.md`
-- `src/data/silhouette.rs`
-- `src/app/settings.rs`
-- `src/ui/widgets/settings.rs`
-- `src/ui/widgets/landmark.rs`
-- `src/ui/widgets/hero.rs`
-- `src/ui/mod.rs`
-- `src/ui/widgets/daily.rs`
-- `src/ui/widgets/hero.rs`
-- `src/ui/theme.rs`
-- `src/domain/weather.rs`
-- `src/ui/widgets/landmark.rs`
-- `src/ui/widgets/hourly.rs`
-
 ## Open Risks / Follow-ups
 1. CPU and frame-time p95 targets need explicit benchmark harness in CI/release profiles.
 2. RSS measurement should be captured with scripted runtime sampling on representative terminals.
 3. Unicode width variance remains terminal-dependent; `--ascii-icons` is mitigation.
-4. Web silhouette quality depends on available Wikipedia thumbnails; fallback scenes mitigate missing or noisy images.
-5. `image-to-ascii` adds build-time/dependency weight; consider feature-gating silhouette conversion for minimal builds.
-6. Auto-refresh interval changes from settings are persisted, but active background refresh schedule updates on next launch.
-7. Web-silhouette quality still depends on remote image suitability; heuristics and scaling improved but cannot guarantee perfect landmark matches for every city.
+4. Auto-refresh interval changes from settings are persisted, but active background refresh schedule updates on next launch.

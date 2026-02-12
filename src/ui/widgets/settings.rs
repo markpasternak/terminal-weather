@@ -48,8 +48,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 
     let chunks = Layout::vertical([
         Constraint::Min(6),
-        Constraint::Length(2),
         Constraint::Length(1),
+        Constraint::Length(2),
     ])
     .split(inner);
 
@@ -77,15 +77,23 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .highlight_symbol("› ");
     frame.render_stateful_widget(list, chunks[0], &mut list_state);
 
-    let info =
-        Paragraph::new("Use ↑/↓ to select, ←/→ or Enter to change, Enter on actions, s to close")
-            .style(Style::default().fg(theme.popup_muted_text));
-    frame.render_widget(info, chunks[1]);
+    let controls = Paragraph::new("↑/↓ select  ←/→ or Enter change  Enter on actions  s close")
+        .style(Style::default().fg(theme.popup_muted_text));
+    frame.render_widget(controls, chunks[1]);
 
-    if let Some(path) = &state.last_error
-        && path.contains("save settings")
-    {
-        let warn = Paragraph::new(path.clone()).style(Style::default().fg(theme.warning));
-        frame.render_widget(warn, chunks[2]);
-    }
+    let hint_text = if let Some(path) = &state.last_error {
+        if path.contains("save settings") {
+            path.clone()
+        } else {
+            state.settings_hint()
+        }
+    } else {
+        state.settings_hint()
+    };
+    let hint_style = if hint_text.contains("save settings") {
+        Style::default().fg(theme.warning)
+    } else {
+        Style::default().fg(theme.popup_muted_text)
+    };
+    frame.render_widget(Paragraph::new(hint_text).style(hint_style), chunks[2]);
 }

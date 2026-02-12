@@ -5,7 +5,7 @@ use futures::StreamExt;
 use rand::Rng;
 use tokio::time::{interval, sleep};
 
-use crate::domain::weather::{ForecastBundle, GeocodeResolution, SilhouetteArt};
+use crate::domain::weather::{ForecastBundle, GeocodeResolution};
 
 #[derive(Debug)]
 pub enum AppEvent {
@@ -17,10 +17,6 @@ pub enum AppEvent {
     GeocodeResolved(GeocodeResolution),
     FetchSucceeded(ForecastBundle),
     FetchFailed(String),
-    SilhouetteFetched {
-        key: String,
-        art: Option<SilhouetteArt>,
-    },
     Quit,
 }
 

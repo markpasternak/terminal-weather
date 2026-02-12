@@ -11,9 +11,6 @@ chrono = { version = "0.4", features = ["clock"] }
 clap = { version = "4.5", features = ["derive"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
 futures = "0.3"
-font8x8 = "0.3"
-image = { version = "0.24", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
-image-to-ascii = "0.7.0"
 rand = "0.9"
 ratatui = "0.29"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
@@ -22,7 +19,6 @@ serde_json = "1.0"
 thiserror = "2.0"
 tokio = { version = "1.44", features = ["macros", "rt-multi-thread", "time", "sync", "signal"] }
 unicode-width = "0.2"
-urlencoding = "2.1"
 
 [dev-dependencies]
 insta = { version = "1.42", features = ["yaml"] }
