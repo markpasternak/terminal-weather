@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 description = "Animated terminal weather dashboard"
 license = "MIT"
+homepage = "https://github.com/markpasternak/terminal-weather"
+repository = "https://github.com/markpasternak/terminal-weather"
+readme = "README.md"
 
 [dependencies]
 anyhow = "1.0"
@@ -29,3 +32,8 @@ wiremock = "0.6"
 lto = true
 codegen-units = 1
 strip = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
