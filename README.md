@@ -13,10 +13,12 @@
   - `Atmos Canvas`: weather-driven terrain/sky scene
   - `Gauge Cluster`: instrument-style telemetry panel
   - `Sky Observatory`: sun/moon arc, weather strip, precipitation lane
+  - compact/degraded canvas mode with clearer weather glyphs + labels
 - Rich weather data:
   - current: temperature, feels-like, dew point, humidity, pressure + trend, visibility, wind + gust, cloud cover/layers, UV, sunrise/sunset
   - hourly: time, weather, temp, precipitation, gust, visibility, cloud, pressure, RH (rows scale with available space)
   - daily: min/max spans, precip totals, gust maxima, daylight/sunshine and weekly rollups
+- Day/night-aware clear-sky rendering (sun by day, moon by night in current/hourly views)
 - Deterministic location resolution and ambiguity handling
 - Live freshness semantics (`fresh`, `stale`, `offline`) with retry backoff and manual refresh
 - Particle ambience (rain/snow/fog/thunder) with motion and flash accessibility controls
@@ -183,11 +185,11 @@ One-time setup:
 
 Release:
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
-The GitHub workflow at `.github/workflows/release.yml` will publish release artifacts and update the Homebrew formula in the tap.
+The GitHub workflow at `.github/workflows/release.yml` publishes release artifacts and updates the Homebrew formula in the tap.
 
 ## Attribution
 Weather + geocoding data: [Open-Meteo](https://open-meteo.com/)
