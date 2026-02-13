@@ -772,7 +772,10 @@ fn render_landmark(
         LandmarkTint::Cool => theme.landmark_cool,
         LandmarkTint::Neutral => theme.landmark_neutral,
     };
-    let scene_lines = scene.lines;
+    let mut scene_lines = scene.lines;
+    if should_show_scene_logo(state.settings.hero_visual, area) {
+        overlay_scene_logo(&mut scene_lines);
+    }
 
     let mut lines = Vec::new();
     for line in scene_lines {
@@ -787,6 +790,64 @@ fn render_landmark(
     let text = Text::from(lines).patch_style(Style::default().fg(tint));
     let paragraph = Paragraph::new(text);
     frame.render_widget(paragraph, area);
+}
+
+fn overlay_scene_logo(scene_lines: &mut [String]) {
+    let height = scene_lines.len();
+    if height < 4 {
+        return;
+    }
+    let width = scene_lines
+        .iter()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0);
+    if width < 24 {
+        return;
+    }
+
+    let logo: &[&str] = if width >= 34 && height >= 7 {
+        &["terminal-weather", "   .-- tw --."]
+    } else {
+        &["terminal-weather"]
+    };
+
+    let top_row = 1usize;
+    for (row_offset, logo_line) in logo.iter().enumerate() {
+        let row = top_row + row_offset;
+        if row >= height {
+            break;
+        }
+        overlay_logo_row(scene_lines, row, logo_line, width);
+    }
+}
+
+fn should_show_scene_logo(visual: HeroVisualArg, area: Rect) -> bool {
+    let inner_w = area.width.saturating_sub(2);
+    let inner_h = area.height.saturating_sub(2);
+    match visual {
+        HeroVisualArg::AtmosCanvas => inner_w < 22 || inner_h < 8,
+        HeroVisualArg::SkyObservatory => inner_w < 24 || inner_h < 8,
+        HeroVisualArg::GaugeCluster => false,
+    }
+}
+
+fn overlay_logo_row(scene_lines: &mut [String], row: usize, logo_line: &str, width: usize) {
+    let mut chars = scene_lines[row].chars().collect::<Vec<_>>();
+    if chars.len() < width {
+        chars.resize(width, ' ');
+    }
+
+    let logo_chars = logo_line.chars().collect::<Vec<_>>();
+    let start = width.saturating_sub(logo_chars.len() + 1);
+    for (idx, ch) in logo_chars.into_iter().enumerate() {
+        let col = start + idx;
+        if col < chars.len() {
+            chars[col] = ch;
+        }
+    }
+
+    scene_lines[row] = chars.into_iter().collect();
 }
 
 fn colorize_scene_line(

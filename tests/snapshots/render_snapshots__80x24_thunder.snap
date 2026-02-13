@@ -1,12 +1,13 @@
 ---
 source: tests/render_snapshots.rs
+assertion_line: 166
 expression: "render_to_string(80, 24, 95)"
 ---
 ┌Current · L cities · S settings───────────────────────────────────────────────┐
-│7°C                                          │  .-~~~~-.                      │
-│Thunderstorm                                 │ (  ____ )                      │
-│H:9°  L:3°                                   │   /\/\/                        │
-│Stockholm, Stockholm, Sweden                 │                                │
+│7°C                                          │    .--.                        │
+│Thunderstorm                                 │ .-(____)-.  terminal-weather   │
+│H:9°  L:3°                                   │    /\/\/                       │
+│Stockholm, Stockholm, Sweden                 │           THUNDER              │
 │Wind 12/21 km/h SW  P 1008↗                  │                                │
 │Dew 2°  Vis 11.2km                           │                                │
 │Last updated: --:--                          │                                │
