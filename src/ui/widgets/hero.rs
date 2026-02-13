@@ -36,7 +36,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         // Loading/no-data should default to a dark palette to avoid bright blank panels.
         .unwrap_or((WeatherCategory::Unknown, false, 0));
 
-    let capability = detect_color_capability();
+    let capability = detect_color_capability(state.color_mode);
     let theme = theme_for(category, is_day, capability, state.settings.theme);
 
     let bg = GradientBackground {
@@ -53,7 +53,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Current · L cities · S settings")
+        .title("Current · L cities · S settings · ? help")
         .border_style(Style::default().fg(theme.border));
     let inner = block.inner(area);
     frame.render_widget(block, area);

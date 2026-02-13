@@ -7,14 +7,14 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
 };
 
 use crate::{
     app::state::{AppMode, AppState},
     cli::Cli,
-    domain::weather::{WeatherCategory, weather_code_to_category},
+    domain::weather::{HourlyViewMode, WeatherCategory, weather_code_to_category},
     resilience::freshness::FreshnessState,
     ui::theme::{detect_color_capability, theme_for},
 };
@@ -24,7 +24,7 @@ const MIN_RENDER_HEIGHT: u16 = 10;
 
 pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     let area = frame.area();
-    let capability = detect_color_capability();
+    let capability = detect_color_capability(state.color_mode);
     let (category, is_day) = state
         .weather
         .as_ref()
@@ -68,48 +68,31 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
         return;
     }
 
-    let constraints = if area.height >= 60 {
-        [
-            Constraint::Percentage(52),
-            Constraint::Percentage(18),
-            Constraint::Percentage(30),
-        ]
-    } else if area.height >= 52 {
-        [
-            Constraint::Percentage(54),
-            Constraint::Percentage(18),
-            Constraint::Percentage(28),
-        ]
-    } else if area.height >= 40 {
-        [
-            Constraint::Percentage(50),
-            Constraint::Percentage(18),
-            Constraint::Percentage(32),
-        ]
-    } else if area.height >= 32 {
-        [
-            Constraint::Percentage(46),
-            Constraint::Percentage(20),
-            Constraint::Percentage(34),
-        ]
+    let overlays_open = has_modal_overlay(state);
+    let show_footer = !overlays_open && area.height > MIN_RENDER_HEIGHT;
+    let content_area = if show_footer {
+        let sections = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(1), Constraint::Length(1)])
+            .split(area);
+        render_footer(frame, sections[1], state);
+        sections[0]
     } else {
-        [
-            Constraint::Percentage(42),
-            Constraint::Percentage(22),
-            Constraint::Percentage(36),
-        ]
+        area
     };
+
+    let constraints = panel_constraints(content_area, state.hourly_view_mode);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
-        .split(area);
+        .split(content_area);
 
     widgets::hero::render(frame, chunks[0], state, cli);
     widgets::hourly::render(frame, chunks[1], state, cli);
     widgets::daily::render(frame, chunks[2], state, cli);
 
-    render_status_badge(frame, area, state);
+    render_status_badge(frame, content_area, state);
 
     if state.mode == AppMode::SelectingLocation {
         widgets::selector::render(frame, centered_rect(70, 60, area), state);
@@ -117,6 +100,8 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
         widgets::settings::render(frame, centered_rect(68, 74, area), state);
     } else if state.city_picker_open {
         widgets::city_picker::render(frame, centered_rect(74, 74, area), state);
+    } else if state.help_open {
+        widgets::help::render(frame, centered_rect(82, 84, area), state, cli);
     }
 }
 
@@ -136,7 +121,7 @@ fn compact_logo_lines(inner_width: u16) -> Vec<&'static str> {
 }
 
 fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
-    let capability = detect_color_capability();
+    let capability = detect_color_capability(state.color_mode);
     let (category, is_day) = state
         .weather
         .as_ref()
@@ -170,6 +155,124 @@ fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
             .style(Style::default().fg(color).add_modifier(Modifier::BOLD));
         frame.render_widget(badge, badge_area);
     }
+}
+
+fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    let capability = detect_color_capability(state.color_mode);
+    let (category, is_day) = state
+        .weather
+        .as_ref()
+        .map(|w| {
+            (
+                weather_code_to_category(w.current.weather_code),
+                w.current.is_day,
+            )
+        })
+        .unwrap_or((WeatherCategory::Unknown, false));
+    let theme = theme_for(category, is_day, capability, state.settings.theme);
+    let text = footer_text_for_width(area.width);
+    let footer = Paragraph::new(Line::from(vec![
+        Span::styled(text, Style::default().fg(theme.muted_text)),
+        Span::raw("  "),
+        Span::styled("F1/? Help", Style::default().fg(theme.accent)),
+    ]))
+    .style(Style::default().bg(theme.surface));
+
+    frame.render_widget(footer, area);
+}
+
+fn footer_text_for_width(width: u16) -> &'static str {
+    if width >= 92 {
+        "r Refresh  v Hourly View  l Cities  s Settings  <-/-> Scroll  q Quit"
+    } else if width >= 72 {
+        "r Refresh  v View  l Cities  s Settings  <-/-> Scroll  q Quit"
+    } else if width >= 52 {
+        "r Refresh  v View  l Cities  s Settings  q Quit"
+    } else {
+        "r Refresh  q Quit"
+    }
+}
+
+fn panel_constraints(content_area: Rect, requested_hourly_mode: HourlyViewMode) -> [Constraint; 3] {
+    let use_table_layout =
+        requested_hourly_mode == HourlyViewMode::Table || content_area.width < 70;
+
+    if use_table_layout {
+        if content_area.height >= 60 {
+            [
+                Constraint::Percentage(52),
+                Constraint::Percentage(18),
+                Constraint::Percentage(30),
+            ]
+        } else if content_area.height >= 52 {
+            [
+                Constraint::Percentage(54),
+                Constraint::Percentage(18),
+                Constraint::Percentage(28),
+            ]
+        } else if content_area.height >= 40 {
+            [
+                Constraint::Percentage(50),
+                Constraint::Percentage(18),
+                Constraint::Percentage(32),
+            ]
+        } else if content_area.height >= 32 {
+            [
+                Constraint::Percentage(46),
+                Constraint::Percentage(20),
+                Constraint::Percentage(34),
+            ]
+        } else {
+            [
+                Constraint::Percentage(42),
+                Constraint::Percentage(22),
+                Constraint::Percentage(36),
+            ]
+        }
+    } else if requested_hourly_mode == HourlyViewMode::Hybrid && content_area.height >= 22 {
+        let hourly_len = if content_area.height >= 36 {
+            11
+        } else if content_area.height >= 28 {
+            10
+        } else {
+            9
+        };
+        [
+            Constraint::Min(7),
+            Constraint::Length(hourly_len),
+            Constraint::Min(6),
+        ]
+    } else if requested_hourly_mode == HourlyViewMode::Chart && content_area.height >= 22 {
+        let hourly_len = if content_area.height >= 36 {
+            13
+        } else if content_area.height >= 28 {
+            11
+        } else {
+            10
+        };
+        [
+            Constraint::Min(6),
+            Constraint::Length(hourly_len),
+            Constraint::Min(6),
+        ]
+    } else {
+        [
+            Constraint::Percentage(42),
+            Constraint::Percentage(22),
+            Constraint::Percentage(36),
+        ]
+    }
+}
+
+fn has_modal_overlay(state: &AppState) -> bool {
+    state.mode == AppMode::SelectingLocation
+        || state.settings_open
+        || state.city_picker_open
+        || state.help_open
 }
 
 fn spinner(frame_tick: u64) -> &'static str {

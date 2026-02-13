@@ -1,0 +1,34 @@
+---
+source: tests/render_snapshots.rs
+expression: "render_help_to_string(100, 30, 61)"
+---
+┌Current · L cities · S settings · ? help──────────────────────────────────────────────────────────┐
+│7°C                                            │                                                  │
+│Slight r┌Help────────────────────────────────────────────────────────────────────────────┐╱       │
+│H:9°  L:│Global                                                                          │        │
+│Stockhol│q / Esc quit  |  Ctrl+C immediate quit                                          │        │
+│Wind 12/│r refresh now  |  Ctrl+L force redraw                                           │▒░      │
+│Dew 2°  │s settings  |  l city picker  |  f/c units  |  v hourly view                    │▁▁▁▁    │
+│Last upd│<-/-> scroll hourly  |  ? or F1 toggle help                                     │▃▃▃▃    │
+│        │                                                                                │████    │
+│        │Settings Panel                                                                  │████    │
+│        │Up/Down select  |  Left/Right or Enter change                                   │        │
+│        │Enter on actions runs Refresh now / Close                                       │        │
+└────────│Esc or s closes settings                                                        │────────┘
+┌Hourly ·│                                                                                │────────┐
+│Time   N│City Picker                                                                     │21:00   │
+│Wx     ☂│Type city + Enter search                                                        │☂       │
+│Temp   5│1..9 quick switch recent city                                                   │11°     │
+│        │Up/Down move  |  Del clear all  |  Esc close                                    │        │
+└────────│                                                                                │────────┘
+┌7-Day Fo│Refresh & Status                                                                │────────┐
+│Day  Wx │Fresh: live data  |  Stale: retrying  |  Offline: fetch failed                  │        │
+│Thu  ☂  │Use r to retry immediately while stale/offline                                  │        │
+│Fri  ☂  │                                                                                │        │
+│Sat  ☂  │Color Policy                                                                    │        │
+│Sun  ☂  │Current mode: auto                                                              │        │
+│Mon  ☂  │CLI: --color auto|always|never  |  --no-color                                   │        │
+│Tue  ☂  │Auto mode honors NO_COLOR (non-empty) and TERM=dumb                             │        │
+│Wed  ☂  └────────────────────────────────────────────────────────────────────────────────┘        │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

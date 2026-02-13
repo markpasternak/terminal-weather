@@ -7,7 +7,7 @@
 ## Features
 - Responsive 3-panel layout:
   - `Current` hero panel with live metrics + visual scene
-  - `Hourly` strip with adaptive rows and horizontal scrolling
+  - `Hourly` panel with adaptive rows, horizontal scrolling, and view modes (`table`, `hybrid`, `chart`)
   - `7-Day` forecast with range bars and weekly summaries
 - Hero visuals (settings + CLI selectable):
   - `Atmos Canvas`: weather-driven terrain/sky scene
@@ -25,6 +25,22 @@
 - Contrast-hardened themes across TrueColor, xterm-256, and 16-color terminals
 - Persistent settings + recent city history (including clear-all from the city picker)
 - Built-in demo mode for deterministic showcases
+
+## What's New in v0.3.0
+- Hourly view modes you can switch live with `v`: `table`, `hybrid`, `chart`
+- New `Hybrid` hourly mode combining:
+  - temp/precip timeline strip
+  - daypart cards (`Morning`, `Noon`, `Evening`, `Night`) with date chips
+- New `Chart` hourly mode with expanded trend strip + compact metric line
+- Better discoverability and recovery:
+  - `?` / `F1` help overlay
+  - persistent key legend footer
+  - `Ctrl+L` full redraw recovery
+- Explicit and standards-aligned color behavior:
+  - `--color auto|always|never`
+  - `--no-color` alias
+  - `NO_COLOR` handling in auto mode
+- Non-interactive runtime guard: dashboard mode fails fast outside an interactive TTY
 
 ## Prerequisites
 - Rust stable (`rustup`, `cargo`, `rustc`)
@@ -53,6 +69,8 @@ cargo run -- --theme midnight-cyan --hero-visual gauge-cluster "San Diego"
 cargo run -- --hero-visual sky-observatory --reduced-motion London
 cargo run -- --ascii-icons --no-animation Reykjavik
 cargo run -- --lat 59.3293 --lon 18.0686
+cargo run -- --hourly-view hybrid "San Francisco"
+cargo run -- --color never --hourly-view chart Tokyo
 ```
 
 ## Demo Mode
@@ -81,6 +99,9 @@ Options:
   --no-flash                          Disable thunder flash
   --ascii-icons                       Force ASCII icons
   --emoji-icons                       Force emoji icons
+  --color <auto|always|never>         Color policy (default: auto)
+  --no-color                          Alias for --color never
+  --hourly-view <table|hybrid|chart>  Hourly panel mode override
   --theme <auto|aurora|midnight-cyan|aubergine|hoth|monument|nord|catppuccin-mocha|mono|high-contrast|dracula|gruvbox-material-dark|kanagawa-wave|ayu-mirage|ayu-light|poimandres-storm|selenized-dark|no-clown-fiesta>
   --hero-visual <atmos-canvas|gauge-cluster|sky-observatory>
   --country-code <ISO2>               Geocode bias (e.g. SE, US)
@@ -96,7 +117,10 @@ Options:
 Global:
 - `q` or `Esc`: quit
 - `Ctrl+C`: immediate quit
+- `?` or `F1`: open/close help overlay
+- `Ctrl+L`: force full redraw (screen recovery)
 - `r`: manual refresh
+- `v`: cycle hourly view (`Table` → `Hybrid` → `Chart`)
 - `s`: open/close settings
 - `l`: open/close city switcher
 - `f`: switch to Fahrenheit
@@ -119,6 +143,17 @@ City switcher:
 - `Backspace`: edit query
 - `Esc`: close
 
+## Terminal Best-Practice Patterns Used
+- Discoverable in-app help: `?` / `F1`
+- Persistent shortcut legend footer in the main layout
+- Recovery shortcut: `Ctrl+L` clears and redraws the screen
+- Explicit color policy: `--color auto|always|never`, `--no-color`, plus `NO_COLOR` in auto mode
+
+Examples from established TUIs:
+- htop help conventions: [man7 htop(1)](https://man7.org/linux/man-pages/man1/htop.1.html)
+- lazygit bottom-line key hints: [lazygit config docs](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md)
+- k9s `?` keyboard help mnemonic: [k9s README](https://github.com/derailed/k9s)
+
 ## Persisted Settings
 Saved to:
 - `~/.config/terminal-weather/settings.json`
@@ -130,6 +165,7 @@ Persisted values:
 - motion (`full`, `reduced`, `off`)
 - thunder flash on/off
 - icon mode (`unicode`, `ascii`, `emoji`)
+- hourly view (`table`, `hybrid`, `chart`)
 - hero visual mode
 - refresh interval
 - recent locations
@@ -138,7 +174,15 @@ Persisted values:
 Color capability fallback order:
 1. TrueColor (`COLORTERM=truecolor` / `24bit`)
 2. xterm-256 quantized
-3. Basic 16-color semantic fallback (also used when `NO_COLOR` is set)
+3. Basic 16-color semantic fallback
+
+Color precedence:
+1. `--no-color` or `--color never` forces Basic16
+2. `--color always` ignores `NO_COLOR` and uses terminal capability detection
+3. `--color auto`:
+   - honors `NO_COLOR` only when set to a non-empty value
+   - treats `TERM=dumb` as Basic16
+   - otherwise detects via `COLORTERM` / `TERM`
 
 Icon modes:
 - Unicode (default)
@@ -165,6 +209,9 @@ To add/update a README screenshot manually:
   - use `--ascii-icons`
 - Coordinate mode errors:
   - `--lat` and `--lon` must be provided together
+- Non-interactive shell / redirected stdout:
+  - app requires an interactive TTY for dashboard mode
+  - use `--help` for non-interactive CLI usage
 
 ## Development
 ```bash
@@ -185,8 +232,8 @@ One-time setup:
 
 Release:
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 The GitHub workflow at `.github/workflows/release.yml` publishes release artifacts and updates the Homebrew formula in the tap.

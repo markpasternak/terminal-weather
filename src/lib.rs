@@ -5,7 +5,7 @@ pub mod domain;
 pub mod resilience;
 pub mod ui;
 
-use std::io::{self, Stdout};
+use std::io::{self, IsTerminal, Stdout};
 
 use anyhow::Result;
 use app::events::{AppEvent, spawn_input_task};
@@ -44,6 +44,9 @@ async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) 
             }
             maybe_event = rx.recv() => {
                 if let Some(event) = maybe_event {
+                    if matches!(event, AppEvent::ForceRedraw) {
+                        terminal.clear()?;
+                    }
                     app.handle_event(event, &tx, &cli).await?;
                 }
             }
@@ -61,6 +64,11 @@ async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) 
 }
 
 fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
+    if !io::stdout().is_terminal() {
+        anyhow::bail!(
+            "terminal-weather requires an interactive TTY. Run it in a terminal, or use --help for CLI usage."
+        );
+    }
     install_panic_hook();
     enable_raw_mode()?;
     let mut stdout = io::stdout();

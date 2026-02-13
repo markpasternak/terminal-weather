@@ -1,20 +1,19 @@
 ---
 source: tests/render_snapshots.rs
-assertion_line: 159
 expression: "render_to_string(40, 15, 45)"
 ---
-┌Current · L cities · S settings───────┐
+┌Current · L cities · S settings · ? he┐
 │7°C                                   │
 │Fog                                   │
 │H:9°  L:3°                            │
 │Stockholm, Stockholm, Sweden          │
 └──────────────────────────────────────┘
-┌Hourly────────────────────────────────┐
+┌Hourly · Table────────────────────────┐
 │Time  Now  11:00 12:0013:0014:00 15:00│
-│Wx    ░    ░     ░    ░    ░     ░    │
 └──────────────────────────────────────┘
 ┌7-Day Forecast────────────────────────┐
 │Day  Low   Range              High    │
 │Thu  1°    ███████████······· 8°      │
 │Fri  1°    ████████████······ 9°      │
 └──────────────────────────────────────┘
+r Refresh  q Quit  F1/? Help

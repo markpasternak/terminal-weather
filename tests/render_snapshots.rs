@@ -2,8 +2,10 @@ use chrono::{NaiveDate, NaiveDateTime, Utc};
 use ratatui::{Terminal, backend::TestBackend};
 use terminal_weather::{
     app::state::{AppMode, AppState},
-    cli::{Cli, HeroVisualArg, ThemeArg, UnitsArg},
-    domain::weather::{CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location},
+    cli::{Cli, ColorArg, HeroVisualArg, ThemeArg, UnitsArg},
+    domain::weather::{
+        CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, HourlyViewMode, Location,
+    },
     resilience::freshness::FreshnessState,
     ui,
 };
@@ -18,6 +20,9 @@ fn cli() -> Cli {
         no_flash: true,
         ascii_icons: false,
         emoji_icons: false,
+        color: ColorArg::Auto,
+        no_color: false,
+        hourly_view: None,
         theme: ThemeArg::Auto,
         hero_visual: HeroVisualArg::AtmosCanvas,
         country_code: None,
@@ -141,6 +146,68 @@ fn render_to_string(width: u16, height: u16, weather_code: u8) -> String {
     lines.join("\n")
 }
 
+fn render_with_hourly_mode_to_string(
+    width: u16,
+    height: u16,
+    weather_code: u8,
+    mode: HourlyViewMode,
+) -> String {
+    let cli = cli();
+    let mut state = AppState::new(&cli);
+    state.mode = AppMode::Ready;
+    state.weather = Some(fixture_bundle(weather_code));
+    state.refresh_meta.state = FreshnessState::Fresh;
+    state.refresh_meta.last_success = None;
+    state.settings.hourly_view = mode;
+    state.hourly_view_mode = mode;
+
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| ui::render(frame, &state, &cli))
+        .expect("draw");
+
+    let buffer = terminal.backend().buffer().clone();
+    let mut lines = Vec::new();
+    for y in 0..height {
+        let mut line = String::new();
+        for x in 0..width {
+            line.push_str(buffer[(x, y)].symbol());
+        }
+        lines.push(line.trim_end().to_string());
+    }
+
+    lines.join("\n")
+}
+
+fn render_help_to_string(width: u16, height: u16, weather_code: u8) -> String {
+    let cli = cli();
+    let mut state = AppState::new(&cli);
+    state.mode = AppMode::Ready;
+    state.help_open = true;
+    state.weather = Some(fixture_bundle(weather_code));
+    state.refresh_meta.state = FreshnessState::Fresh;
+    state.refresh_meta.last_success = None;
+
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| ui::render(frame, &state, &cli))
+        .expect("draw");
+
+    let buffer = terminal.backend().buffer().clone();
+    let mut lines = Vec::new();
+    for y in 0..height {
+        let mut line = String::new();
+        for x in 0..width {
+            line.push_str(buffer[(x, y)].symbol());
+        }
+        lines.push(line.trim_end().to_string());
+    }
+
+    lines.join("\n")
+}
+
 #[test]
 fn snapshot_120x40_clear() {
     insta::assert_snapshot!("120x40_clear", render_to_string(120, 40, 0));
@@ -183,4 +250,92 @@ fn below_minimum_terminal_shows_resize_guidance() {
     let rendered = render_to_string(19, 9, 0);
     assert!(rendered.contains("terminal-weather"));
     assert!(!rendered.contains("Current"));
+}
+
+#[test]
+fn snapshot_100x30_help_overlay() {
+    insta::assert_snapshot!("100x30_help_overlay", render_help_to_string(100, 30, 61));
+}
+
+#[test]
+fn regular_layout_renders_footer_shortcuts() {
+    let rendered = render_to_string(120, 40, 0);
+    assert!(rendered.contains("r Refresh"));
+    assert!(rendered.contains("F1/? Help"));
+}
+
+#[test]
+fn snapshot_120x40_hybrid() {
+    insta::assert_snapshot!(
+        "120x40_hybrid",
+        render_with_hourly_mode_to_string(120, 40, 61, HourlyViewMode::Hybrid)
+    );
+}
+
+#[test]
+fn snapshot_100x30_hybrid() {
+    insta::assert_snapshot!(
+        "100x30_hybrid",
+        render_with_hourly_mode_to_string(100, 30, 61, HourlyViewMode::Hybrid)
+    );
+}
+
+#[test]
+fn snapshot_80x24_hybrid() {
+    insta::assert_snapshot!(
+        "80x24_hybrid",
+        render_with_hourly_mode_to_string(80, 24, 61, HourlyViewMode::Hybrid)
+    );
+}
+
+#[test]
+fn snapshot_60x20_hybrid() {
+    insta::assert_snapshot!(
+        "60x20_hybrid",
+        render_with_hourly_mode_to_string(60, 20, 61, HourlyViewMode::Hybrid)
+    );
+}
+
+#[test]
+fn snapshot_120x40_chart() {
+    insta::assert_snapshot!(
+        "120x40_chart",
+        render_with_hourly_mode_to_string(120, 40, 61, HourlyViewMode::Chart)
+    );
+}
+
+#[test]
+fn snapshot_100x30_chart() {
+    insta::assert_snapshot!(
+        "100x30_chart",
+        render_with_hourly_mode_to_string(100, 30, 61, HourlyViewMode::Chart)
+    );
+}
+
+#[test]
+fn snapshot_80x24_chart() {
+    insta::assert_snapshot!(
+        "80x24_chart",
+        render_with_hourly_mode_to_string(80, 24, 61, HourlyViewMode::Chart)
+    );
+}
+
+#[test]
+fn snapshot_60x20_chart() {
+    insta::assert_snapshot!(
+        "60x20_chart",
+        render_with_hourly_mode_to_string(60, 20, 61, HourlyViewMode::Chart)
+    );
+}
+
+#[test]
+fn narrow_layout_forces_table_for_hybrid_mode() {
+    let rendered = render_with_hourly_mode_to_string(60, 20, 61, HourlyViewMode::Hybrid);
+    assert!(rendered.contains("Hourly · Table"));
+}
+
+#[test]
+fn narrow_layout_forces_table_for_chart_mode() {
+    let rendered = render_with_hourly_mode_to_string(60, 20, 61, HourlyViewMode::Chart);
+    assert!(rendered.contains("Hourly · Table"));
 }

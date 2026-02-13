@@ -12,13 +12,14 @@ use crate::{
         },
         settings::{
             MotionSetting, RecentLocation, RuntimeSettings, clear_runtime_settings,
-            load_runtime_settings, save_runtime_settings,
+            hourly_view_from_cli, load_runtime_settings, save_runtime_settings,
         },
     },
-    cli::{Cli, HeroVisualArg, IconMode, ThemeArg},
+    cli::{Cli, ColorArg, HeroVisualArg, IconMode, ThemeArg},
     data::{forecast::ForecastClient, geocode::GeocodeClient},
     domain::weather::{
-        ForecastBundle, GeocodeResolution, Location, RefreshMetadata, Units, evaluate_freshness,
+        ForecastBundle, GeocodeResolution, HourlyViewMode, Location, RefreshMetadata, Units,
+        evaluate_freshness,
     },
     resilience::backoff::Backoff,
     ui::layout::visible_hour_count,
@@ -30,15 +31,21 @@ const SETTINGS_THEME: usize = 1;
 const SETTINGS_MOTION: usize = 2;
 const SETTINGS_FLASH: usize = 3;
 const SETTINGS_ICONS: usize = 4;
-const SETTINGS_HERO_VISUAL: usize = 5;
-const SETTINGS_REFRESH_INTERVAL: usize = 6;
-const SETTINGS_REFRESH_NOW: usize = 7;
-const SETTINGS_CLOSE: usize = 8;
-const SETTINGS_COUNT: usize = 9;
+const SETTINGS_HOURLY_VIEW: usize = 5;
+const SETTINGS_HERO_VISUAL: usize = 6;
+const SETTINGS_REFRESH_INTERVAL: usize = 7;
+const SETTINGS_REFRESH_NOW: usize = 8;
+const SETTINGS_CLOSE: usize = 9;
+const SETTINGS_COUNT: usize = 10;
 
 const REFRESH_OPTIONS: [u64; 4] = [300, 600, 900, 1800];
 const HISTORY_MAX: usize = 12;
 const CITY_PICKER_VISIBLE_MAX: usize = 9;
+const HOURLY_VIEW_OPTIONS: [HourlyViewMode; 3] = [
+    HourlyViewMode::Table,
+    HourlyViewMode::Hybrid,
+    HourlyViewMode::Chart,
+];
 const THEME_OPTIONS: [ThemeArg; 18] = [
     ThemeArg::Auto,
     ThemeArg::Aurora,
@@ -98,11 +105,14 @@ pub struct AppState {
     pub demo_mode: bool,
     pub settings: RuntimeSettings,
     pub settings_open: bool,
+    pub help_open: bool,
     pub settings_selected: usize,
     pub city_picker_open: bool,
     pub city_query: String,
     pub city_history_selected: usize,
     pub city_status: Option<String>,
+    pub color_mode: ColorArg,
+    pub hourly_view_mode: HourlyViewMode,
     settings_path: Option<PathBuf>,
 }
 
@@ -118,6 +128,10 @@ impl AppState {
         }
         let disabled = matches!(settings.motion, MotionSetting::Off);
         let reduced = matches!(settings.motion, MotionSetting::Reduced);
+        let runtime_hourly_view = cli
+            .hourly_view
+            .map(hourly_view_from_cli)
+            .unwrap_or(settings.hourly_view);
 
         Self {
             mode: AppMode::Loading,
@@ -140,11 +154,14 @@ impl AppState {
             demo_mode: cli.demo,
             settings,
             settings_open: false,
+            help_open: false,
             settings_selected: 0,
             city_picker_open: false,
             city_query: String::new(),
             city_history_selected: 0,
             city_status: None,
+            color_mode: cli.effective_color_mode(),
+            hourly_view_mode: runtime_hourly_view,
             settings_path,
         }
     }
@@ -211,6 +228,15 @@ impl AppState {
                 editable: true,
             },
             SettingsEntry {
+                label: "Hourly View",
+                value: match self.hourly_view_mode {
+                    HourlyViewMode::Table => "Table".to_string(),
+                    HourlyViewMode::Hybrid => "Hybrid".to_string(),
+                    HourlyViewMode::Chart => "Chart".to_string(),
+                },
+                editable: true,
+            },
+            SettingsEntry {
                 label: "Hero Visual",
                 value: match self.settings.hero_visual {
                     HeroVisualArg::AtmosCanvas => "Atmos Canvas".to_string(),
@@ -267,6 +293,10 @@ impl AppState {
             SETTINGS_ICONS => {
                 "Icon mode affects weather symbols in Hourly and 7-Day panels".to_string()
             }
+            SETTINGS_HOURLY_VIEW => {
+                "Hourly View controls the Hourly panel: Table, Hybrid cards+charts, or Chart"
+                    .to_string()
+            }
             SETTINGS_REFRESH_INTERVAL => {
                 "Auto-refresh cadence persists and applies on next launch".to_string()
             }
@@ -320,6 +350,7 @@ impl AppState {
                     self.start_fetch(tx, cli).await?;
                 }
             }
+            AppEvent::ForceRedraw => {}
             AppEvent::Input(event) => self.handle_input(event, tx, cli).await?,
             AppEvent::FetchStarted => {
                 self.fetch_in_flight = true;
@@ -394,6 +425,19 @@ impl AppState {
     ) -> Result<()> {
         match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
+                if matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+                    && key.modifiers.contains(KeyModifiers::CONTROL)
+                {
+                    tx.send(AppEvent::Quit).await?;
+                    return Ok(());
+                }
+                if matches!(key.code, KeyCode::Char('l') | KeyCode::Char('L'))
+                    && key.modifiers.contains(KeyModifiers::CONTROL)
+                {
+                    tx.send(AppEvent::ForceRedraw).await?;
+                    return Ok(());
+                }
+
                 if self.settings_open {
                     self.handle_settings_key(key.code, tx, cli).await?;
                     return Ok(());
@@ -402,8 +446,17 @@ impl AppState {
                     self.handle_city_picker_key(key, tx, cli).await?;
                     return Ok(());
                 }
+                if self.help_open {
+                    self.handle_help_key(key, tx).await?;
+                    return Ok(());
+                }
 
                 match key.code {
+                    KeyCode::F(1) | KeyCode::Char('?') => {
+                        self.help_open = true;
+                        self.settings_open = false;
+                        self.city_picker_open = false;
+                    }
                     KeyCode::Esc => {
                         tx.send(AppEvent::Quit).await?;
                     }
@@ -415,11 +468,17 @@ impl AppState {
                     {
                         tx.send(AppEvent::Quit).await?;
                     }
+                    KeyCode::Char('l') | KeyCode::Char('L')
+                        if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                    {
+                        tx.send(AppEvent::ForceRedraw).await?;
+                    }
                     KeyCode::Char(_)
                         if command_char_matches(key, 's')
                             && self.mode != AppMode::SelectingLocation =>
                     {
                         self.city_picker_open = false;
+                        self.help_open = false;
                         self.settings_open = true;
                         self.settings_selected = 0;
                     }
@@ -428,6 +487,7 @@ impl AppState {
                             && self.mode != AppMode::SelectingLocation =>
                     {
                         self.settings_open = false;
+                        self.help_open = false;
                         self.city_picker_open = true;
                         self.city_query.clear();
                         self.city_history_selected = 0;
@@ -450,6 +510,12 @@ impl AppState {
                             self.apply_runtime_settings();
                             self.persist_settings();
                         }
+                    }
+                    KeyCode::Char(_) if command_char_matches(key, 'v') => {
+                        self.settings.hourly_view =
+                            cycle(&HOURLY_VIEW_OPTIONS, self.hourly_view_mode, 1);
+                        self.apply_runtime_settings();
+                        self.persist_settings();
                     }
                     KeyCode::Left => {
                         self.hourly_offset = self.hourly_offset.saturating_sub(1);
@@ -523,6 +589,26 @@ impl AppState {
             _ => {}
         }
 
+        Ok(())
+    }
+
+    async fn handle_help_key(&mut self, key: KeyEvent, tx: &mpsc::Sender<AppEvent>) -> Result<()> {
+        match key.code {
+            KeyCode::Esc | KeyCode::F(1) | KeyCode::Char('?') => {
+                self.help_open = false;
+            }
+            KeyCode::Char('c') | KeyCode::Char('C')
+                if key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                tx.send(AppEvent::Quit).await?;
+            }
+            KeyCode::Char('l') | KeyCode::Char('L')
+                if key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                tx.send(AppEvent::ForceRedraw).await?;
+            }
+            _ => {}
+        }
         Ok(())
     }
 
@@ -630,6 +716,11 @@ impl AppState {
                 );
                 changed = true;
             }
+            SETTINGS_HOURLY_VIEW => {
+                self.settings.hourly_view =
+                    cycle(&HOURLY_VIEW_OPTIONS, self.hourly_view_mode, direction);
+                changed = true;
+            }
             SETTINGS_HERO_VISUAL => {
                 self.settings.hero_visual = cycle(
                     &[
@@ -662,6 +753,7 @@ impl AppState {
 
     fn apply_runtime_settings(&mut self) {
         self.units = self.settings.units;
+        self.hourly_view_mode = self.settings.hourly_view;
         self.animate_ui = matches!(self.settings.motion, MotionSetting::Full);
         self.particles.set_options(
             matches!(self.settings.motion, MotionSetting::Off),

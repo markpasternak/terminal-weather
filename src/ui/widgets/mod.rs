@@ -1,5 +1,6 @@
 pub mod city_picker;
 pub mod daily;
+pub mod help;
 pub mod hero;
 pub mod hourly;
 pub mod landmark;

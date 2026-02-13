@@ -27,7 +27,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     let theme = theme_for(
         category,
         is_day,
-        detect_color_capability(),
+        detect_color_capability(state.color_mode),
         state.settings.theme,
     );
     let panel_style = Style::default()

@@ -917,7 +917,7 @@ fn compact_condition_scene(
         ],
     };
 
-    if usize::from(height) >= lines.len() + 1 && width >= 10 {
+    if usize::from(height) > lines.len() && width >= 10 {
         lines.push(format!(
             "{:^w$}",
             compact_scene_label(category, is_day),

@@ -1,10 +1,10 @@
 ---
 source: tests/render_snapshots.rs
-expression: "render_to_string(60, 20, 71)"
+expression: "render_with_hourly_mode_to_string(60, 20, 61, HourlyViewMode::Hybrid)"
 ---
 ┌Current · L cities · S settings · ? help──────────────────┐
 │ 7°C                                                      │
-│ Slight snowfall                                          │
+│ Slight rain                                              │
 │ H:9°  L:3°                                               │
 │ Stockholm, Stockholm, Sweden                             │
 │ Wind 12/21 km/h SW  P 1008↗                              │
@@ -12,13 +12,13 @@ expression: "render_to_string(60, 20, 71)"
 └──────────────────────────────────────────────────────────┘
 ┌Hourly · Table────────────────────────────────────────────┐
 │Time  Now    11:00 12:00  13:00 14:00  15:00 16:00  17:00 │
-│Wx    ❄      ❄     ❄      ❄     ❄      ❄     ❄      ❄     │
+│Wx    ☂      ☂     ☂      ☂     ☂      ☂     ☂      ☂     │
 └──────────────────────────────────────────────────────────┘
 ┌7-Day Forecast────────────────────────────────────────────┐
 │Day  Wx  Low   Range                    High              │
-│Thu  ❄   1°    ██████████████·········· 8°                │
-│Fri  ❄   1°    ·███████████████········ 9°                │
-│Sat  ❄   2°    ·█████████████████······ 10°               │
-│Sun  ❄   2°    ··█████████████████····· 11°               │
+│Thu  ☂   1°    ██████████████·········· 8°                │
+│Fri  ☂   1°    ·███████████████········ 9°                │
+│Sat  ☂   2°    ·█████████████████······ 10°               │
+│Sun  ☂   2°    ··█████████████████····· 11°               │
 └──────────────────────────────────────────────────────────┘
 r Refresh  v View  l Cities  s Settings  q Quit  F1/? Help

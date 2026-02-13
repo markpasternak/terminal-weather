@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
-    let capability = detect_color_capability();
+    let capability = detect_color_capability(state.color_mode);
 
     let Some(bundle) = &state.weather else {
         let theme = theme_for(
@@ -427,6 +427,59 @@ fn render_week_summary(
             Span::styled(week_thermal.clone(), Style::default().fg(theme.accent)),
         ]),
     ];
+
+    if area.width >= 64 {
+        let tz = bundle
+            .location
+            .timezone
+            .as_deref()
+            .unwrap_or("--")
+            .to_string();
+        let sunrise = bundle
+            .daily
+            .first()
+            .and_then(|d| d.sunrise)
+            .map(|v| v.format("%H:%M").to_string())
+            .unwrap_or_else(|| "--:--".to_string());
+        let sunset = bundle
+            .daily
+            .first()
+            .and_then(|d| d.sunset)
+            .map(|v| v.format("%H:%M").to_string())
+            .unwrap_or_else(|| "--:--".to_string());
+        let dawn = bundle
+            .daily
+            .first()
+            .and_then(|d| d.sunrise)
+            .map(|v| {
+                (v - chrono::Duration::minutes(30))
+                    .format("%H:%M")
+                    .to_string()
+            })
+            .unwrap_or_else(|| "--:--".to_string());
+        let dusk = bundle
+            .daily
+            .first()
+            .and_then(|d| d.sunset)
+            .map(|v| {
+                (v + chrono::Duration::minutes(30))
+                    .format("%H:%M")
+                    .to_string()
+            })
+            .unwrap_or_else(|| "--:--".to_string());
+        let location_short = bundle.location.name.clone();
+        lines.push(Line::from(vec![
+            Span::styled("Meta ", Style::default().fg(theme.muted_text)),
+            Span::styled(format!("TZ {tz}"), Style::default().fg(theme.text)),
+            Span::raw("  "),
+            Span::styled(
+                format!("Dawn {dawn} Sun {sunrise} Set {sunset} Dusk {dusk}"),
+                Style::default().fg(theme.info),
+            ),
+            Span::raw("  "),
+            Span::styled(location_short, Style::default().fg(theme.accent)),
+        ]));
+    }
 
     let highs = bundle
         .daily

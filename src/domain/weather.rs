@@ -1,4 +1,6 @@
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use std::collections::BTreeMap;
+
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::{cli::IconMode, resilience::freshness::FreshnessState};
@@ -7,6 +9,160 @@ use crate::{cli::IconMode, resilience::freshness::FreshnessState};
 pub enum Units {
     Celsius,
     Fahrenheit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum HourlyViewMode {
+    #[default]
+    Table,
+    Hybrid,
+    Chart,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Daypart {
+    Morning,
+    Noon,
+    Evening,
+    Night,
+}
+
+impl Daypart {
+    pub const fn all() -> [Self; 4] {
+        [Self::Morning, Self::Noon, Self::Evening, Self::Night]
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Morning => "Morning",
+            Self::Noon => "Noon",
+            Self::Evening => "Evening",
+            Self::Night => "Night",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DaypartSummary {
+    pub date: NaiveDate,
+    pub daypart: Daypart,
+    pub weather_code: u8,
+    pub temp_min_c: Option<f32>,
+    pub temp_max_c: Option<f32>,
+    pub wind_min_kmh: Option<f32>,
+    pub wind_max_kmh: Option<f32>,
+    pub precip_sum_mm: f32,
+    pub precip_probability_max: Option<f32>,
+    pub visibility_median_m: Option<f32>,
+    pub sample_count: usize,
+}
+
+pub fn daypart_for_time(time: NaiveDateTime) -> Daypart {
+    match time.hour() {
+        6..=11 => Daypart::Morning,
+        12..=17 => Daypart::Noon,
+        18..=23 => Daypart::Evening,
+        _ => Daypart::Night,
+    }
+}
+
+pub fn summarize_dayparts(
+    hourly: &[HourlyForecast],
+    fallback_weather_code: u8,
+    max_days: usize,
+) -> Vec<DaypartSummary> {
+    if max_days == 0 || hourly.is_empty() {
+        return Vec::new();
+    }
+
+    let mut dates = Vec::<NaiveDate>::new();
+    for hour in hourly {
+        let date = hour.time.date();
+        if !dates.contains(&date) {
+            dates.push(date);
+            if dates.len() >= max_days {
+                break;
+            }
+        }
+    }
+
+    let mut out = Vec::with_capacity(dates.len() * Daypart::all().len());
+    for date in dates {
+        for part in Daypart::all() {
+            let samples = hourly
+                .iter()
+                .filter(|h| h.time.date() == date && daypart_for_time(h.time) == part)
+                .collect::<Vec<_>>();
+
+            let temp_values = samples
+                .iter()
+                .filter_map(|h| h.temperature_2m_c)
+                .collect::<Vec<_>>();
+            let wind_values = samples
+                .iter()
+                .filter_map(|h| h.wind_speed_10m)
+                .collect::<Vec<_>>();
+            let precip_sum_mm = samples
+                .iter()
+                .filter_map(|h| h.precipitation_mm)
+                .map(|v| v.max(0.0))
+                .sum::<f32>();
+            let precip_probability_max = samples
+                .iter()
+                .filter_map(|h| h.precipitation_probability)
+                .max_by(|a, b| a.total_cmp(b));
+            let visibility_median_m = median(samples.iter().filter_map(|h| h.visibility_m));
+            let weather_code = dominant_weather_code(&samples, fallback_weather_code);
+
+            out.push(DaypartSummary {
+                date,
+                daypart: part,
+                weather_code,
+                temp_min_c: temp_values.iter().copied().min_by(|a, b| a.total_cmp(b)),
+                temp_max_c: temp_values.iter().copied().max_by(|a, b| a.total_cmp(b)),
+                wind_min_kmh: wind_values.iter().copied().min_by(|a, b| a.total_cmp(b)),
+                wind_max_kmh: wind_values.iter().copied().max_by(|a, b| a.total_cmp(b)),
+                precip_sum_mm,
+                precip_probability_max,
+                visibility_median_m,
+                sample_count: samples.len(),
+            });
+        }
+    }
+
+    out
+}
+
+fn dominant_weather_code(samples: &[&HourlyForecast], fallback: u8) -> u8 {
+    let mut counts = BTreeMap::<u8, usize>::new();
+    for sample in samples {
+        if let Some(code) = sample.weather_code {
+            *counts.entry(code).or_default() += 1;
+        }
+    }
+
+    counts
+        .into_iter()
+        .max_by(|(code_a, count_a), (code_b, count_b)| {
+            count_a.cmp(count_b).then_with(|| code_b.cmp(code_a))
+        })
+        .map(|(code, _)| code)
+        .unwrap_or(fallback)
+}
+
+fn median(values: impl Iterator<Item = f32>) -> Option<f32> {
+    let mut items = values.collect::<Vec<_>>();
+    if items.is_empty() {
+        return None;
+    }
+    items.sort_by(|a, b| a.total_cmp(b));
+    let mid = items.len() / 2;
+    if items.len().is_multiple_of(2) {
+        Some((items[mid - 1] + items[mid]) / 2.0)
+    } else {
+        Some(items[mid])
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -364,5 +520,110 @@ mod tests {
     fn fahrenheit_conversion_rounding() {
         assert_eq!(round_temp(convert_temp(0.0, Units::Fahrenheit)), 32);
         assert_eq!(round_temp(convert_temp(20.0, Units::Fahrenheit)), 68);
+    }
+
+    #[test]
+    fn daypart_bucket_boundaries_are_correct() {
+        let parse = |s: &str| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").unwrap();
+        assert_eq!(daypart_for_time(parse("2026-02-12T05:59")), Daypart::Night);
+        assert_eq!(
+            daypart_for_time(parse("2026-02-12T06:00")),
+            Daypart::Morning
+        );
+        assert_eq!(
+            daypart_for_time(parse("2026-02-12T11:59")),
+            Daypart::Morning
+        );
+        assert_eq!(daypart_for_time(parse("2026-02-12T12:00")), Daypart::Noon);
+        assert_eq!(daypart_for_time(parse("2026-02-12T17:59")), Daypart::Noon);
+        assert_eq!(
+            daypart_for_time(parse("2026-02-12T18:00")),
+            Daypart::Evening
+        );
+        assert_eq!(
+            daypart_for_time(parse("2026-02-12T23:59")),
+            Daypart::Evening
+        );
+        assert_eq!(daypart_for_time(parse("2026-02-13T00:00")), Daypart::Night);
+    }
+
+    #[test]
+    fn daypart_summary_aggregates_expected_fields() {
+        let start = NaiveDateTime::parse_from_str("2026-02-12T06:00", "%Y-%m-%dT%H:%M").unwrap();
+        let hourly = vec![
+            HourlyForecast {
+                time: start,
+                temperature_2m_c: Some(5.0),
+                weather_code: Some(61),
+                is_day: Some(true),
+                relative_humidity_2m: None,
+                precipitation_probability: Some(30.0),
+                precipitation_mm: Some(0.2),
+                rain_mm: None,
+                snowfall_cm: None,
+                wind_speed_10m: Some(10.0),
+                wind_gusts_10m: None,
+                pressure_msl_hpa: None,
+                visibility_m: Some(10_000.0),
+                cloud_cover: None,
+                cloud_cover_low: None,
+                cloud_cover_mid: None,
+                cloud_cover_high: None,
+            },
+            HourlyForecast {
+                time: start + chrono::Duration::hours(1),
+                temperature_2m_c: Some(7.0),
+                weather_code: Some(61),
+                is_day: Some(true),
+                relative_humidity_2m: None,
+                precipitation_probability: Some(40.0),
+                precipitation_mm: Some(0.4),
+                rain_mm: None,
+                snowfall_cm: None,
+                wind_speed_10m: Some(12.0),
+                wind_gusts_10m: None,
+                pressure_msl_hpa: None,
+                visibility_m: Some(8_000.0),
+                cloud_cover: None,
+                cloud_cover_low: None,
+                cloud_cover_mid: None,
+                cloud_cover_high: None,
+            },
+            HourlyForecast {
+                time: start + chrono::Duration::hours(2),
+                temperature_2m_c: Some(6.0),
+                weather_code: Some(3),
+                is_day: Some(true),
+                relative_humidity_2m: None,
+                precipitation_probability: Some(20.0),
+                precipitation_mm: Some(0.1),
+                rain_mm: None,
+                snowfall_cm: None,
+                wind_speed_10m: Some(11.0),
+                wind_gusts_10m: None,
+                pressure_msl_hpa: None,
+                visibility_m: Some(9_000.0),
+                cloud_cover: None,
+                cloud_cover_low: None,
+                cloud_cover_mid: None,
+                cloud_cover_high: None,
+            },
+        ];
+
+        let summaries = summarize_dayparts(&hourly, 0, 1);
+        let morning = summaries
+            .iter()
+            .find(|s| s.daypart == Daypart::Morning)
+            .expect("morning summary");
+
+        assert_eq!(morning.sample_count, 3);
+        assert_eq!(morning.weather_code, 61);
+        assert_eq!(morning.temp_min_c, Some(5.0));
+        assert_eq!(morning.temp_max_c, Some(7.0));
+        assert_eq!(morning.wind_min_kmh, Some(10.0));
+        assert_eq!(morning.wind_max_kmh, Some(12.0));
+        assert!((morning.precip_sum_mm - 0.7).abs() < 0.001);
+        assert_eq!(morning.precip_probability_max, Some(40.0));
+        assert_eq!(morning.visibility_median_m, Some(9_000.0));
     }
 }

@@ -1,6 +1,9 @@
 use ratatui::style::Color;
 
-use crate::{cli::ThemeArg, domain::weather::WeatherCategory};
+use crate::{
+    cli::{ColorArg, ThemeArg},
+    domain::weather::WeatherCategory,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorCapability {
@@ -39,19 +42,40 @@ pub struct Theme {
     pub landmark_neutral: Color,
 }
 
-pub fn detect_color_capability() -> ColorCapability {
-    if std::env::var_os("NO_COLOR").is_some() {
+pub fn detect_color_capability(mode: ColorArg) -> ColorCapability {
+    let term = std::env::var("TERM").ok();
+    let colorterm = std::env::var("COLORTERM").ok();
+    let no_color = std::env::var("NO_COLOR").ok();
+    detect_color_capability_from(
+        mode,
+        term.as_deref(),
+        colorterm.as_deref(),
+        no_color.as_deref(),
+    )
+}
+
+fn detect_color_capability_from(
+    mode: ColorArg,
+    term: Option<&str>,
+    colorterm: Option<&str>,
+    no_color: Option<&str>,
+) -> ColorCapability {
+    if mode == ColorArg::Never {
+        return ColorCapability::Basic16;
+    }
+    if mode == ColorArg::Auto && no_color.is_some_and(|value| !value.is_empty()) {
+        return ColorCapability::Basic16;
+    }
+    if term.is_some_and(|value| value.eq_ignore_ascii_case("dumb")) {
         return ColorCapability::Basic16;
     }
 
-    let colorterm = std::env::var("COLORTERM")
-        .unwrap_or_default()
-        .to_lowercase();
+    let colorterm = colorterm.unwrap_or_default().to_lowercase();
     if colorterm.contains("truecolor") || colorterm.contains("24bit") {
         return ColorCapability::TrueColor;
     }
 
-    let term = std::env::var("TERM").unwrap_or_default().to_lowercase();
+    let term = term.unwrap_or_default().to_lowercase();
     if term.contains("256color") {
         ColorCapability::Xterm256
     } else {
@@ -986,5 +1010,49 @@ mod tests {
                 "mode={mode:?} popup_ratio={popup_ratio:.2}"
             );
         }
+    }
+
+    #[test]
+    fn auto_mode_ignores_empty_no_color() {
+        let capability = detect_color_capability_from(
+            ColorArg::Auto,
+            Some("xterm-256color"),
+            Some("truecolor"),
+            Some(""),
+        );
+        assert_eq!(capability, ColorCapability::TrueColor);
+    }
+
+    #[test]
+    fn auto_mode_honors_non_empty_no_color() {
+        let capability = detect_color_capability_from(
+            ColorArg::Auto,
+            Some("xterm-256color"),
+            Some("truecolor"),
+            Some("1"),
+        );
+        assert_eq!(capability, ColorCapability::Basic16);
+    }
+
+    #[test]
+    fn always_mode_bypasses_no_color() {
+        let capability = detect_color_capability_from(
+            ColorArg::Always,
+            Some("xterm-256color"),
+            Some("24bit"),
+            Some("1"),
+        );
+        assert_eq!(capability, ColorCapability::TrueColor);
+    }
+
+    #[test]
+    fn never_mode_forces_basic16() {
+        let capability = detect_color_capability_from(
+            ColorArg::Never,
+            Some("xterm-256color"),
+            Some("truecolor"),
+            None,
+        );
+        assert_eq!(capability, ColorCapability::Basic16);
     }
 }

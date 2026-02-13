@@ -26,6 +26,7 @@ pub enum AppEvent {
     Bootstrap,
     TickFrame,
     TickRefresh,
+    ForceRedraw,
     Input(Event),
     FetchStarted,
     GeocodeResolved(GeocodeResolution),

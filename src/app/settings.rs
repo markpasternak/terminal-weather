@@ -8,8 +8,8 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    cli::{Cli, HeroVisualArg, IconMode, ThemeArg, UnitsArg},
-    domain::weather::{Location, Units},
+    cli::{Cli, HeroVisualArg, HourlyViewArg, IconMode, ThemeArg, UnitsArg},
+    domain::weather::{HourlyViewMode, Location, Units},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,6 +27,7 @@ pub struct RuntimeSettings {
     pub motion: MotionSetting,
     pub no_flash: bool,
     pub icon_mode: IconMode,
+    pub hourly_view: HourlyViewMode,
     #[serde(default, alias = "silhouette_source", alias = "silhouetteSource")]
     pub hero_visual: HeroVisualArg,
     pub refresh_interval_secs: u64,
@@ -60,6 +61,7 @@ impl RuntimeSettings {
             motion,
             no_flash: cli.no_flash,
             icon_mode,
+            hourly_view: HourlyViewMode::Table,
             hero_visual: cli.hero_visual,
             refresh_interval_secs: cli.refresh_interval,
             recent_locations: Vec::new(),
@@ -75,6 +77,7 @@ impl Default for RuntimeSettings {
             motion: MotionSetting::Full,
             no_flash: false,
             icon_mode: IconMode::Unicode,
+            hourly_view: HourlyViewMode::Table,
             hero_visual: HeroVisualArg::AtmosCanvas,
             refresh_interval_secs: 600,
             recent_locations: Vec::new(),
@@ -190,6 +193,14 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
     (settings, Some(path))
 }
 
+pub fn hourly_view_from_cli(arg: HourlyViewArg) -> HourlyViewMode {
+    match arg {
+        HourlyViewArg::Table => HourlyViewMode::Table,
+        HourlyViewArg::Hybrid => HourlyViewMode::Hybrid,
+        HourlyViewArg::Chart => HourlyViewMode::Chart,
+    }
+}
+
 pub fn save_runtime_settings(path: &Path, settings: &RuntimeSettings) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).context("creating settings directory failed")?;
@@ -226,7 +237,11 @@ fn settings_path() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::RecentLocation;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use crate::domain::weather::HourlyViewMode;
+
+    use super::{RecentLocation, RuntimeSettings, save_runtime_settings};
 
     #[test]
     fn same_place_handles_unicode_case() {
@@ -247,5 +262,25 @@ mod tests {
             timezone: Some("Europe/Stockholm".to_string()),
         };
         assert!(a.same_place(&b));
+    }
+
+    #[test]
+    fn runtime_settings_roundtrip_preserves_hourly_view() {
+        let settings = RuntimeSettings {
+            hourly_view: HourlyViewMode::Chart,
+            ..RuntimeSettings::default()
+        };
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("tw-settings-{unique}.json"));
+        save_runtime_settings(&path, &settings).expect("save settings");
+        let content = std::fs::read_to_string(&path).expect("read settings");
+        let restored: RuntimeSettings = serde_json::from_str(&content).expect("parse settings");
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(restored.hourly_view, HourlyViewMode::Chart);
     }
 }
