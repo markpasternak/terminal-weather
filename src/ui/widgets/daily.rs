@@ -100,7 +100,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
                 if layout.show_icon {
                     let code = day.weather_code.unwrap_or(3);
                     row_cells.push(
-                        Cell::from(weather_icon(code, state.settings.icon_mode)).style(
+                        Cell::from(weather_icon(code, state.settings.icon_mode, true)).style(
                             Style::default().fg(icon_color(&theme, weather_code_to_category(code))),
                         ),
                     );

@@ -63,6 +63,7 @@ fn fixture_bundle(code: u8) -> ForecastBundle {
             time: base_time + chrono::Duration::hours(i64::from(idx)),
             temperature_2m_c: Some(5.0 + (idx as f32 * 0.5)),
             weather_code: Some(code),
+            is_day: Some((6..=18).contains(&(idx % 24))),
             relative_humidity_2m: Some(70.0),
             precipitation_probability: Some(35.0),
             precipitation_mm: Some(0.4 + idx as f32 * 0.1),
@@ -163,4 +164,23 @@ fn snapshot_40x15_fog() {
 #[test]
 fn snapshot_80x24_thunder() {
     insta::assert_snapshot!("80x24_thunder", render_to_string(80, 24, 95));
+}
+
+#[test]
+fn snapshot_19x9_tiny_fallback() {
+    insta::assert_snapshot!("19x9_tiny_fallback", render_to_string(19, 9, 0));
+}
+
+#[test]
+fn small_terminal_still_renders_main_ui() {
+    let rendered = render_to_string(20, 10, 0);
+    assert!(rendered.contains("Current"));
+    assert!(!rendered.contains("Terminal too small"));
+}
+
+#[test]
+fn below_minimum_terminal_shows_resize_guidance() {
+    let rendered = render_to_string(19, 9, 0);
+    assert!(rendered.contains("terminal-weather"));
+    assert!(!rendered.contains("Current"));
 }

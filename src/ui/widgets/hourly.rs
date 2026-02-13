@@ -108,7 +108,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
             let mut cells = vec![Cell::from("Wx").style(Style::default().fg(theme.muted_text))];
             cells.extend(slice.iter().map(|h| {
                 let code = h.weather_code.unwrap_or(bundle.current.weather_code);
-                Cell::from(weather_icon(code, state.settings.icon_mode))
+                let is_day = h.is_day.unwrap_or(bundle.current.is_day);
+                Cell::from(weather_icon(code, state.settings.icon_mode, is_day))
                     .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))))
             }));
             cells

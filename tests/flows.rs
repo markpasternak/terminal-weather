@@ -65,6 +65,7 @@ fn fixture_bundle() -> ForecastBundle {
             time: base_time + chrono::Duration::hours(i64::from(idx)),
             temperature_2m_c: Some(5.0 + (idx as f32 * 0.5)),
             weather_code: Some(61),
+            is_day: Some((6..=18).contains(&(idx % 24))),
             relative_humidity_2m: Some(70.0),
             precipitation_probability: Some(35.0),
             precipitation_mm: Some(0.4),

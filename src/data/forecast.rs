@@ -52,7 +52,7 @@ impl ForecastClient {
                 ),
                 (
                     "hourly",
-                    "temperature_2m,weather_code,relative_humidity_2m,precipitation_probability,precipitation,rain,snowfall,wind_speed_10m,wind_gusts_10m,pressure_msl,visibility,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
+                    "temperature_2m,weather_code,is_day,relative_humidity_2m,precipitation_probability,precipitation,rain,snowfall,wind_speed_10m,wind_gusts_10m,pressure_msl,visibility,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
                         .to_string(),
                 ),
                 (
@@ -115,6 +115,12 @@ fn parse_hourly(hourly: &HourlyBlock) -> Vec<HourlyForecast> {
             time,
             temperature_2m_c: hourly.temperature_2m.get(idx).copied().flatten(),
             weather_code: hourly.weather_code.get(idx).copied().flatten(),
+            is_day: hourly
+                .is_day
+                .get(idx)
+                .copied()
+                .flatten()
+                .map(|value| value == 1),
             relative_humidity_2m: hourly.relative_humidity_2m.get(idx).copied().flatten(),
             precipitation_probability: hourly.precipitation_probability.get(idx).copied().flatten(),
             precipitation_mm: hourly.precipitation.get(idx).copied().flatten(),
@@ -194,6 +200,7 @@ struct HourlyBlock {
     time: Vec<String>,
     temperature_2m: Vec<Option<f32>>,
     weather_code: Vec<Option<u8>>,
+    is_day: Vec<Option<u8>>,
     relative_humidity_2m: Vec<Option<f32>>,
     precipitation_probability: Vec<Option<f32>>,
     precipitation: Vec<Option<f32>>,
@@ -238,6 +245,7 @@ mod tests {
             time: vec!["bad".to_string(), "2026-02-12T10:00".to_string()],
             temperature_2m: vec![Some(1.0), Some(2.0)],
             weather_code: vec![Some(0), Some(1)],
+            is_day: vec![Some(1), Some(0)],
             relative_humidity_2m: vec![Some(50.0), Some(60.0)],
             precipitation_probability: vec![Some(10.0), Some(20.0)],
             precipitation: vec![Some(0.0), Some(0.2)],
@@ -255,5 +263,6 @@ mod tests {
 
         let parsed = parse_hourly(&block);
         assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].is_day, Some(false));
     }
 }

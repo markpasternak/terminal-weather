@@ -14,7 +14,7 @@ use crate::{
     cli::{Cli, HeroVisualArg},
     domain::weather::{
         HourlyForecast, WeatherCategory, convert_temp, round_temp, weather_code_to_category,
-        weather_label,
+        weather_label_for_time,
     },
     ui::theme::{condition_color, detect_color_capability, theme_for},
     ui::widgets::landmark::{
@@ -143,7 +143,7 @@ fn render_weather_info(
                 ),
                 Span::raw("  ·  "),
                 Span::styled(
-                    weather_label(code),
+                    weather_label_for_time(code, weather.current.is_day),
                     Style::default()
                         .fg(condition_color(&theme, weather_code_to_category(code)))
                         .add_modifier(Modifier::BOLD),
@@ -155,7 +155,7 @@ fn render_weather_info(
                 Style::default().fg(text_color).add_modifier(Modifier::BOLD),
             )]));
             lines.push(Line::from(Span::styled(
-                weather_label(code),
+                weather_label_for_time(code, weather.current.is_day),
                 Style::default()
                     .fg(condition_color(&theme, weather_code_to_category(code)))
                     .add_modifier(Modifier::BOLD),
@@ -346,7 +346,7 @@ fn render_weather_info_expanded(
     } else {
         "F"
     };
-    let condition = weather_label(code);
+    let condition = weather_label_for_time(code, weather.current.is_day);
     let location = weather.location.display_name();
     let feels = round_temp(convert_temp(
         weather.current.apparent_temperature_c,

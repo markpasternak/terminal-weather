@@ -158,7 +158,7 @@ To add/update a README screenshot manually:
   - status transitions to `stale` / `offline` with retry backoff
   - press `r` to trigger manual refresh
 - Tiny terminal:
-  - below `30x15`, only resize guidance is rendered
+  - below `20x10`, only resize guidance is rendered
 - Icon alignment issues:
   - use `--ascii-icons`
 - Coordinate mode errors:

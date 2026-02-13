@@ -19,6 +19,9 @@ use crate::{
     ui::theme::{detect_color_capability, theme_for},
 };
 
+const MIN_RENDER_WIDTH: u16 = 20;
+const MIN_RENDER_HEIGHT: u16 = 10;
+
 pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     let area = frame.area();
     let capability = detect_color_capability();
@@ -34,8 +37,25 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
         .unwrap_or((WeatherCategory::Unknown, false));
     let theme = theme_for(category, is_day, capability, state.settings.theme);
 
-    if area.width < 30 || area.height < 15 {
-        let warning = Paragraph::new("Terminal too small. Resize to at least 30x15.")
+    if area.width < MIN_RENDER_WIDTH || area.height < MIN_RENDER_HEIGHT {
+        let mut lines: Vec<Line> = compact_logo_lines(area.width.saturating_sub(2))
+            .into_iter()
+            .map(|line| {
+                Line::from(line).style(
+                    Style::default()
+                        .fg(theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                )
+            })
+            .collect();
+        lines.push(Line::from(""));
+        lines.push(Line::from("Too small for full render"));
+        lines.push(Line::from(format!(
+            "Need {}x{}+",
+            MIN_RENDER_WIDTH, MIN_RENDER_HEIGHT
+        )));
+
+        let warning = Paragraph::new(lines)
             .style(Style::default().fg(theme.text).bg(theme.surface))
             .block(
                 Block::default()
@@ -97,6 +117,21 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
         widgets::settings::render(frame, centered_rect(68, 74, area), state);
     } else if state.city_picker_open {
         widgets::city_picker::render(frame, centered_rect(74, 74, area), state);
+    }
+}
+
+fn compact_logo_lines(inner_width: u16) -> Vec<&'static str> {
+    if inner_width >= 16 {
+        vec![
+            "terminal-weather",
+            " .--.   .--.   ",
+            " (tw)---(wx)   ",
+            " '--'   '--'   ",
+        ]
+    } else if inner_width >= 8 {
+        vec!["terminal", "weather", "[ tw ]"]
+    } else {
+        vec!["tw"]
     }
 }
 

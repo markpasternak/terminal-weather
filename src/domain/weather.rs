@@ -66,6 +66,7 @@ pub struct HourlyForecast {
     pub time: NaiveDateTime,
     pub temperature_2m_c: Option<f32>,
     pub weather_code: Option<u8>,
+    pub is_day: Option<bool>,
     pub relative_humidity_2m: Option<f32>,
     pub precipitation_probability: Option<f32>,
     pub precipitation_mm: Option<f32>,
@@ -171,9 +172,25 @@ pub fn weather_code_to_particle(code: u8) -> ParticleKind {
 }
 
 pub fn weather_label(code: u8) -> &'static str {
+    weather_label_for_time(code, true)
+}
+
+pub fn weather_label_for_time(code: u8, is_day: bool) -> &'static str {
     match code {
-        0 => "Clear sky",
-        1 => "Mainly clear",
+        0 => {
+            if is_day {
+                "Clear sky"
+            } else {
+                "Clear night"
+            }
+        }
+        1 => {
+            if is_day {
+                "Mainly clear"
+            } else {
+                "Mainly clear night"
+            }
+        }
         2 => "Partly cloudy",
         3 => "Overcast",
         45 => "Fog",
@@ -204,10 +221,16 @@ pub fn weather_label(code: u8) -> &'static str {
     }
 }
 
-pub fn weather_icon(code: u8, mode: IconMode) -> &'static str {
+pub fn weather_icon(code: u8, mode: IconMode, is_day: bool) -> &'static str {
     match mode {
         IconMode::Ascii => match code {
-            0 | 1 => "SUN",
+            0 | 1 => {
+                if is_day {
+                    "SUN"
+                } else {
+                    "MON"
+                }
+            }
             2 | 3 => "CLD",
             45 | 48 => "FOG",
             51..=57 | 61..=67 | 80..=82 => "RAN",
@@ -216,7 +239,13 @@ pub fn weather_icon(code: u8, mode: IconMode) -> &'static str {
             _ => "---",
         },
         IconMode::Emoji => match code {
-            0 | 1 => "☀️",
+            0 | 1 => {
+                if is_day {
+                    "☀️"
+                } else {
+                    "🌙"
+                }
+            }
             2 | 3 => "☁️",
             45 | 48 => "🌫️",
             51..=57 | 61..=67 | 80..=82 => "🌧️",
@@ -225,7 +254,13 @@ pub fn weather_icon(code: u8, mode: IconMode) -> &'static str {
             _ => "☁️",
         },
         IconMode::Unicode => match code {
-            0 | 1 => "☀",
+            0 | 1 => {
+                if is_day {
+                    "☀"
+                } else {
+                    "☾"
+                }
+            }
             2 | 3 => "☁",
             45 | 48 => "░",
             51..=57 | 61..=67 | 80..=82 => "☂",
@@ -315,6 +350,14 @@ mod tests {
     fn freezing_drizzle_codes_have_labels() {
         assert_eq!(weather_label(56), "Light freezing drizzle");
         assert_eq!(weather_label(57), "Dense freezing drizzle");
+    }
+
+    #[test]
+    fn clear_conditions_respect_day_night_for_labels_and_icons() {
+        assert_eq!(weather_label_for_time(0, true), "Clear sky");
+        assert_eq!(weather_label_for_time(0, false), "Clear night");
+        assert_eq!(weather_icon(0, IconMode::Ascii, true), "SUN");
+        assert_eq!(weather_icon(0, IconMode::Ascii, false), "MON");
     }
 
     #[test]
