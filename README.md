@@ -29,6 +29,12 @@
 - UTF-8 capable terminal (TrueColor recommended)
 - Network access to Open-Meteo APIs
 
+## Install (Homebrew)
+```bash
+brew tap markpasternak/tap
+brew install markpasternak/tap/terminal-weather
+```
+
 ## Build
 ```bash
 git clone <repo-url>
@@ -166,6 +172,22 @@ cargo check --all-targets --all-features
 cargo test --all --all-features
 cargo build --release
 ```
+
+## Release Automation (Maintainers)
+This repository uses `cargo-dist` to build release artifacts and update Homebrew formulae.
+
+One-time setup:
+1. Create the tap repo `markpasternak/homebrew-tap` with a `Formula/` directory.
+2. Add a repository secret named `HOMEBREW_TAP_TOKEN` in this repo:
+   - token scope: write access to `markpasternak/homebrew-tap` contents
+
+Release:
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The GitHub workflow at `.github/workflows/release.yml` will publish release artifacts and update the Homebrew formula in the tap.
 
 ## Attribution
 Weather + geocoding data: [Open-Meteo](https://open-meteo.com/)
