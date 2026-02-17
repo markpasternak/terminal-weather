@@ -58,6 +58,7 @@
 - Rust stable (`rustup`, `cargo`, `rustc`)
 - UTF-8 capable terminal (TrueColor recommended)
 - Network access to Open-Meteo APIs
+- Network access to IP lookup (`https://ipapi.co/json/`) when using auto-detect location
 
 ## Install (Homebrew)
 ```bash
@@ -67,7 +68,7 @@ brew install markpasternak/tap/terminal-weather
 
 ## Build
 ```bash
-git clone <repo-url>
+git clone https://github.com/markpasternak/terminal-weather.git
 cd terminal-weather
 rustup default stable
 cargo build --release
@@ -98,6 +99,19 @@ cargo run -- --demo
 2. Opens settings, selects hero visuals, then closes settings so each preview is clearly visible (`Gauge Cluster`, `Sky Observatory`, 5s each)
 3. Cycles through themes
 4. Exits the app
+
+## Create the Animated GIF
+Prerequisites:
+- `asciinema`
+- `agg` (asciinema gif generator)
+- `gifsicle`
+
+Generate/update the README demo GIF:
+```bash
+./record-demo.sh
+```
+
+The script builds the release binary, records a `--demo` run, converts the cast to GIF, optimizes it, and writes `assets/screenshots/demo.gif`.
 
 ## CLI
 ```bash
@@ -205,15 +219,6 @@ Icon modes:
 - ASCII (`--ascii-icons`)
 - Emoji (`--emoji-icons`)
 
-## Screenshots
-The repository no longer includes a screenshot script.
-
-To add/update a README screenshot manually:
-1. Run the app in your terminal at the desired size/theme
-2. Capture your screen/window with your OS tooling
-3. Save it to `assets/screenshots/app-preview.png`
-4. Add a Markdown image link in this README if you want it rendered on GitHub
-
 ## Troubleshooting
 - API/network failures:
   - app keeps last known good weather visible
@@ -249,11 +254,12 @@ One-time setup:
 
 Release:
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 The GitHub workflow at `.github/workflows/release.yml` publishes release artifacts and updates the Homebrew formula in the tap.
+There is no local release script in this repository; release publishing is tag-triggered workflow automation.
 
 ## Attribution
 Weather + geocoding data: [Open-Meteo](https://open-meteo.com/)
