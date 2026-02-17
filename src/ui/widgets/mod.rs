@@ -1,3 +1,4 @@
+pub mod alerts;
 pub mod city_picker;
 pub mod daily;
 pub mod help;

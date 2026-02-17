@@ -56,22 +56,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     );
     let panel_style = Style::default().fg(theme.text).bg(theme.surface);
     let effective_mode = effective_hourly_mode(state.hourly_view_mode, area);
-    let title = format!(
-        "Hourly · {}",
-        match effective_mode {
-            HourlyViewMode::Table => "Table",
-            HourlyViewMode::Hybrid => "Hybrid",
-            HourlyViewMode::Chart => "Chart",
-        }
-    );
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(title)
-        .style(panel_style)
-        .border_style(Style::default().fg(theme.border).bg(theme.surface));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
 
     let show = visible_hour_count(area.width);
     let offset = state
@@ -83,6 +67,32 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         .skip(offset)
         .take(show)
         .collect::<Vec<_>>();
+
+    let mode_label = match effective_mode {
+        HourlyViewMode::Table => "Table",
+        HourlyViewMode::Hybrid => "Hybrid",
+        HourlyViewMode::Chart => "Chart",
+    };
+    let title = if let (Some(first), Some(last)) = (slice.first(), slice.last()) {
+        let first_date = first.time.format("%a %d %b");
+        let last_date = last.time.format("%a %d %b");
+        if first.time.date() == last.time.date() {
+            format!("Hourly · {} · {}", mode_label, first_date)
+        } else {
+            format!("Hourly · {} · {} → {}", mode_label, first_date, last_date)
+        }
+    } else {
+        format!("Hourly · {}", mode_label)
+    };
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .style(panel_style)
+        .border_style(Style::default().fg(theme.border).bg(theme.surface));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
     if slice.is_empty() {
         render_loading_placeholder(
             frame,
@@ -135,26 +145,37 @@ fn render_table_mode(
 ) {
     let panel_style = Style::default().fg(theme.text).bg(theme.surface);
     let label_width = if area.width >= 92 { 7 } else { 6 };
+    let offset = state.hourly_offset;
+    let cursor_in_view =
+        if state.hourly_cursor >= offset && state.hourly_cursor < offset + slice.len() {
+            Some(state.hourly_cursor - offset)
+        } else {
+            None
+        };
 
     let mut rows = vec![
         Row::new({
             let mut cells = vec![Cell::from("Time").style(Style::default().fg(theme.muted_text))];
             cells.extend(slice.iter().enumerate().map(|(idx, h)| {
-                let is_now = idx == 0;
+                let is_now = idx + offset == 0;
+                let is_cursor = cursor_in_view == Some(idx);
                 let label = if is_now {
                     "Now".to_string()
                 } else {
                     h.time.format("%H:%M").to_string()
                 };
-                if is_now {
-                    Cell::from(label).style(
-                        Style::default()
-                            .fg(theme.accent)
-                            .add_modifier(Modifier::BOLD),
-                    )
+                let style = if is_cursor {
+                    Style::default()
+                        .fg(theme.accent)
+                        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                } else if is_now {
+                    Style::default()
+                        .fg(theme.accent)
+                        .add_modifier(Modifier::BOLD)
                 } else {
-                    Cell::from(label).style(Style::default().fg(theme.muted_text))
-                }
+                    Style::default().fg(theme.muted_text)
+                };
+                Cell::from(label).style(style)
             }));
             cells
         }),
@@ -170,22 +191,54 @@ fn render_table_mode(
         }),
         Row::new({
             let mut cells = vec![Cell::from("Temp").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
+            cells.extend(slice.iter().enumerate().map(|(idx, h)| {
                 let temp = h.temperature_2m_c.map(|t| convert_temp(t, state.units));
+                let is_cursor = cursor_in_view == Some(idx);
+                let mut style = Style::default()
+                    .fg(temp
+                        .map(|t| temp_color(&theme, t))
+                        .unwrap_or(theme.muted_text))
+                    .add_modifier(Modifier::BOLD);
+                if is_cursor {
+                    style = style.add_modifier(Modifier::UNDERLINED);
+                }
                 Cell::from(
                     temp.map(|t| format!("{}°", round_temp(t)))
                         .unwrap_or_else(|| "--".to_string()),
                 )
-                .style(
-                    Style::default().fg(temp
-                        .map(|t| temp_color(&theme, t))
-                        .unwrap_or(theme.muted_text)),
-                )
+                .style(style)
             }));
             cells
-        })
-        .style(Style::default().add_modifier(Modifier::BOLD)),
+        }),
     ];
+
+    let has_date_change = slice
+        .windows(2)
+        .any(|w| w[0].time.date() != w[1].time.date());
+    if has_date_change || offset > 0 {
+        rows.insert(
+            1,
+            Row::new({
+                let mut cells =
+                    vec![Cell::from("Date").style(Style::default().fg(theme.muted_text))];
+                let mut last_shown_date: Option<chrono::NaiveDate> = None;
+                cells.extend(slice.iter().map(|h| {
+                    let date = h.time.date();
+                    if last_shown_date != Some(date) {
+                        last_shown_date = Some(date);
+                        Cell::from(date.format("%a %d").to_string()).style(
+                            Style::default()
+                                .fg(theme.accent)
+                                .add_modifier(Modifier::BOLD),
+                        )
+                    } else {
+                        Cell::from("·").style(Style::default().fg(theme.muted_text))
+                    }
+                }));
+                cells
+            }),
+        );
+    }
 
     if area.height >= 5 {
         rows.push(Row::new({

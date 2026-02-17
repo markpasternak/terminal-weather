@@ -8,7 +8,7 @@ expression: "render_to_string(40, 15, 45)"
 │H:9°  L:3°                            │
 │Stockholm, Stockholm, Sweden          │
 └──────────────────────────────────────┘
-┌Hourly · Table────────────────────────┐
+┌Hourly · Table · Thu 12 Feb───────────┐
 │Time  Now  11:00 12:0013:0014:00 15:00│
 └──────────────────────────────────────┘
 ┌7-Day Forecast────────────────────────┐

@@ -141,6 +141,10 @@ pub struct Cli {
     /// Run automated demo script and exit
     #[arg(long)]
     pub demo: bool,
+
+    /// Print weather snapshot to stdout and exit (non-interactive)
+    #[arg(long)]
+    pub one_shot: bool,
 }
 
 impl Cli {

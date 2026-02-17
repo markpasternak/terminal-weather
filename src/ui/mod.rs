@@ -83,14 +83,39 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
 
     let constraints = panel_constraints(content_area, state.hourly_view_mode);
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(constraints)
-        .split(content_area);
+    // Scan for alerts
+    let alerts = state
+        .weather
+        .as_ref()
+        .map(|bundle| crate::domain::alerts::scan_alerts(bundle, state.units))
+        .unwrap_or_default();
+    let alert_height = crate::ui::widgets::alerts::alert_row_height(&alerts);
 
-    widgets::hero::render(frame, chunks[0], state, cli);
-    widgets::hourly::render(frame, chunks[1], state, cli);
-    widgets::daily::render(frame, chunks[2], state, cli);
+    if alert_height > 0 {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                constraints[0],
+                Constraint::Length(alert_height),
+                constraints[1],
+                constraints[2],
+            ])
+            .split(content_area);
+
+        widgets::hero::render(frame, chunks[0], state, cli);
+        widgets::alerts::render(frame, chunks[1], &alerts, state);
+        widgets::hourly::render(frame, chunks[2], state, cli);
+        widgets::daily::render(frame, chunks[3], state, cli);
+    } else {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(constraints)
+            .split(content_area);
+
+        widgets::hero::render(frame, chunks[0], state, cli);
+        widgets::hourly::render(frame, chunks[1], state, cli);
+        widgets::daily::render(frame, chunks[2], state, cli);
+    }
 
     render_status_badge(frame, content_area, state);
 

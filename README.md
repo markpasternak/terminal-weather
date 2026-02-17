@@ -19,12 +19,24 @@
   - hourly: time, weather, temp, precipitation, gust, visibility, cloud, pressure, RH (rows scale with available space)
   - daily: min/max spans, precip totals, gust maxima, daylight/sunshine and weekly rollups
 - Day/night-aware clear-sky rendering (sun by day, moon by night in current/hourly views)
+- IP-based geolocation: auto-detects your city when launched without arguments
+- Weather alerts banner: highlights notable conditions (high wind, UV, freezing rain, heavy precip, low visibility, extreme temps, thunderstorms)
+- Hourly cursor: `←`/`→` moves a visible cursor across hours with date boundary labels
+- Non-interactive `--one-shot` mode for scripting and shell prompts
 - Deterministic location resolution and ambiguity handling
 - Live freshness semantics (`fresh`, `stale`, `offline`) with retry backoff and manual refresh
 - Particle ambience (rain/snow/fog/thunder) with motion and flash accessibility controls
 - Contrast-hardened themes across TrueColor, xterm-256, and 16-color terminals
 - Persistent settings + recent city history (including clear-all from the city picker)
 - Built-in demo mode for deterministic showcases
+
+## What's New in v0.4.0
+- IP geolocation: no city argument → auto-detects your location via IP
+- Weather alerts banner between Current and Hourly panels when notable conditions are detected
+- `--one-shot` mode: print a weather snapshot to stdout and exit (works in pipes, scripts, cron)
+- Hourly cursor with `←`/`→` navigation, visible highlight, and auto-scroll
+- Date labels in the hourly panel title and a Date row at day boundaries when scrolling
+- Hourly panel title now shows the date range of visible hours
 
 ## What's New in v0.3.0
 - Hourly view modes you can switch live with `v`: `table`, `hybrid`, `chart`
@@ -63,6 +75,7 @@ cargo build --release
 
 ## Run
 ```bash
+cargo run                                          # auto-detect location via IP
 cargo run -- Stockholm
 cargo run -- --units fahrenheit Tokyo
 cargo run -- --theme midnight-cyan --hero-visual gauge-cluster "San Diego"
@@ -71,6 +84,8 @@ cargo run -- --ascii-icons --no-animation Reykjavik
 cargo run -- --lat 59.3293 --lon 18.0686
 cargo run -- --hourly-view hybrid "San Francisco"
 cargo run -- --color never --hourly-view chart Tokyo
+cargo run -- --one-shot Tokyo                      # print snapshot and exit
+cargo run -- --one-shot | head -10                 # pipe-friendly
 ```
 
 ## Demo Mode
@@ -89,7 +104,7 @@ cargo run -- --demo
 terminal-weather [CITY]
 
 Arguments:
-  [CITY]                              City name (default: Stockholm)
+  [CITY]                              City name (default: auto-detect via IP, fallback: Stockholm)
 
 Options:
   --units <celsius|fahrenheit>        Default: celsius
@@ -108,6 +123,7 @@ Options:
   --lat <FLOAT>                       Direct latitude (requires --lon)
   --lon <FLOAT>                       Direct longitude (requires --lat)
   --refresh-interval <secs>           Default: 600
+  --one-shot                          Print weather snapshot to stdout and exit
   --demo                              Run automated showcase and exit
   --help
   --version
@@ -125,7 +141,7 @@ Global:
 - `l`: open/close city switcher
 - `f`: switch to Fahrenheit
 - `c`: switch to Celsius
-- `←` / `→`: scroll hourly columns
+- `←` / `→`: move hourly cursor (auto-scrolls at edges)
 - `1..5`: choose location when ambiguity selector is shown
 
 Settings panel:
@@ -210,8 +226,9 @@ To add/update a README screenshot manually:
 - Coordinate mode errors:
   - `--lat` and `--lon` must be provided together
 - Non-interactive shell / redirected stdout:
-  - app requires an interactive TTY for dashboard mode
-  - use `--help` for non-interactive CLI usage
+  - dashboard mode requires an interactive TTY
+  - use `--one-shot` for non-interactive output (scripts, pipes, cron)
+  - use `--help` for CLI reference
 
 ## Development
 ```bash

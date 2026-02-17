@@ -95,6 +95,7 @@ pub struct AppState {
     pub refresh_meta: RefreshMetadata,
     pub units: Units,
     pub hourly_offset: usize,
+    pub hourly_cursor: usize,
     pub particles: ParticleEngine,
     pub backoff: Backoff,
     pub fetch_in_flight: bool,
@@ -144,6 +145,7 @@ impl AppState {
             refresh_meta: RefreshMetadata::default(),
             units: settings.units,
             hourly_offset: 0,
+            hourly_cursor: 0,
             particles: ParticleEngine::new(disabled, reduced, settings.no_flash),
             backoff: Backoff::new(10, 300),
             fetch_in_flight: false,
@@ -388,6 +390,7 @@ impl AppState {
                 self.refresh_meta.mark_success();
                 self.backoff.reset();
                 self.hourly_offset = 0;
+                self.hourly_cursor = 0;
                 self.push_recent_location(&location);
                 self.persist_settings();
                 self.city_status = None;
@@ -518,13 +521,25 @@ impl AppState {
                         self.persist_settings();
                     }
                     KeyCode::Left => {
-                        self.hourly_offset = self.hourly_offset.saturating_sub(1);
+                        if self.hourly_cursor > 0 {
+                            self.hourly_cursor -= 1;
+                            if self.hourly_cursor < self.hourly_offset {
+                                self.hourly_offset = self.hourly_cursor;
+                            }
+                        }
                     }
                     KeyCode::Right => {
                         if let Some(bundle) = &self.weather {
-                            let visible = visible_hour_count(self.viewport_width);
-                            let max_offset = bundle.hourly.len().saturating_sub(visible);
-                            self.hourly_offset = (self.hourly_offset + 1).min(max_offset);
+                            let max = bundle.hourly.len().saturating_sub(1);
+                            if self.hourly_cursor < max {
+                                self.hourly_cursor += 1;
+                                let visible = visible_hour_count(self.viewport_width);
+                                if self.hourly_cursor >= self.hourly_offset + visible {
+                                    self.hourly_offset = self
+                                        .hourly_cursor
+                                        .saturating_sub(visible.saturating_sub(1));
+                                }
+                            }
                         }
                     }
                     KeyCode::Char(digit @ '1'..='5') if self.mode == AppMode::SelectingLocation => {
@@ -874,20 +889,50 @@ impl AppState {
             return Ok(());
         }
 
-        let geocoder = GeocodeClient::new();
-        let city = cli.default_city();
-        let country_code = cli.country_code.clone();
-        let tx2 = tx.clone();
-        tokio::spawn(async move {
-            match geocoder.resolve(city, country_code).await {
-                Ok(resolution) => {
-                    let _ = tx2.send(AppEvent::GeocodeResolved(resolution)).await;
+        if cli.city.is_none() && cli.lat.is_none() {
+            self.loading_message = "Detecting location...".to_string();
+            let tx2 = tx.clone();
+            let country_code = cli.country_code.clone();
+            tokio::spawn(async move {
+                // Try IP-based geolocation first
+                if let Some(location) = crate::data::geoip::detect_location().await {
+                    let _ = tx2
+                        .send(AppEvent::GeocodeResolved(GeocodeResolution::Selected(
+                            location,
+                        )))
+                        .await;
+                    return;
                 }
-                Err(err) => {
-                    let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
+                // Fall back to Stockholm
+                let geocoder = GeocodeClient::new();
+                match geocoder
+                    .resolve("Stockholm".to_string(), country_code)
+                    .await
+                {
+                    Ok(resolution) => {
+                        let _ = tx2.send(AppEvent::GeocodeResolved(resolution)).await;
+                    }
+                    Err(err) => {
+                        let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
+                    }
                 }
-            }
-        });
+            });
+        } else {
+            let geocoder = GeocodeClient::new();
+            let city = cli.default_city();
+            let country_code = cli.country_code.clone();
+            let tx2 = tx.clone();
+            tokio::spawn(async move {
+                match geocoder.resolve(city, country_code).await {
+                    Ok(resolution) => {
+                        let _ = tx2.send(AppEvent::GeocodeResolved(resolution)).await;
+                    }
+                    Err(err) => {
+                        let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
+                    }
+                }
+            });
+        }
 
         Ok(())
     }

@@ -30,6 +30,7 @@ fn cli() -> Cli {
         lon: None,
         refresh_interval: 600,
         demo: false,
+        one_shot: false,
     }
 }
 
