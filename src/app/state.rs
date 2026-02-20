@@ -312,113 +312,132 @@ impl AppState {
         cli: &Cli,
     ) -> Result<()> {
         match event {
-            AppEvent::Bootstrap => {
-                cli.validate()?;
-                let frame_fps = match self.settings.motion {
-                    MotionSetting::Full => cli.fps,
-                    MotionSetting::Reduced => cli.fps.min(20),
-                    MotionSetting::Off => 15,
-                };
-                start_frame_task(tx.clone(), frame_fps);
-                start_refresh_task(tx.clone(), self.settings.refresh_interval_secs);
-                if cli.demo {
-                    start_demo_task(tx.clone());
-                }
-                self.start_fetch(tx, cli).await?;
-            }
-            AppEvent::TickFrame => {
-                let now = Instant::now();
-                let delta = now.duration_since(self.last_frame_at);
-                self.last_frame_at = now;
-                self.frame_tick = self.frame_tick.saturating_add(1);
-
-                self.particles.update(
-                    self.weather
-                        .as_ref()
-                        .map(ForecastBundle::current_weather_code),
-                    self.weather.as_ref().map(|w| w.current.wind_speed_10m),
-                    self.weather.as_ref().map(|w| w.current.wind_direction_10m),
-                    delta,
-                );
-                self.refresh_meta.state = evaluate_freshness(
-                    self.refresh_meta.last_success,
-                    self.refresh_meta.consecutive_failures,
-                );
-            }
-            AppEvent::TickRefresh => {
-                if matches!(
-                    self.mode,
-                    AppMode::Ready | AppMode::Error | AppMode::Loading
-                ) {
-                    self.start_fetch(tx, cli).await?;
-                }
-            }
+            AppEvent::Bootstrap => self.handle_bootstrap(tx, cli).await?,
+            AppEvent::TickFrame => self.handle_tick_frame(),
+            AppEvent::TickRefresh => self.handle_tick_refresh(tx, cli).await?,
             AppEvent::ForceRedraw => {}
             AppEvent::Input(event) => self.handle_input(event, tx, cli).await?,
-            AppEvent::FetchStarted => {
-                self.fetch_in_flight = true;
-                self.loading_message = "Fetching weather...".to_string();
-                if self.weather.is_none() {
-                    self.mode = AppMode::Loading;
-                }
-                self.refresh_meta.last_attempt = Some(chrono::Utc::now());
+            AppEvent::FetchStarted => self.handle_fetch_started(),
+            AppEvent::GeocodeResolved(resolution) => {
+                self.handle_geocode_resolved(tx, resolution)?
             }
-            AppEvent::GeocodeResolved(resolution) => match resolution {
-                GeocodeResolution::Selected(location) => {
-                    self.selected_location = Some(location.clone());
-                    self.pending_locations.clear();
-                    self.fetch_forecast(tx, location)?;
-                }
-                GeocodeResolution::NeedsDisambiguation(locations) => {
-                    self.pending_locations = locations;
-                    self.fetch_in_flight = false;
-                    self.mode = AppMode::SelectingLocation;
-                    self.loading_message = "Choose a location (1-5)".to_string();
-                    self.city_picker_open = false;
-                }
-                GeocodeResolution::NotFound(city) => {
-                    self.fetch_in_flight = false;
-                    self.mode = AppMode::Error;
-                    self.last_error = Some(format!("No geocoding result for {city}"));
-                }
-            },
-            AppEvent::FetchSucceeded(bundle) => {
-                let location = bundle.location.clone();
-                self.fetch_in_flight = false;
-                self.weather = Some(bundle);
-                self.mode = AppMode::Ready;
-                self.last_error = None;
-                self.refresh_meta.mark_success();
-                self.backoff.reset();
-                self.hourly_offset = 0;
-                self.hourly_cursor = 0;
-                self.push_recent_location(&location);
-                self.persist_settings();
-                self.city_status = None;
-            }
-            AppEvent::FetchFailed(err) => {
-                self.fetch_in_flight = false;
-                self.last_error = Some(err);
-                self.mode = AppMode::Error;
-                self.city_status =
-                    Some("Search failed; keeping last successful weather".to_string());
-                self.refresh_meta.mark_failure();
-                self.refresh_meta.state = evaluate_freshness(
-                    self.refresh_meta.last_success,
-                    self.refresh_meta.consecutive_failures,
-                );
-                let delay = self.backoff.next_delay();
-                schedule_retry(tx.clone(), delay);
-            }
-            AppEvent::Demo(action) => {
-                self.handle_demo_action(action, tx).await?;
-            }
-            AppEvent::Quit => {
-                self.mode = AppMode::Quit;
-            }
+            AppEvent::FetchSucceeded(bundle) => self.handle_fetch_succeeded(bundle),
+            AppEvent::FetchFailed(err) => self.handle_fetch_failed(tx, err),
+            AppEvent::Demo(action) => self.handle_demo_action(action, tx).await?,
+            AppEvent::Quit => self.mode = AppMode::Quit,
         }
 
         Ok(())
+    }
+
+    async fn handle_bootstrap(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
+        cli.validate()?;
+        let frame_fps = match self.settings.motion {
+            MotionSetting::Full => cli.fps,
+            MotionSetting::Reduced => cli.fps.min(20),
+            MotionSetting::Off => 15,
+        };
+        start_frame_task(tx.clone(), frame_fps);
+        start_refresh_task(tx.clone(), self.settings.refresh_interval_secs);
+        if cli.demo {
+            start_demo_task(tx.clone());
+        }
+        self.start_fetch(tx, cli).await
+    }
+
+    fn handle_tick_frame(&mut self) {
+        let now = Instant::now();
+        let delta = now.duration_since(self.last_frame_at);
+        self.last_frame_at = now;
+        self.frame_tick = self.frame_tick.saturating_add(1);
+
+        self.particles.update(
+            self.weather
+                .as_ref()
+                .map(ForecastBundle::current_weather_code),
+            self.weather.as_ref().map(|w| w.current.wind_speed_10m),
+            self.weather.as_ref().map(|w| w.current.wind_direction_10m),
+            delta,
+        );
+        self.refresh_meta.state = evaluate_freshness(
+            self.refresh_meta.last_success,
+            self.refresh_meta.consecutive_failures,
+        );
+    }
+
+    async fn handle_tick_refresh(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
+        if matches!(
+            self.mode,
+            AppMode::Ready | AppMode::Error | AppMode::Loading
+        ) {
+            self.start_fetch(tx, cli).await?;
+        }
+        Ok(())
+    }
+
+    fn handle_fetch_started(&mut self) {
+        self.fetch_in_flight = true;
+        self.loading_message = "Fetching weather...".to_string();
+        if self.weather.is_none() {
+            self.mode = AppMode::Loading;
+        }
+        self.refresh_meta.last_attempt = Some(chrono::Utc::now());
+    }
+
+    fn handle_geocode_resolved(
+        &mut self,
+        tx: &mpsc::Sender<AppEvent>,
+        resolution: GeocodeResolution,
+    ) -> Result<()> {
+        match resolution {
+            GeocodeResolution::Selected(location) => {
+                self.selected_location = Some(location.clone());
+                self.pending_locations.clear();
+                self.fetch_forecast(tx, location)?;
+            }
+            GeocodeResolution::NeedsDisambiguation(locations) => {
+                self.pending_locations = locations;
+                self.fetch_in_flight = false;
+                self.mode = AppMode::SelectingLocation;
+                self.loading_message = "Choose a location (1-5)".to_string();
+                self.city_picker_open = false;
+            }
+            GeocodeResolution::NotFound(city) => {
+                self.fetch_in_flight = false;
+                self.mode = AppMode::Error;
+                self.last_error = Some(format!("No geocoding result for {city}"));
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_fetch_succeeded(&mut self, bundle: ForecastBundle) {
+        let location = bundle.location.clone();
+        self.fetch_in_flight = false;
+        self.weather = Some(bundle);
+        self.mode = AppMode::Ready;
+        self.last_error = None;
+        self.refresh_meta.mark_success();
+        self.backoff.reset();
+        self.hourly_offset = 0;
+        self.hourly_cursor = 0;
+        self.push_recent_location(&location);
+        self.persist_settings();
+        self.city_status = None;
+    }
+
+    fn handle_fetch_failed(&mut self, tx: &mpsc::Sender<AppEvent>, err: String) {
+        self.fetch_in_flight = false;
+        self.last_error = Some(err);
+        self.mode = AppMode::Error;
+        self.city_status = Some("Search failed; keeping last successful weather".to_string());
+        self.refresh_meta.mark_failure();
+        self.refresh_meta.state = evaluate_freshness(
+            self.refresh_meta.last_success,
+            self.refresh_meta.consecutive_failures,
+        );
+        let delay = self.backoff.next_delay();
+        schedule_retry(tx.clone(), delay);
     }
 
     async fn handle_input(
@@ -510,33 +529,6 @@ impl AppState {
             KeyCode::Esc => {
                 tx.send(AppEvent::Quit).await?;
             }
-            KeyCode::Char(_) if command_char_matches(key, 'q') => {
-                tx.send(AppEvent::Quit).await?;
-            }
-            KeyCode::Char(_) if command_char_matches(key, 's') => {
-                if self.mode != AppMode::SelectingLocation {
-                    self.open_settings_panel();
-                }
-            }
-            KeyCode::Char(_) if command_char_matches(key, 'l') => {
-                if self.mode != AppMode::SelectingLocation {
-                    self.open_city_picker();
-                }
-            }
-            KeyCode::Char(_) if command_char_matches(key, 'r') => {
-                self.start_fetch(tx, cli).await?;
-            }
-            KeyCode::Char(_) if command_char_matches(key, 'f') => {
-                self.set_units(Units::Fahrenheit);
-            }
-            KeyCode::Char(_) if command_char_matches(key, 'c') => {
-                self.set_units(Units::Celsius);
-            }
-            KeyCode::Char(_) if command_char_matches(key, 'v') => {
-                self.settings.hourly_view = cycle(&HOURLY_VIEW_OPTIONS, self.hourly_view_mode, 1);
-                self.apply_runtime_settings();
-                self.persist_settings();
-            }
             KeyCode::Left => {
                 self.move_hourly_cursor_left();
             }
@@ -544,15 +536,66 @@ impl AppState {
                 self.move_hourly_cursor_right();
             }
             KeyCode::Char(digit @ '1'..='5') if self.mode == AppMode::SelectingLocation => {
-                let idx = (digit as usize) - ('1' as usize);
-                if let Some(selected) = self.pending_locations.get(idx).cloned() {
-                    self.selected_location = Some(selected.clone());
-                    self.pending_locations.clear();
-                    self.mode = AppMode::Loading;
-                    self.fetch_forecast(tx, selected)?;
-                }
+                self.select_pending_location(tx, digit)?;
+            }
+            KeyCode::Char(_) => {
+                self.handle_char_command(key, tx, cli).await?;
             }
             _ => {}
+        }
+        Ok(())
+    }
+
+    async fn handle_char_command(
+        &mut self,
+        key: KeyEvent,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> Result<bool> {
+        if command_char_matches(key, 'q') {
+            tx.send(AppEvent::Quit).await?;
+            return Ok(true);
+        }
+        if command_char_matches(key, 's') {
+            if self.mode != AppMode::SelectingLocation {
+                self.open_settings_panel();
+            }
+            return Ok(true);
+        }
+        if command_char_matches(key, 'l') {
+            if self.mode != AppMode::SelectingLocation {
+                self.open_city_picker();
+            }
+            return Ok(true);
+        }
+        if command_char_matches(key, 'r') {
+            self.start_fetch(tx, cli).await?;
+            return Ok(true);
+        }
+        if command_char_matches(key, 'f') {
+            self.set_units(Units::Fahrenheit);
+            return Ok(true);
+        }
+        if command_char_matches(key, 'c') {
+            self.set_units(Units::Celsius);
+            return Ok(true);
+        }
+        if command_char_matches(key, 'v') {
+            self.settings.hourly_view = cycle(&HOURLY_VIEW_OPTIONS, self.hourly_view_mode, 1);
+            self.apply_runtime_settings();
+            self.persist_settings();
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    fn select_pending_location(&mut self, tx: &mpsc::Sender<AppEvent>, digit: char) -> Result<()> {
+        let idx = (digit as usize) - ('1' as usize);
+        if let Some(selected) = self.pending_locations.get(idx).cloned() {
+            self.selected_location = Some(selected.clone());
+            self.pending_locations.clear();
+            self.mode = AppMode::Loading;
+            self.fetch_forecast(tx, selected)?;
         }
         Ok(())
     }
