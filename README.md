@@ -1,5 +1,6 @@
 # terminal weather
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/8bd77baeca354648a78c37ad8f82edde)](https://app.codacy.com/gh/markpasternak/terminal-weather?utm_source=github.com&utm_medium=referral&utm_content=markpasternak/terminal-weather&utm_campaign=Badge_Grade)
 [![CI](https://github.com/markpasternak/terminal-weather/actions/workflows/ci.yml/badge.svg)](https://github.com/markpasternak/terminal-weather/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/markpasternak/terminal-weather?sort=semver)](https://github.com/markpasternak/terminal-weather/releases)
 [![License](https://img.shields.io/github/license/markpasternak/terminal-weather)](LICENSE)
