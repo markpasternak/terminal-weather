@@ -238,9 +238,10 @@ fn render_table_mode(
         rows.push(Row::new({
             let mut cells = vec![Cell::from("P mm").style(Style::default().fg(theme.muted_text))];
             cells.extend(slice.iter().map(|h| {
-                let text = h
-                    .precipitation_mm
-                    .map_or_else(|| "--.-".to_string(), |p| format!("{:>4.1}", p.max(0.0)));
+                let text = h.precipitation_mm.map_or_else(
+                    || "--.-".to_string(),
+                    |p| format!("{:>4.1}", sanitize_precip_mm(p)),
+                );
                 Cell::from(text).style(Style::default().fg(theme.info))
             }));
             cells
@@ -533,8 +534,11 @@ fn render_daypart_cards(
                     let prob = summary
                         .precip_probability_max
                         .map_or_else(|| "--".to_string(), |v| format!("{v:.0}%"));
-                    Cell::from(format!("{:.1}mm {prob}", summary.precip_sum_mm.max(0.0)))
-                        .style(Style::default().fg(theme.info))
+                    Cell::from(format!(
+                        "{:.1}mm {prob}",
+                        sanitize_precip_mm(summary.precip_sum_mm)
+                    ))
+                    .style(Style::default().fg(theme.info))
                 })
                 .collect::<Vec<_>>(),
         );
@@ -675,6 +679,15 @@ fn temp_range(summary: &DaypartSummary, units: Units) -> String {
             format!("{}°", round_temp(convert_temp(value, units)))
         }
         _ => "--".to_string(),
+    }
+}
+
+fn sanitize_precip_mm(value: f32) -> f32 {
+    let non_negative = value.max(0.0);
+    if non_negative == 0.0 {
+        0.0
+    } else {
+        non_negative
     }
 }
 
@@ -849,7 +862,7 @@ struct TimelineStats {
 
 #[cfg(test)]
 mod tests {
-    use super::effective_hourly_mode;
+    use super::{effective_hourly_mode, sanitize_precip_mm};
     use crate::domain::weather::HourlyViewMode;
     use ratatui::layout::Rect;
 
@@ -878,5 +891,12 @@ mod tests {
             effective_hourly_mode(HourlyViewMode::Chart, chart_too_short),
             HourlyViewMode::Table
         );
+    }
+
+    #[test]
+    fn sanitize_precip_normalizes_negative_zero() {
+        let value = sanitize_precip_mm(-0.0);
+        assert_eq!(value.to_bits(), 0.0f32.to_bits());
+        assert_eq!(format!("{value:.1}"), "0.0");
     }
 }
