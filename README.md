@@ -37,6 +37,10 @@
 - Persistent settings + recent city history (including clear-all from the city picker)
 - Built-in demo mode for deterministic showcases
 
+## What's New in v0.5.0
+- Release prep for Homebrew distribution via `cargo-dist`
+- Documentation and release command updates for `v0.5.0`
+
 ## What's New in v0.4.0
 - IP geolocation: no city argument → auto-detects your location via IP
 - Weather alerts banner between Current and Hourly panels when notable conditions are detected
@@ -85,7 +89,7 @@ rustup default stable
 cargo build --release
 ```
 
-Release tags follow `vMAJOR.MINOR.PATCH` (e.g. `v0.4.0`).
+Release tags follow `vMAJOR.MINOR.PATCH` (e.g. `v0.5.0`).
 
 ## Run
 ```bash
@@ -317,8 +321,8 @@ One-time setup:
 
 Release:
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 The GitHub workflow at `.github/workflows/release.yml` publishes release artifacts and updates the Homebrew formula in the tap.
