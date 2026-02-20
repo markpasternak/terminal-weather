@@ -347,83 +347,72 @@ pub fn weather_label_for_time(code: u8, is_day: bool) -> &'static str {
                 "Mainly clear night"
             }
         }
-        2 => "Partly cloudy",
-        3 => "Overcast",
-        45 => "Fog",
-        48 => "Depositing rime fog",
-        51 => "Light drizzle",
-        53 => "Moderate drizzle",
-        55 => "Dense drizzle",
-        56 => "Light freezing drizzle",
-        57 => "Dense freezing drizzle",
-        61 => "Slight rain",
-        63 => "Moderate rain",
-        65 => "Heavy rain",
-        66 => "Light freezing rain",
-        67 => "Heavy freezing rain",
-        71 => "Slight snowfall",
-        73 => "Moderate snowfall",
-        75 => "Heavy snowfall",
-        77 => "Snow grains",
-        80 => "Slight rain showers",
-        81 => "Moderate rain showers",
-        82 => "Violent rain showers",
-        85 => "Slight snow showers",
-        86 => "Heavy snow showers",
-        95 => "Thunderstorm",
-        96 => "Thunderstorm + light hail",
-        99 => "Thunderstorm + heavy hail",
-        _ => "Unknown",
+        _ => weather_label_lookup(code).unwrap_or("Unknown"),
     }
 }
 
 pub fn weather_icon(code: u8, mode: IconMode, is_day: bool) -> &'static str {
+    let (ascii, emoji, unicode) = icon_tokens(weather_code_to_category(code), is_day);
     match mode {
-        IconMode::Ascii => match code {
-            0 | 1 => {
-                if is_day {
-                    "SUN"
-                } else {
-                    "MON"
-                }
+        IconMode::Ascii => ascii,
+        IconMode::Emoji => emoji,
+        IconMode::Unicode => unicode,
+    }
+}
+
+const WEATHER_LABELS: &[(u8, &str)] = &[
+    (2, "Partly cloudy"),
+    (3, "Overcast"),
+    (45, "Fog"),
+    (48, "Depositing rime fog"),
+    (51, "Light drizzle"),
+    (53, "Moderate drizzle"),
+    (55, "Dense drizzle"),
+    (56, "Light freezing drizzle"),
+    (57, "Dense freezing drizzle"),
+    (61, "Slight rain"),
+    (63, "Moderate rain"),
+    (65, "Heavy rain"),
+    (66, "Light freezing rain"),
+    (67, "Heavy freezing rain"),
+    (71, "Slight snowfall"),
+    (73, "Moderate snowfall"),
+    (75, "Heavy snowfall"),
+    (77, "Snow grains"),
+    (80, "Slight rain showers"),
+    (81, "Moderate rain showers"),
+    (82, "Violent rain showers"),
+    (85, "Slight snow showers"),
+    (86, "Heavy snow showers"),
+    (95, "Thunderstorm"),
+    (96, "Thunderstorm + light hail"),
+    (99, "Thunderstorm + heavy hail"),
+];
+
+fn weather_label_lookup(code: u8) -> Option<&'static str> {
+    WEATHER_LABELS
+        .iter()
+        .find_map(|(candidate, label)| (*candidate == code).then_some(*label))
+}
+
+fn icon_tokens(
+    category: WeatherCategory,
+    is_day: bool,
+) -> (&'static str, &'static str, &'static str) {
+    match category {
+        WeatherCategory::Clear => {
+            if is_day {
+                ("SUN", "☀️", "☀")
+            } else {
+                ("MON", "🌙", "☾")
             }
-            2 | 3 => "CLD",
-            45 | 48 => "FOG",
-            51..=57 | 61..=67 | 80..=82 => "RAN",
-            71..=77 | 85..=86 => "SNW",
-            95 | 96 | 99 => "THN",
-            _ => "---",
-        },
-        IconMode::Emoji => match code {
-            0 | 1 => {
-                if is_day {
-                    "☀️"
-                } else {
-                    "🌙"
-                }
-            }
-            2 | 3 => "☁️",
-            45 | 48 => "🌫️",
-            51..=57 | 61..=67 | 80..=82 => "🌧️",
-            71..=77 | 85..=86 => "🌨️",
-            95 | 96 | 99 => "⛈️",
-            _ => "☁️",
-        },
-        IconMode::Unicode => match code {
-            0 | 1 => {
-                if is_day {
-                    "☀"
-                } else {
-                    "☾"
-                }
-            }
-            2 | 3 => "☁",
-            45 | 48 => "░",
-            51..=57 | 61..=67 | 80..=82 => "☂",
-            71..=77 | 85..=86 => "❄",
-            95 | 96 | 99 => "⚡",
-            _ => "☁",
-        },
+        }
+        WeatherCategory::Cloudy => ("CLD", "☁️", "☁"),
+        WeatherCategory::Rain => ("RAN", "🌧️", "☂"),
+        WeatherCategory::Snow => ("SNW", "🌨️", "❄"),
+        WeatherCategory::Fog => ("FOG", "🌫️", "░"),
+        WeatherCategory::Thunder => ("THN", "⛈️", "⚡"),
+        WeatherCategory::Unknown => ("---", "☁️", "☁"),
     }
 }
 
