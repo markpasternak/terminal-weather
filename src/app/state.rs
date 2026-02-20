@@ -131,8 +131,7 @@ impl AppState {
         let reduced = matches!(settings.motion, MotionSetting::Reduced);
         let runtime_hourly_view = cli
             .hourly_view
-            .map(hourly_view_from_cli)
-            .unwrap_or(settings.hourly_view);
+            .map_or(settings.hourly_view, hourly_view_from_cli);
 
         Self {
             mode: AppMode::Loading,
@@ -428,13 +427,13 @@ impl AppState {
     ) -> Result<()> {
         match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
-                if matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+                if matches!(key.code, KeyCode::Char('c' | 'C'))
                     && key.modifiers.contains(KeyModifiers::CONTROL)
                 {
                     tx.send(AppEvent::Quit).await?;
                     return Ok(());
                 }
-                if matches!(key.code, KeyCode::Char('l') | KeyCode::Char('L'))
+                if matches!(key.code, KeyCode::Char('l' | 'L'))
                     && key.modifiers.contains(KeyModifiers::CONTROL)
                 {
                     tx.send(AppEvent::ForceRedraw).await?;
@@ -465,16 +464,6 @@ impl AppState {
                     }
                     KeyCode::Char(_) if command_char_matches(key, 'q') => {
                         tx.send(AppEvent::Quit).await?;
-                    }
-                    KeyCode::Char('c') | KeyCode::Char('C')
-                        if key.modifiers.contains(KeyModifiers::CONTROL) =>
-                    {
-                        tx.send(AppEvent::Quit).await?;
-                    }
-                    KeyCode::Char('l') | KeyCode::Char('L')
-                        if key.modifiers.contains(KeyModifiers::CONTROL) =>
-                    {
-                        tx.send(AppEvent::ForceRedraw).await?;
                     }
                     KeyCode::Char(_)
                         if command_char_matches(key, 's')
@@ -612,14 +601,10 @@ impl AppState {
             KeyCode::Esc | KeyCode::F(1) | KeyCode::Char('?') => {
                 self.help_open = false;
             }
-            KeyCode::Char('c') | KeyCode::Char('C')
-                if key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
+            KeyCode::Char('c' | 'C') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 tx.send(AppEvent::Quit).await?;
             }
-            KeyCode::Char('l') | KeyCode::Char('L')
-                if key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
+            KeyCode::Char('l' | 'L') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 tx.send(AppEvent::ForceRedraw).await?;
             }
             _ => {}
@@ -756,7 +741,6 @@ impl AppState {
                 );
                 changed = true;
             }
-            SETTINGS_REFRESH_NOW | SETTINGS_CLOSE => {}
             _ => {}
         }
 
@@ -1016,10 +1000,15 @@ fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
     if values.is_empty() {
         return current;
     }
-    let idx = values.iter().position(|v| *v == current).unwrap_or(0) as i32;
-    let step = if direction >= 0 { 1 } else { -1 };
-    let len = values.len() as i32;
-    let next = (idx + step).rem_euclid(len) as usize;
+    let idx = values.iter().position(|v| *v == current).unwrap_or(0);
+    let len = values.len();
+    let next = if direction >= 0 {
+        (idx + 1) % len
+    } else if idx == 0 {
+        len - 1
+    } else {
+        idx - 1
+    };
     values[next]
 }
 
