@@ -72,7 +72,39 @@ pub fn render_weather_info_expanded(
     code: u8,
 ) {
     let scale = HeroScale::for_area(area);
-    let sections = if area.height >= 20 {
+    let sections = expanded_sections(area);
+    let top_area = sections[0];
+    let metrics_area = sections[1];
+    let trend_area = sections[2];
+
+    let top_data = build_expanded_top_data(state, weather, theme, code);
+    let metrics_data = build_expanded_metrics_data(state, weather);
+
+    let trends_data = collect_trend_series(weather, state.units, trend_area, scale);
+
+    frame.render_widget(
+        Paragraph::new(build_expanded_top_lines(&top_data, theme)),
+        top_area,
+    );
+
+    let metric_cols = metric_sections(metrics_area, scale);
+    let (left_metrics, right_metrics) = build_expanded_metric_lines(&metrics_data, theme);
+    frame.render_widget(Paragraph::new(left_metrics), metric_cols[0]);
+    frame.render_widget(Paragraph::new(right_metrics), metric_cols[1]);
+
+    frame.render_widget(
+        Paragraph::new(build_expanded_trend_lines(
+            &trends_data,
+            trend_area.height,
+            weather,
+            theme,
+        )),
+        trend_area,
+    );
+}
+
+fn expanded_sections(area: Rect) -> std::rc::Rc<[Rect]> {
+    if area.height >= 20 {
         Layout::vertical([
             Constraint::Length(6),
             Constraint::Length(5),
@@ -86,12 +118,26 @@ pub fn render_weather_info_expanded(
             Constraint::Min(3),
         ])
         .split(area)
-    };
-    let top_area = sections[0];
-    let metrics_area = sections[1];
-    let trend_area = sections[2];
+    }
+}
 
-    let top_data = ExpandedTopData {
+fn metric_sections(metrics_area: Rect, scale: HeroScale) -> std::rc::Rc<[Rect]> {
+    Layout::horizontal(if matches!(scale, HeroScale::Deluxe) {
+        [Constraint::Percentage(46), Constraint::Percentage(54)]
+    } else {
+        [Constraint::Percentage(50), Constraint::Percentage(50)]
+    })
+    .split(metrics_area)
+}
+
+fn build_expanded_top_data(
+    state: &AppState,
+    weather: &ForecastBundle,
+    theme: Theme,
+    code: u8,
+) -> ExpandedTopData {
+    let (freshness, freshness_color) = freshness_status(state, theme);
+    ExpandedTopData {
         temp: weather.current_temp(state.units),
         unit_symbol: if state.units == crate::domain::weather::Units::Celsius {
             "C"
@@ -102,32 +148,40 @@ pub fn render_weather_info_expanded(
         condition_color: condition_color(&theme, weather_code_to_category(code)),
         location: weather.location.display_name(),
         high_low: weather.high_low(state.units),
-        freshness: match state.refresh_meta.state {
-            crate::resilience::freshness::FreshnessState::Fresh => "Fresh",
-            crate::resilience::freshness::FreshnessState::Stale => "⚠ Stale",
-            crate::resilience::freshness::FreshnessState::Offline => "⚠ Offline",
-        },
-        freshness_color: match state.refresh_meta.state {
-            crate::resilience::freshness::FreshnessState::Fresh => theme.success,
-            crate::resilience::freshness::FreshnessState::Stale => theme.warning,
-            crate::resilience::freshness::FreshnessState::Offline => theme.danger,
-        },
-        updated: state
-            .refresh_meta
-            .last_success
-            .map(|ts| {
-                let local = ts.with_timezone(&Local);
-                let mins = state.refresh_meta.age_minutes().unwrap_or(0);
-                format!(
-                    "Last updated {} ({}m ago)",
-                    local.format("%H:%M"),
-                    mins.max(0)
-                )
-            })
-            .unwrap_or_else(|| "Last updated --:--".to_string()),
-    };
+        freshness,
+        freshness_color,
+        updated: last_updated_label(state),
+    }
+}
 
-    let metrics_data = ExpandedMetricsData {
+fn freshness_status(state: &AppState, theme: Theme) -> (&'static str, Color) {
+    match state.refresh_meta.state {
+        crate::resilience::freshness::FreshnessState::Fresh => ("Fresh", theme.success),
+        crate::resilience::freshness::FreshnessState::Stale => ("⚠ Stale", theme.warning),
+        crate::resilience::freshness::FreshnessState::Offline => ("⚠ Offline", theme.danger),
+    }
+}
+
+fn last_updated_label(state: &AppState) -> String {
+    state
+        .refresh_meta
+        .last_success
+        .map(|ts| {
+            let local = ts.with_timezone(&Local);
+            let mins = state.refresh_meta.age_minutes().unwrap_or(0);
+            format!(
+                "Last updated {} ({}m ago)",
+                local.format("%H:%M"),
+                mins.max(0)
+            )
+        })
+        .unwrap_or_else(|| "Last updated --:--".to_string())
+}
+
+fn build_expanded_metrics_data(state: &AppState, weather: &ForecastBundle) -> ExpandedMetricsData {
+    let (cloud_low, cloud_mid, cloud_high) =
+        cloud_layers_from_hourly(&weather.hourly).unwrap_or((None, None, None));
+    ExpandedMetricsData {
         feels: round_temp(convert_temp(
             weather.current.apparent_temperature_c,
             state.units,
@@ -141,11 +195,7 @@ pub fn render_weather_info_expanded(
         pressure_trend: pressure_trend_marker(&weather.hourly),
         humidity: weather.current.relative_humidity_2m.round() as i32,
         cloud_total: weather.current.cloud_cover.round() as i32,
-        cloud_split: {
-            let (cloud_low, cloud_mid, cloud_high) =
-                cloud_layers_from_hourly(&weather.hourly).unwrap_or((None, None, None));
-            format_cloud_layers(cloud_low, cloud_mid, cloud_high)
-        },
+        cloud_split: format_cloud_layers(cloud_low, cloud_mid, cloud_high),
         uv_today: weather
             .daily
             .first()
@@ -164,34 +214,7 @@ pub fn render_weather_info_expanded(
             .and_then(|d| d.sunset)
             .map(|t| t.format("%H:%M").to_string())
             .unwrap_or_else(|| "--:--".to_string()),
-    };
-
-    let trends_data = collect_trend_series(weather, state.units, trend_area, scale);
-
-    frame.render_widget(
-        Paragraph::new(build_expanded_top_lines(&top_data, theme)),
-        top_area,
-    );
-
-    let metric_cols = Layout::horizontal(if matches!(scale, HeroScale::Deluxe) {
-        [Constraint::Percentage(46), Constraint::Percentage(54)]
-    } else {
-        [Constraint::Percentage(50), Constraint::Percentage(50)]
-    })
-    .split(metrics_area);
-    let (left_metrics, right_metrics) = build_expanded_metric_lines(&metrics_data, theme);
-    frame.render_widget(Paragraph::new(left_metrics), metric_cols[0]);
-    frame.render_widget(Paragraph::new(right_metrics), metric_cols[1]);
-
-    frame.render_widget(
-        Paragraph::new(build_expanded_trend_lines(
-            &trends_data,
-            trend_area.height,
-            weather,
-            theme,
-        )),
-        trend_area,
-    );
+    }
 }
 
 fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'static>> {

@@ -21,30 +21,11 @@ pub fn scene_for_sky_observatory(
     }
 
     let mut canvas = vec![vec![' '; w]; h];
-    let arc_top = 1usize;
-    let arc_bottom = (h.saturating_mul(55) / 100).clamp(4, h.saturating_sub(4));
-    let mid = (w.saturating_sub(1)) as f32 / 2.0;
-    let radius = (w as f32 * 0.46).max(1.0);
+    let (arc_top, arc_bottom) = arc_bounds(h);
+    draw_arc(&mut canvas, w, arc_top, arc_bottom);
 
-    for x in 0..w {
-        let dx = (x as f32 - mid) / radius;
-        let y = (arc_bottom as f32 - (1.0 - dx * dx).max(0.0) * (arc_bottom - arc_top) as f32)
-            .round()
-            .clamp(arc_top as f32, arc_bottom as f32) as usize;
-        canvas[y][x] = '·';
-    }
-
-    let (sunrise_h, sunset_h) = bundle.daily.first().map_or((6.0, 18.0), |day| {
-        (
-            day.sunrise.map_or(6.0, |t| hm_to_hour_f32(&t)),
-            day.sunset.map_or(18.0, |t| hm_to_hour_f32(&t)),
-        )
-    });
-
-    let now_h = bundle
-        .hourly
-        .first()
-        .map_or(12.0, |hour| hm_to_hour_f32(&hour.time));
+    let (sunrise_h, sunset_h) = sun_window(bundle);
+    let now_h = current_hour(bundle);
     let day_span = (sunset_h - sunrise_h).max(0.1);
     let progress = ((now_h - sunrise_h) / day_span).clamp(0.0, 1.0);
     let marker_x = (progress * (w.saturating_sub(1)) as f32).round() as usize;
@@ -59,76 +40,158 @@ pub fn scene_for_sky_observatory(
         w,
         h,
     );
-    if marker_x > 0 {
-        let y = locate_arc_y(0, w, arc_top, arc_bottom);
-        canvas[y][0] = 'E';
-    }
-    if w > 1 {
-        let y = locate_arc_y(w - 1, w, arc_top, arc_bottom);
-        canvas[y][w - 1] = 'W';
-    }
-
-    if !bundle.current.is_day {
-        let star_count = (w / 5).max(6);
-        let phase = if animate { frame_tick as usize } else { 0 };
-        for i in 0..star_count {
-            let x = ((i * 7 + phase) % w).min(w - 1);
-            let y = 1 + ((i * 5 + phase) % arc_bottom.max(2));
-            if canvas[y][x] == ' ' {
-                canvas[y][x] = if i % 2 == 0 { '*' } else { '·' };
-            }
-        }
-    }
+    paint_cardinal_markers(&mut canvas, w, arc_top, arc_bottom, marker_x);
+    paint_night_stars(
+        &mut canvas,
+        w,
+        arc_bottom,
+        bundle.current.is_day,
+        animate,
+        frame_tick,
+    );
 
     let strip_y = h.saturating_sub(3);
     let precip_y = h.saturating_sub(2);
     let summary_y = h.saturating_sub(1);
-    let horizon = '─';
-    for cell in canvas[strip_y.saturating_sub(1)].iter_mut().take(w) {
-        if *cell == ' ' {
-            *cell = horizon;
-        }
-    }
-
-    let slice = bundle.hourly.iter().take(w.min(24)).collect::<Vec<_>>();
-    for (i, hour) in slice.iter().enumerate() {
-        let x = ((i as f32 / slice.len().max(1) as f32) * (w.saturating_sub(1)) as f32).round()
-            as usize;
-        let code = hour.weather_code.unwrap_or(bundle.current.weather_code);
-        canvas[strip_y][x] = symbol_for_code(code);
-        if let Some(mm) = hour.precipitation_mm {
-            canvas[precip_y][x] = if mm >= 2.5 {
-                '█'
-            } else if mm >= 1.0 {
-                '▓'
-            } else if mm >= 0.2 {
-                '▒'
-            } else if mm > 0.0 {
-                '░'
-            } else {
-                '·'
-            };
-        } else {
-            canvas[precip_y][x] = '·';
-        }
-    }
-
-    let sunrise_txt = format_time_hm(sunrise_h);
-    let sunset_txt = format_time_hm(sunset_h);
-    let summary = format!(
-        "sun {} -> {}  now {}",
-        sunrise_txt,
-        sunset_txt,
-        format_time_hm(now_h)
-    );
-    for (idx, ch) in summary.chars().enumerate().take(w) {
-        canvas[summary_y][idx] = ch;
-    }
+    paint_horizon_strip(&mut canvas, strip_y, w);
+    plot_hourly_strip(bundle, &mut canvas, strip_y, precip_y, w);
+    write_summary_line(&mut canvas, summary_y, w, sunrise_h, sunset_h, now_h);
 
     LandmarkScene {
         label: "Sky Observatory · Sun/Moon Arc".to_string(),
         lines: canvas_to_lines(canvas, w),
         tint: tint_for_category(category),
+    }
+}
+
+fn arc_bounds(height: usize) -> (usize, usize) {
+    (
+        1usize,
+        (height.saturating_mul(55) / 100).clamp(4, height.saturating_sub(4)),
+    )
+}
+
+#[allow(clippy::needless_range_loop)]
+fn draw_arc(canvas: &mut [Vec<char>], width: usize, top: usize, bottom: usize) {
+    for x in 0..width {
+        let y = locate_arc_y(x, width, top, bottom);
+        canvas[y][x] = '·';
+    }
+}
+
+fn sun_window(bundle: &ForecastBundle) -> (f32, f32) {
+    bundle.daily.first().map_or((6.0, 18.0), |day| {
+        (
+            day.sunrise.map_or(6.0, |t| hm_to_hour_f32(&t)),
+            day.sunset.map_or(18.0, |t| hm_to_hour_f32(&t)),
+        )
+    })
+}
+
+fn current_hour(bundle: &ForecastBundle) -> f32 {
+    bundle
+        .hourly
+        .first()
+        .map_or(12.0, |hour| hm_to_hour_f32(&hour.time))
+}
+
+fn paint_cardinal_markers(
+    canvas: &mut [Vec<char>],
+    width: usize,
+    top: usize,
+    bottom: usize,
+    marker_x: usize,
+) {
+    if marker_x > 0 {
+        let y = locate_arc_y(0, width, top, bottom);
+        canvas[y][0] = 'E';
+    }
+    if width > 1 {
+        let y = locate_arc_y(width - 1, width, top, bottom);
+        canvas[y][width - 1] = 'W';
+    }
+}
+
+fn paint_night_stars(
+    canvas: &mut [Vec<char>],
+    width: usize,
+    arc_bottom: usize,
+    is_day: bool,
+    animate: bool,
+    frame_tick: u64,
+) {
+    if is_day {
+        return;
+    }
+    let star_count = (width / 5).max(6);
+    let phase = if animate { frame_tick as usize } else { 0 };
+    for i in 0..star_count {
+        let x = ((i * 7 + phase) % width).min(width - 1);
+        let y = 1 + ((i * 5 + phase) % arc_bottom.max(2));
+        if canvas[y][x] == ' ' {
+            canvas[y][x] = if i % 2 == 0 { '*' } else { '·' };
+        }
+    }
+}
+
+fn paint_horizon_strip(canvas: &mut [Vec<char>], strip_y: usize, width: usize) {
+    for cell in canvas[strip_y.saturating_sub(1)].iter_mut().take(width) {
+        if *cell == ' ' {
+            *cell = '─';
+        }
+    }
+}
+
+fn plot_hourly_strip(
+    bundle: &ForecastBundle,
+    canvas: &mut [Vec<char>],
+    strip_y: usize,
+    precip_y: usize,
+    width: usize,
+) {
+    let slice = bundle.hourly.iter().take(width.min(24)).collect::<Vec<_>>();
+    for (i, hour) in slice.iter().enumerate() {
+        let x = ((i as f32 / slice.len().max(1) as f32) * (width.saturating_sub(1)) as f32).round()
+            as usize;
+        let code = hour.weather_code.unwrap_or(bundle.current.weather_code);
+        canvas[strip_y][x] = symbol_for_code(code);
+        canvas[precip_y][x] = precip_symbol(hour.precipitation_mm);
+    }
+}
+
+fn precip_symbol(mm: Option<f32>) -> char {
+    let Some(mm) = mm else {
+        return '·';
+    };
+    if mm >= 2.5 {
+        '█'
+    } else if mm >= 1.0 {
+        '▓'
+    } else if mm >= 0.2 {
+        '▒'
+    } else if mm > 0.0 {
+        '░'
+    } else {
+        '·'
+    }
+}
+
+fn write_summary_line(
+    canvas: &mut [Vec<char>],
+    summary_y: usize,
+    width: usize,
+    sunrise_h: f32,
+    sunset_h: f32,
+    now_h: f32,
+) {
+    let summary = format!(
+        "sun {} -> {}  now {}",
+        format_time_hm(sunrise_h),
+        format_time_hm(sunset_h),
+        format_time_hm(now_h)
+    );
+    for (idx, ch) in summary.chars().enumerate().take(width) {
+        canvas[summary_y][idx] = ch;
     }
 }
 

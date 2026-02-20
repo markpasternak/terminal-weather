@@ -2,14 +2,16 @@ use chrono::Local;
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
 
 use crate::{
     app::state::{AppMode, AppState},
-    domain::weather::{convert_temp, round_temp, weather_code_to_category, weather_label_for_time},
+    domain::weather::{
+        ForecastBundle, convert_temp, round_temp, weather_code_to_category, weather_label_for_time,
+    },
     ui::theme::{Theme, condition_color},
 };
 
@@ -66,203 +68,272 @@ pub fn render_weather_info(
     code: u8,
 ) {
     let scale = HeroScale::for_area(area);
-    let mut lines = Vec::new();
-    let compact_metrics = scale.compact_metrics();
-    let text_color = theme.text;
-    let muted_color = theme.muted_text;
-
     if let Some(weather) = &state.weather {
         if area.height >= 13 && area.width >= 48 {
             render_weather_info_expanded(frame, area, state, theme, weather, code);
             return;
         }
+        let lines = build_weather_lines(state, weather, theme, code, scale);
+        frame.render_widget(Paragraph::new(lines), area);
+        return;
+    }
 
-        let temp = weather.current_temp(state.units);
-        let unit_symbol = if state.units == crate::domain::weather::Units::Celsius {
-            "C"
-        } else {
-            "F"
-        };
-        let metric_gap = scale.metric_gap();
-        if matches!(scale, HeroScale::Deluxe) {
-            lines.push(Line::from(vec![
-                Span::styled(
-                    format!("{temp}°{unit_symbol}"),
-                    Style::default().fg(text_color).add_modifier(Modifier::BOLD),
-                ),
-                Span::raw("  ·  "),
-                Span::styled(
-                    weather_label_for_time(code, weather.current.is_day),
-                    Style::default()
-                        .fg(condition_color(&theme, weather_code_to_category(code)))
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ]));
-        } else {
-            lines.push(Line::from(vec![Span::styled(
-                format!("{temp}°{unit_symbol}"),
-                Style::default().fg(text_color).add_modifier(Modifier::BOLD),
-            )]));
-            lines.push(Line::from(Span::styled(
-                weather_label_for_time(code, weather.current.is_day),
-                Style::default()
-                    .fg(condition_color(&theme, weather_code_to_category(code)))
-                    .add_modifier(Modifier::BOLD),
-            )));
-        }
-        if let Some((high, low)) = weather.high_low(state.units) {
-            lines.push(Line::from(Span::styled(
-                format!("H:{high}°  L:{low}°"),
-                Style::default().fg(text_color),
-            )));
-        }
+    if state.mode == AppMode::Error {
+        frame.render_widget(Paragraph::new(build_error_lines(state, theme)), area);
+    } else {
+        render_loading_choreography(frame, area, state, theme, scale);
+    }
+}
+
+#[derive(Debug)]
+struct WeatherMetricsData {
+    feels: i32,
+    humidity: i32,
+    dew: i32,
+    wind_dir: &'static str,
+    wind: i32,
+    gust: i32,
+    visibility: String,
+    pressure: i32,
+    pressure_trend: &'static str,
+    uv_today: String,
+    cloud_total: i32,
+    cloud_split: String,
+}
+
+fn build_weather_lines(
+    state: &AppState,
+    weather: &ForecastBundle,
+    theme: Theme,
+    code: u8,
+    scale: HeroScale,
+) -> Vec<Line<'static>> {
+    let mut lines = build_header_lines(state, weather, theme, code, scale);
+    let metrics = collect_weather_metrics(state, weather);
+    if scale.compact_metrics() {
+        push_compact_metric_lines(&mut lines, &metrics, theme, scale.metric_gap());
+    } else {
+        push_standard_metric_lines(&mut lines, &metrics, theme, scale.metric_gap());
+    }
+    if let Some((flag, color)) = freshness_flag(state, theme) {
         lines.push(Line::from(Span::styled(
-            weather.location.display_name(),
-            Style::default().fg(text_color),
+            flag,
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
         )));
+    }
+    lines.push(Line::from(Span::styled(
+        last_updated_label(state),
+        Style::default().fg(theme.muted_text),
+    )));
+    lines
+}
 
-        let feels = round_temp(convert_temp(
+fn build_header_lines(
+    state: &AppState,
+    weather: &ForecastBundle,
+    theme: Theme,
+    code: u8,
+    scale: HeroScale,
+) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    let temp = weather.current_temp(state.units);
+    let unit_symbol = if state.units == crate::domain::weather::Units::Celsius {
+        "C"
+    } else {
+        "F"
+    };
+    let weather_label = weather_label_for_time(code, weather.current.is_day);
+    let weather_color = condition_color(&theme, weather_code_to_category(code));
+    if matches!(scale, HeroScale::Deluxe) {
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("{temp}°{unit_symbol}"),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  ·  "),
+            Span::styled(
+                weather_label,
+                Style::default()
+                    .fg(weather_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+    } else {
+        lines.push(Line::from(vec![Span::styled(
+            format!("{temp}°{unit_symbol}"),
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        )]));
+        lines.push(Line::from(Span::styled(
+            weather_label,
+            Style::default()
+                .fg(weather_color)
+                .add_modifier(Modifier::BOLD),
+        )));
+    }
+    if let Some((high, low)) = weather.high_low(state.units) {
+        lines.push(Line::from(Span::styled(
+            format!("H:{high}°  L:{low}°"),
+            Style::default().fg(theme.text),
+        )));
+    }
+    lines.push(Line::from(Span::styled(
+        weather.location.display_name(),
+        Style::default().fg(theme.text),
+    )));
+    lines
+}
+
+fn collect_weather_metrics(state: &AppState, weather: &ForecastBundle) -> WeatherMetricsData {
+    let (cloud_low, cloud_mid, cloud_high) =
+        cloud_layers_from_hourly(&weather.hourly).unwrap_or((None, None, None));
+    WeatherMetricsData {
+        feels: round_temp(convert_temp(
             weather.current.apparent_temperature_c,
             state.units,
-        ));
-        let humidity = weather.current.relative_humidity_2m.round() as i32;
-        let dew = round_temp(convert_temp(weather.current.dew_point_2m_c, state.units));
-        let wind_dir = compass(weather.current.wind_direction_10m);
-        let wind = weather.current.wind_speed_10m.round() as i32;
-        let gust = weather.current.wind_gusts_10m.round() as i32;
-        let visibility = format_visibility(weather.current.visibility_m);
-        let pressure = weather.current.pressure_msl_hpa.round() as i32;
-        let pressure_trend = pressure_trend_marker(&weather.hourly);
-        let uv_today = weather
+        )),
+        humidity: weather.current.relative_humidity_2m.round() as i32,
+        dew: round_temp(convert_temp(weather.current.dew_point_2m_c, state.units)),
+        wind_dir: compass(weather.current.wind_direction_10m),
+        wind: weather.current.wind_speed_10m.round() as i32,
+        gust: weather.current.wind_gusts_10m.round() as i32,
+        visibility: format_visibility(weather.current.visibility_m),
+        pressure: weather.current.pressure_msl_hpa.round() as i32,
+        pressure_trend: pressure_trend_marker(&weather.hourly),
+        uv_today: weather
             .daily
             .first()
             .and_then(|d| d.uv_index_max)
             .map(|v| format!("{v:.1}"))
-            .unwrap_or_else(|| "--".to_string());
-        let cloud_total = weather.current.cloud_cover.round() as i32;
-        let (cloud_low, cloud_mid, cloud_high) =
-            cloud_layers_from_hourly(&weather.hourly).unwrap_or((None, None, None));
-        let cloud_split = format_cloud_layers(cloud_low, cloud_mid, cloud_high);
-
-        if compact_metrics {
-            lines.push(Line::from(vec![
-                Span::styled("Wind ", Style::default().fg(muted_color)),
-                Span::styled(
-                    format!("{wind}/{gust} km/h {wind_dir}"),
-                    Style::default().fg(theme.success),
-                ),
-                Span::raw(metric_gap),
-                Span::styled("Visibility ", Style::default().fg(muted_color)),
-                Span::styled(visibility, Style::default().fg(theme.accent)),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("Pressure ", Style::default().fg(muted_color)),
-                Span::styled(
-                    format!("{pressure}{pressure_trend}"),
-                    Style::default().fg(theme.warning),
-                ),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("Dew ", Style::default().fg(muted_color)),
-                Span::styled(format!("{dew}°"), Style::default().fg(theme.text)),
-                Span::raw(metric_gap),
-                Span::styled("Humidity ", Style::default().fg(muted_color)),
-                Span::styled(format!("{humidity}%"), Style::default().fg(theme.info)),
-            ]));
-        } else {
-            lines.push(Line::from(vec![
-                Span::styled("Feels ", Style::default().fg(muted_color)),
-                Span::styled(format!("{feels}°"), Style::default().fg(text_color)),
-                Span::raw(metric_gap),
-                Span::styled("Dew ", Style::default().fg(muted_color)),
-                Span::styled(format!("{dew}°"), Style::default().fg(theme.info)),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("Wind ", Style::default().fg(muted_color)),
-                Span::styled(
-                    format!("{wind}/{gust} km/h {wind_dir}"),
-                    Style::default().fg(theme.success),
-                ),
-                Span::raw(metric_gap),
-                Span::styled("Visibility ", Style::default().fg(muted_color)),
-                Span::styled(visibility, Style::default().fg(theme.accent)),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("Pressure ", Style::default().fg(muted_color)),
-                Span::styled(
-                    format!("{pressure}hPa{pressure_trend}"),
-                    Style::default().fg(theme.warning),
-                ),
-                Span::raw(metric_gap),
-                Span::styled("Humidity ", Style::default().fg(muted_color)),
-                Span::styled(format!("{humidity}%"), Style::default().fg(theme.info)),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("Cloud ", Style::default().fg(muted_color)),
-                Span::styled(
-                    format!("{cloud_total}%"),
-                    Style::default().fg(theme.landmark_neutral),
-                ),
-                Span::raw(" "),
-                Span::styled(cloud_split, Style::default().fg(theme.muted_text)),
-                Span::raw(metric_gap),
-                Span::styled("UV ", Style::default().fg(muted_color)),
-                Span::styled(uv_today, Style::default().fg(theme.warning)),
-            ]));
-        }
-
-        let freshness = match state.refresh_meta.state {
-            crate::resilience::freshness::FreshnessState::Fresh => None,
-            crate::resilience::freshness::FreshnessState::Stale => Some("⚠ stale"),
-            crate::resilience::freshness::FreshnessState::Offline => Some("⚠ offline"),
-        };
-
-        if let Some(flag) = freshness {
-            lines.push(Line::from(Span::styled(
-                flag,
-                Style::default()
-                    .fg(match state.refresh_meta.state {
-                        crate::resilience::freshness::FreshnessState::Offline => theme.danger,
-                        _ => theme.warning,
-                    })
-                    .add_modifier(Modifier::BOLD),
-            )));
-        }
-
-        let updated = state
-            .refresh_meta
-            .last_success
-            .map(|ts| {
-                let local = ts.with_timezone(&Local);
-                let mins = state.refresh_meta.age_minutes().unwrap_or(0);
-                format!(
-                    "Last updated: {} ({}m ago)",
-                    local.format("%H:%M"),
-                    mins.max(0)
-                )
-            })
-            .unwrap_or_else(|| "Last updated: --:--".to_string());
-        lines.push(Line::from(Span::styled(
-            updated,
-            Style::default().fg(muted_color),
-        )));
-    } else if state.mode == AppMode::Error {
-        lines.push(Line::from(Span::styled(
-            "Unable to load weather",
-            Style::default().fg(text_color),
-        )));
-        if let Some(err) = &state.last_error {
-            lines.push(Line::from(Span::styled(
-                err.clone(),
-                Style::default().fg(muted_color),
-            )));
-        }
-    } else {
-        render_loading_choreography(frame, area, state, theme, scale);
-        return;
+            .unwrap_or_else(|| "--".to_string()),
+        cloud_total: weather.current.cloud_cover.round() as i32,
+        cloud_split: format_cloud_layers(cloud_low, cloud_mid, cloud_high),
     }
+}
 
-    frame.render_widget(Paragraph::new(lines), area);
+fn push_compact_metric_lines(
+    lines: &mut Vec<Line<'static>>,
+    data: &WeatherMetricsData,
+    theme: Theme,
+    metric_gap: &'static str,
+) {
+    lines.push(Line::from(vec![
+        Span::styled("Wind ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}/{} km/h {}", data.wind, data.gust, data.wind_dir),
+            Style::default().fg(theme.success),
+        ),
+        Span::raw(metric_gap),
+        Span::styled("Visibility ", Style::default().fg(theme.muted_text)),
+        Span::styled(data.visibility.clone(), Style::default().fg(theme.accent)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}{}", data.pressure, data.pressure_trend),
+            Style::default().fg(theme.warning),
+        ),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("Dew ", Style::default().fg(theme.muted_text)),
+        Span::styled(format!("{}°", data.dew), Style::default().fg(theme.text)),
+        Span::raw(metric_gap),
+        Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}%", data.humidity),
+            Style::default().fg(theme.info),
+        ),
+    ]));
+}
+
+fn push_standard_metric_lines(
+    lines: &mut Vec<Line<'static>>,
+    data: &WeatherMetricsData,
+    theme: Theme,
+    metric_gap: &'static str,
+) {
+    lines.push(Line::from(vec![
+        Span::styled("Feels ", Style::default().fg(theme.muted_text)),
+        Span::styled(format!("{}°", data.feels), Style::default().fg(theme.text)),
+        Span::raw(metric_gap),
+        Span::styled("Dew ", Style::default().fg(theme.muted_text)),
+        Span::styled(format!("{}°", data.dew), Style::default().fg(theme.info)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("Wind ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}/{} km/h {}", data.wind, data.gust, data.wind_dir),
+            Style::default().fg(theme.success),
+        ),
+        Span::raw(metric_gap),
+        Span::styled("Visibility ", Style::default().fg(theme.muted_text)),
+        Span::styled(data.visibility.clone(), Style::default().fg(theme.accent)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}hPa{}", data.pressure, data.pressure_trend),
+            Style::default().fg(theme.warning),
+        ),
+        Span::raw(metric_gap),
+        Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}%", data.humidity),
+            Style::default().fg(theme.info),
+        ),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("Cloud ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}%", data.cloud_total),
+            Style::default().fg(theme.landmark_neutral),
+        ),
+        Span::raw(" "),
+        Span::styled(
+            data.cloud_split.clone(),
+            Style::default().fg(theme.muted_text),
+        ),
+        Span::raw(metric_gap),
+        Span::styled("UV ", Style::default().fg(theme.muted_text)),
+        Span::styled(data.uv_today.clone(), Style::default().fg(theme.warning)),
+    ]));
+}
+
+fn freshness_flag(state: &AppState, theme: Theme) -> Option<(&'static str, Color)> {
+    match state.refresh_meta.state {
+        crate::resilience::freshness::FreshnessState::Fresh => None,
+        crate::resilience::freshness::FreshnessState::Stale => Some(("⚠ stale", theme.warning)),
+        crate::resilience::freshness::FreshnessState::Offline => Some(("⚠ offline", theme.danger)),
+    }
+}
+
+fn last_updated_label(state: &AppState) -> String {
+    state
+        .refresh_meta
+        .last_success
+        .map(|ts| {
+            let local = ts.with_timezone(&Local);
+            let mins = state.refresh_meta.age_minutes().unwrap_or(0);
+            format!(
+                "Last updated: {} ({}m ago)",
+                local.format("%H:%M"),
+                mins.max(0)
+            )
+        })
+        .unwrap_or_else(|| "Last updated: --:--".to_string())
+}
+
+fn build_error_lines(state: &AppState, theme: Theme) -> Vec<Line<'static>> {
+    let mut lines = vec![Line::from(Span::styled(
+        "Unable to load weather",
+        Style::default().fg(theme.text),
+    ))];
+    if let Some(err) = &state.last_error {
+        lines.push(Line::from(Span::styled(
+            err.clone(),
+            Style::default().fg(theme.muted_text),
+        )));
+    }
+    lines
 }
 
 pub fn compass(deg: f32) -> &'static str {

@@ -444,47 +444,77 @@ fn paint_rain(canvas: &mut [Vec<char>], precip_mm: f32, phase: usize, horizon_y:
     if w == 0 || horizon_y < 3 {
         return;
     }
-    // Rain density scales with precipitation
-    let density = if precip_mm >= 5.0 {
-        2 // heavy: every 2nd column
-    } else if precip_mm >= 1.0 {
-        3 // moderate: every 3rd
-    } else {
-        5 // light: every 5th
-    };
-
-    let h = canvas.len();
+    let density = rain_density(precip_mm);
+    let drops = rain_drops_per_column(precip_mm);
+    let ch = rain_glyph(precip_mm);
     for x in 0..w {
         if !(x + phase).is_multiple_of(density) {
             continue;
         }
-        // Multiple rain drops per column for density
-        let drops = if precip_mm >= 5.0 {
-            3
-        } else if precip_mm >= 1.0 {
-            2
-        } else {
-            1
-        };
-        for d in 0..drops {
-            let y_offset = (phase + x * 3 + d * 4) % horizon_y.max(2);
-            let y = 1 + y_offset;
-            if y < h && y < horizon_y {
-                let ch = if precip_mm >= 3.0 { '/' } else { '╱' };
-                if let Some(cell) = canvas.get_mut(y).and_then(|row| row.get_mut(x))
-                    && matches!(*cell, ' ' | '·')
-                {
-                    *cell = ch;
-                }
-            }
+        paint_rain_column(canvas, x, phase, horizon_y, drops, ch);
+    }
+    paint_rain_splashes(canvas, horizon_y, w, phase, density);
+}
+
+fn rain_density(precip_mm: f32) -> usize {
+    if precip_mm >= 5.0 {
+        2
+    } else if precip_mm >= 1.0 {
+        3
+    } else {
+        5
+    }
+}
+
+fn rain_drops_per_column(precip_mm: f32) -> usize {
+    if precip_mm >= 5.0 {
+        3
+    } else if precip_mm >= 1.0 {
+        2
+    } else {
+        1
+    }
+}
+
+fn rain_glyph(precip_mm: f32) -> char {
+    if precip_mm >= 3.0 { '/' } else { '╱' }
+}
+
+fn paint_rain_column(
+    canvas: &mut [Vec<char>],
+    x: usize,
+    phase: usize,
+    horizon_y: usize,
+    drops: usize,
+    ch: char,
+) {
+    let h = canvas.len();
+    for d in 0..drops {
+        let y_offset = (phase + x * 3 + d * 4) % horizon_y.max(2);
+        let y = 1 + y_offset;
+        if y < h
+            && y < horizon_y
+            && let Some(cell) = canvas.get_mut(y).and_then(|row| row.get_mut(x))
+            && matches!(*cell, ' ' | '·')
+        {
+            *cell = ch;
         }
     }
-    // Splash marks on terrain
-    if horizon_y < h {
-        for (x, cell) in canvas[horizon_y].iter_mut().enumerate().take(w) {
-            if (x + phase / 2).is_multiple_of(density + 1) && matches!(*cell, '─' | ' ') {
-                *cell = '.';
-            }
+}
+
+fn paint_rain_splashes(
+    canvas: &mut [Vec<char>],
+    horizon_y: usize,
+    width: usize,
+    phase: usize,
+    density: usize,
+) {
+    if horizon_y >= canvas.len() {
+        return;
+    }
+    for (x, cell) in canvas[horizon_y].iter_mut().enumerate().take(width) {
+        if (x + phase / 2).is_multiple_of(density + 1) && matches!(*cell, '─' | ' ') {
+            *cell = '.';
         }
     }
 }
