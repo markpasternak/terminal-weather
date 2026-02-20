@@ -65,6 +65,10 @@
 - Network access to Open-Meteo APIs
 - Network access to IP lookup (`https://ipapi.co/json/`) when using auto-detect location
 
+For development/static-analysis parity with CI:
+- `jq` (JSON processing for metric gates)
+- `rust-code-analysis-cli` `0.0.25`
+
 ## Install (Homebrew)
 ```bash
 brew tap markpasternak/tap
@@ -243,13 +247,36 @@ Icon modes:
   - use `--help` for CLI reference
 
 ## Development
+Install static-analysis tools used by CI:
 ```bash
+cargo install --locked rust-code-analysis-cli --version 0.0.25
+# jq via package manager, e.g.:
+# macOS: brew install jq
+# Ubuntu: sudo apt-get install -y jq
+```
+Tool versions are tracked in `Cargo.toml` under `[package.metadata.dev-tools]`.
+
+```bash
+cargo fmt --all
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
+cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic
+./scripts/static-analysis-gate.sh              # cyclomatic/cognitive/MI thresholds
 cargo check --all-targets --all-features
 cargo test --all --all-features
 cargo build --release
 ```
+
+Static-analysis gate policy (`./scripts/static-analysis-gate.sh`):
+- analyzes `src/` + `tests/` with `rust-code-analysis-cli`
+- fails on function metrics at/over thresholds:
+  - cyclomatic complexity `>= 20`
+  - cognitive complexity `>= 30`
+  - maintainability index (MI) `< 30`
+- override thresholds locally with:
+  - `TW_CYCLOMATIC_MAX`
+  - `TW_COGNITIVE_MAX`
+  - `TW_MI_MIN`
 
 ## Release Automation (Maintainers)
 This repository uses `cargo-dist` to build release artifacts and update Homebrew formulae.

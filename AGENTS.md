@@ -14,6 +14,7 @@ Single-binary Rust TUI app (Rust 2024 edition) using:
 - **`clap`** — CLI argument parsing
 - **`anyhow` / `thiserror`** — error handling
 - **Dev:** `insta` (snapshot tests), `proptest` (property tests), `wiremock` (HTTP mocking)
+- **Static tooling (required for CI parity):** `jq`, `rust-code-analysis-cli` `0.0.25`
 
 ---
 
@@ -25,10 +26,24 @@ Run these before marking anything done. Put them in this order:
 cargo fmt --all                                  # format
 cargo fmt --all -- --check                       # verify formatting (CI gate)
 cargo clippy --all-targets --all-features -- -D warnings   # lint, zero warnings
+cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic  # pedantic lint gate
+./scripts/static-analysis-gate.sh                # complexity/MI static gate
 cargo check --all-targets --all-features         # type-check
 cargo test --all --all-features                  # full test suite
 cargo build --release                            # release build
 ```
+
+Install static tooling once:
+```bash
+cargo install --locked rust-code-analysis-cli --version 0.0.25
+# jq via package manager (brew/apt/etc.)
+```
+
+Static gate thresholds (enforced by CI and local script):
+- cyclomatic complexity: `< 20`
+- cognitive complexity: `< 30`
+- maintainability index (MI): `>= 30`
+- scope: all functions in `src/` + `tests/`
 
 For fast iteration during development:
 ```bash
