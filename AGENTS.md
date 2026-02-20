@@ -14,7 +14,7 @@ Single-binary Rust TUI app (Rust 2024 edition) using:
 - **`clap`** — CLI argument parsing
 - **`anyhow` / `thiserror`** — error handling
 - **Dev:** `insta` (snapshot tests), `proptest` (property tests), `wiremock` (HTTP mocking)
-- **Static tooling (required for CI parity):** `jq`, `rust-code-analysis-cli` `0.0.25`
+- **Static tooling:** `jq`, `rust-code-analysis-cli` `0.0.25`
 
 ---
 
@@ -27,11 +27,15 @@ cargo fmt --all                                  # format
 cargo fmt --all -- --check                       # verify formatting (CI gate)
 cargo clippy --all-targets --all-features -- -D warnings   # lint, zero warnings
 cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic  # pedantic lint gate
-./scripts/static-analysis-gate.sh                # complexity/MI static gate
-./scripts/codacy-complexity-gate.sh              # Codacy-style complexity parity (critical fail by default)
+./scripts/static-analysis-gate.sh                # complexity/MI static gate (CI gate)
 cargo check --all-targets --all-features         # type-check
 cargo test --all --all-features                  # full test suite
 cargo build --release                            # release build
+```
+
+Additional local parity gate:
+```bash
+./scripts/codacy-complexity-gate.sh              # Codacy-style complexity parity (critical fail by default)
 ```
 
 Install static tooling once:
@@ -64,7 +68,6 @@ cargo run -- --one-shot Stockholm # non-interactive snapshot to stdout
 
 Update snapshots when UI changes are intentional:
 ```bash
-cargo test -- --features insta/update-snapshots   # not needed — use env var
 INSTA_UPDATE=always cargo test --all --all-features
 ```
 
@@ -83,6 +86,10 @@ src/
     events.rs       # AppEvent enum + handlers
     settings.rs     # persistent settings (JSON at ~/.config/terminal-weather/)
     state.rs        # AppState machine: Loading → SelectingLocation → Ready → Error → Quit
+    state/
+      methods_async.rs
+      methods_fetch.rs
+      methods_ui.rs
   data/
     mod.rs
     forecast.rs     # Open-Meteo API client + DTO parsing
@@ -90,17 +97,37 @@ src/
     geoip.rs        # IP-based location fallback
   domain/
     weather.rs      # domain types (ForecastBundle, etc.)
+    weather/
+      tests.rs
   resilience/       # retry/backoff logic, freshness semantics
   ui/
     mod.rs          # render entrypoint
     layout.rs       # responsive breakpoint helpers
     particles.rs    # particle animation engine
     theme.rs        # semantic color tokens, theme variants, capability tiers
+    theme/
+      capability.rs
+      data.rs
+      extended.rs
+      tests.rs
     widgets/
       hero/         # current conditions hero panel (readouts, sparklines, background)
       hourly.rs     # per-hour table/chart panel
+      hourly/
+        daypart.rs
+        table.rs
+        timeline.rs
+        tests.rs
       daily.rs      # 7-day forecast panel
+      daily/
+        layout.rs
+        summary.rs
+        summary/utils.rs
+        tests.rs
       landmark/     # ASCII landmark art scenes (AtmosCanvas / GaugeCluster / SkyObservatory)
+        atmos/
+          effects.rs
+          tests.rs
       city_picker.rs
       settings.rs
       alerts.rs

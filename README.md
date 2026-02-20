@@ -66,7 +66,7 @@
 - Network access to Open-Meteo APIs
 - Network access to IP lookup (`https://ipapi.co/json/`) when using auto-detect location
 
-For development/static-analysis parity with CI:
+For development/static analysis:
 - `jq` (JSON processing for metric gates)
 - `rust-code-analysis-cli` `0.0.25`
 
@@ -248,7 +248,7 @@ Icon modes:
   - use `--help` for CLI reference
 
 ## Development
-Install static-analysis tools used by CI:
+Install static-analysis tools used by local gates:
 ```bash
 cargo install --locked rust-code-analysis-cli --version 0.0.25
 # jq via package manager, e.g.:
@@ -257,16 +257,21 @@ cargo install --locked rust-code-analysis-cli --version 0.0.25
 ```
 Tool versions are tracked in `Cargo.toml` under `[package.metadata.dev-tools]`.
 
+Quality gate commands (CI-enforced steps):
 ```bash
 cargo fmt --all
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic
-./scripts/static-analysis-gate.sh              # cyclomatic/cognitive/MI thresholds
-./scripts/codacy-complexity-gate.sh            # Codacy-style complexity thresholds
+./scripts/static-analysis-gate.sh              # cyclomatic/cognitive/MI thresholds (run in CI)
 cargo check --all-targets --all-features
 cargo test --all --all-features
 cargo build --release
+```
+
+Additional local parity gate:
+```bash
+./scripts/codacy-complexity-gate.sh            # Codacy-style complexity thresholds
 ```
 
 Static-analysis gate policy (`./scripts/static-analysis-gate.sh`):
