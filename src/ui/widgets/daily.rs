@@ -400,48 +400,71 @@ struct WeekAccumulator {
 
 impl WeekAccumulator {
     fn ingest(&mut self, day: &DailyForecast) {
+        self.ingest_precipitation(day);
+        Self::add_non_negative_with_count(
+            &mut self.daylight_total,
+            &mut self.daylight_count,
+            day.daylight_duration_s,
+        );
+        Self::add_non_negative_with_count(
+            &mut self.sunshine_total,
+            &mut self.sunshine_count,
+            day.sunshine_duration_s,
+        );
+        Self::update_tagged_max(&mut self.breeziest, day, day.wind_gusts_10m_max);
+        Self::update_tagged_max(&mut self.strongest_uv, day, day.uv_index_max);
+        Self::update_min(&mut self.week_min_temp_c, day.temperature_min_c);
+        Self::update_max(&mut self.week_max_temp_c, day.temperature_max_c);
+    }
+
+    fn ingest_precipitation(&mut self, day: &DailyForecast) {
         if let Some(v) = day.precipitation_sum_mm {
             self.precip_total += v.max(0.0);
-            let tag = day.date.format("%a").to_string();
-            if self.wettest.as_ref().is_none_or(|(_, best)| v > *best) {
-                self.wettest = Some((tag, v));
-            }
+            Self::update_tagged_max(&mut self.wettest, day, Some(v));
         }
-        if let Some(v) = day.rain_sum_mm {
-            self.rain_total += v.max(0.0);
+        Self::add_non_negative(&mut self.rain_total, day.rain_sum_mm);
+        Self::add_non_negative(&mut self.snow_total, day.snowfall_sum_cm);
+        Self::add_non_negative_with_count(
+            &mut self.precipitation_hours_total,
+            &mut self.precipitation_hours_count,
+            day.precipitation_hours,
+        );
+    }
+
+    fn add_non_negative(total: &mut f32, value: Option<f32>) {
+        if let Some(v) = value {
+            *total += v.max(0.0);
         }
-        if let Some(v) = day.snowfall_sum_cm {
-            self.snow_total += v.max(0.0);
+    }
+
+    fn add_non_negative_with_count(total: &mut f32, count: &mut usize, value: Option<f32>) {
+        if let Some(v) = value {
+            *total += v.max(0.0);
+            *count += 1;
         }
-        if let Some(v) = day.daylight_duration_s {
-            self.daylight_total += v.max(0.0);
-            self.daylight_count += 1;
+    }
+
+    fn update_tagged_max(
+        slot: &mut Option<(String, f32)>,
+        day: &DailyForecast,
+        value: Option<f32>,
+    ) {
+        if let Some(v) = value
+            && slot.as_ref().is_none_or(|(_, best)| v > *best)
+        {
+            *slot = Some((day.date.format("%a").to_string(), v));
         }
-        if let Some(v) = day.sunshine_duration_s {
-            self.sunshine_total += v.max(0.0);
-            self.sunshine_count += 1;
+    }
+
+    fn update_min(slot: &mut Option<f32>, value: Option<f32>) {
+        if let Some(v) = value {
+            *slot = Some(slot.map_or(v, |current| current.min(v)));
         }
-        if let Some(v) = day.precipitation_hours {
-            self.precipitation_hours_total += v.max(0.0);
-            self.precipitation_hours_count += 1;
-        }
-        if let Some(v) = day.wind_gusts_10m_max {
-            let tag = day.date.format("%a").to_string();
-            if self.breeziest.as_ref().is_none_or(|(_, best)| v > *best) {
-                self.breeziest = Some((tag, v));
-            }
-        }
-        if let Some(v) = day.uv_index_max {
-            let tag = day.date.format("%a").to_string();
-            if self.strongest_uv.as_ref().is_none_or(|(_, best)| v > *best) {
-                self.strongest_uv = Some((tag, v));
-            }
-        }
-        if let Some(v) = day.temperature_min_c {
-            self.week_min_temp_c = Some(self.week_min_temp_c.map_or(v, |current| current.min(v)));
-        }
-        if let Some(v) = day.temperature_max_c {
-            self.week_max_temp_c = Some(self.week_max_temp_c.map_or(v, |current| current.max(v)));
+    }
+
+    fn update_max(slot: &mut Option<f32>, value: Option<f32>) {
+        if let Some(v) = value {
+            *slot = Some(slot.map_or(v, |current| current.max(v)));
         }
     }
 

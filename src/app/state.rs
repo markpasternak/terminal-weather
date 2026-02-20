@@ -738,42 +738,56 @@ impl AppState {
                 self.clear_recent_locations();
             }
             KeyCode::Char(digit @ '1'..='9') => {
-                let idx = (digit as usize) - ('1' as usize);
-                if let Some(saved) = self.settings.recent_locations.get(idx).cloned() {
-                    self.city_picker_open = false;
-                    self.switch_to_location(tx, saved.to_location()).await?;
-                }
+                self.select_recent_city_by_index(tx, (digit as usize) - ('1' as usize))
+                    .await?;
             }
             KeyCode::Enter => {
-                let query = self.city_query.trim().to_string();
-                if !query.is_empty() {
-                    self.city_picker_open = false;
-                    self.city_status = Some(format!("Searching {query}..."));
-                    self.start_city_search(tx, query, cli.country_code.clone())?;
-                } else if Some(self.city_history_selected) == self.city_picker_action_index() {
-                    self.clear_recent_locations();
-                } else if let Some(saved) = self
-                    .settings
-                    .recent_locations
-                    .get(self.city_history_selected)
-                    .cloned()
-                {
-                    self.city_picker_open = false;
-                    self.switch_to_location(tx, saved.to_location()).await?;
-                }
+                self.submit_city_picker(tx, cli).await?;
             }
             KeyCode::Char(ch) => {
-                if !key
-                    .modifiers
-                    .intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER)
-                    && is_city_char(ch)
-                {
-                    self.city_query.push(ch);
-                }
+                self.push_city_query_char(key, ch);
             }
             _ => {}
         }
         Ok(())
+    }
+
+    async fn select_recent_city_by_index(
+        &mut self,
+        tx: &mpsc::Sender<AppEvent>,
+        index: usize,
+    ) -> Result<()> {
+        if let Some(saved) = self.settings.recent_locations.get(index).cloned() {
+            self.city_picker_open = false;
+            self.switch_to_location(tx, saved.to_location()).await?;
+        }
+        Ok(())
+    }
+
+    async fn submit_city_picker(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
+        let query = self.city_query.trim().to_string();
+        if !query.is_empty() {
+            self.city_picker_open = false;
+            self.city_status = Some(format!("Searching {query}..."));
+            self.start_city_search(tx, query, cli.country_code.clone())?;
+            return Ok(());
+        }
+        if Some(self.city_history_selected) == self.city_picker_action_index() {
+            self.clear_recent_locations();
+            return Ok(());
+        }
+        self.select_recent_city_by_index(tx, self.city_history_selected)
+            .await
+    }
+
+    fn push_city_query_char(&mut self, key: KeyEvent, ch: char) {
+        if !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER)
+            && is_city_char(ch)
+        {
+            self.city_query.push(ch);
+        }
     }
 
     fn adjust_selected_setting(&mut self, direction: i8) {
