@@ -56,9 +56,8 @@ pub fn fit_lines_centered(lines: Vec<String>, width: usize, height: usize) -> Ve
 }
 
 pub fn paint_char(canvas: &mut [Vec<char>], x: isize, y: isize, ch: char, force: bool) {
-    let (ux, uy) = match (usize::try_from(x), usize::try_from(y)) {
-        (Ok(x), Ok(y)) => (x, y),
-        _ => return,
+    let (Ok(ux), Ok(uy)) = (usize::try_from(x), usize::try_from(y)) else {
+        return;
     };
     let Some(row) = canvas.get_mut(uy) else {
         return;

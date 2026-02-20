@@ -25,29 +25,11 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Run clippy pedantic gate
-        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic
-
       - name: Install static-analysis tooling
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
           cargo install --locked rust-code-analysis-cli --version 0.0.25
 
-      - name: Run static-analysis gate
-        run: ./scripts/static-analysis-gate.sh
-
-      - name: Run check
-        run: cargo check --all-targets --all-features
-
-      - name: Run tests
-        run: cargo test --all --all-features
-
-      - name: Build release
-        run: cargo build --release
+      - name: Run local CI parity script
+        run: ./scripts/ci-local.sh

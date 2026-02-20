@@ -196,22 +196,20 @@ fn build_daily_row(day: &DailyForecast, is_today: bool, ctx: DailyRenderContext)
     let max_label = format!("{}°", round_temp(convert_temp(max_c, units)));
 
     let mut cells = daily_base_cells(day, theme);
-    append_daily_optional_cells(
-        &mut cells,
-        day,
-        DailyRowContext {
-            units,
-            icon_mode,
-            layout,
-            theme,
-            min_c,
-            max_c,
-            global_min,
-            global_max,
-            min_label,
-            max_label,
-        },
-    );
+    let ctx = DailyRowContext {
+        units,
+        icon_mode,
+        layout,
+        theme,
+        min_c,
+        max_c,
+        global_min,
+        global_max,
+        min_label,
+        max_label,
+    };
+
+    append_daily_optional_cells(&mut cells, day, &ctx);
 
     let row = Row::new(cells);
     if is_today {
@@ -242,7 +240,7 @@ fn daily_base_cells(day: &DailyForecast, theme: crate::ui::theme::Theme) -> Vec<
 fn append_daily_optional_cells(
     cells: &mut Vec<Cell<'static>>,
     day: &DailyForecast,
-    ctx: DailyRowContext,
+    ctx: &DailyRowContext,
 ) {
     append_daily_icon_cell(cells, day, ctx.layout.show_icon, ctx.icon_mode, ctx.theme);
     append_daily_temp_cells(
@@ -254,7 +252,7 @@ fn append_daily_optional_cells(
         &ctx.max_label,
         ctx.theme,
     );
-    append_daily_range_cell(cells, &ctx);
+    append_daily_range_cell(cells, ctx);
     append_daily_precip_cell(cells, day, ctx.layout.show_precip_col, ctx.theme);
     append_daily_gust_cell(cells, day, ctx.layout.show_gust_col, ctx.theme);
 }
@@ -471,6 +469,7 @@ fn render_loading_daily(
     frame.render_widget(table, area);
 }
 
+#[must_use]
 pub fn bar_bounds(
     min: f32,
     max: f32,

@@ -2,6 +2,15 @@ use crate::domain::weather::WeatherCategory;
 use crate::ui::widgets::landmark::shared::fit_lines;
 use crate::ui::widgets::landmark::{LandmarkScene, scene_name, tint_for_category};
 
+const LABELS: &[(WeatherCategory, &str)] = &[
+    (WeatherCategory::Cloudy, "CLOUDY"),
+    (WeatherCategory::Rain, "RAIN"),
+    (WeatherCategory::Snow, "SNOW"),
+    (WeatherCategory::Fog, "FOG"),
+    (WeatherCategory::Thunder, "THUNDER"),
+    (WeatherCategory::Unknown, "WEATHER"),
+];
+
 #[must_use]
 pub fn compact_condition_scene(
     category: WeatherCategory,
@@ -24,14 +33,6 @@ fn compact_scene_label(category: WeatherCategory, is_day: bool) -> &'static str 
     if matches!(category, WeatherCategory::Clear) {
         return if is_day { "CLEAR" } else { "CLEAR NIGHT" };
     }
-    const LABELS: &[(WeatherCategory, &str)] = &[
-        (WeatherCategory::Cloudy, "CLOUDY"),
-        (WeatherCategory::Rain, "RAIN"),
-        (WeatherCategory::Snow, "SNOW"),
-        (WeatherCategory::Fog, "FOG"),
-        (WeatherCategory::Thunder, "THUNDER"),
-        (WeatherCategory::Unknown, "WEATHER"),
-    ];
     for (candidate, label) in LABELS {
         if *candidate == category {
             return label;

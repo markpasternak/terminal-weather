@@ -1,4 +1,4 @@
-#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_errors_doc, clippy::wildcard_imports)]
 
 pub mod app;
 pub mod cli;
@@ -134,12 +134,12 @@ fn print_one_shot_daily(
         let max = day
             .temperature_max_c
             .map(|t| round_temp(convert_temp(t, units)));
-        print_daily_line(day_name, icon, min, max, day.precipitation_sum_mm);
+        print_daily_line(&day_name, icon, min, max, day.precipitation_sum_mm);
     }
 }
 
 fn print_daily_line(
-    day_name: String,
+    day_name: &str,
     icon: &str,
     min: Option<i32>,
     max: Option<i32>,

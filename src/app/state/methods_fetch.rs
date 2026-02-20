@@ -13,13 +13,13 @@ impl AppState {
         if self.try_fetch_existing_location(tx) {
             return Ok(());
         }
-        if self.try_fetch_coords(tx, cli).await? {
+        if Self::try_fetch_coords(tx, cli).await? {
             return Ok(());
         }
-        if self.should_auto_lookup(cli) {
+        if Self::should_auto_lookup(cli) {
             self.start_auto_location_lookup(tx, cli.country_code.clone());
         } else {
-            self.start_city_lookup(tx, cli.default_city(), cli.country_code.clone());
+            Self::start_city_lookup(tx, cli.default_city(), cli.country_code.clone());
         }
         Ok(())
     }
@@ -28,7 +28,7 @@ impl AppState {
         self.fetch_in_flight || self.mode == AppMode::SelectingLocation
     }
 
-    fn should_auto_lookup(&self, cli: &Cli) -> bool {
+    fn should_auto_lookup(cli: &Cli) -> bool {
         cli.city.is_none() && cli.lat.is_none()
     }
 
@@ -40,11 +40,7 @@ impl AppState {
         false
     }
 
-    pub(crate) async fn try_fetch_coords(
-        &self,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<bool> {
+    pub(crate) async fn try_fetch_coords(tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<bool> {
         if let (Some(lat), Some(lon)) = (cli.lat, cli.lon) {
             let location = Location::from_coords(lat, lon);
             tx.send(AppEvent::GeocodeResolved(GeocodeResolution::Selected(
@@ -77,7 +73,6 @@ impl AppState {
     }
 
     pub(crate) fn start_city_lookup(
-        &self,
         tx: &mpsc::Sender<AppEvent>,
         city: String,
         country_code: Option<String>,
@@ -118,7 +113,7 @@ impl AppState {
 
     fn apply_demo_action(&mut self, action: DemoAction, tx: &mpsc::Sender<AppEvent>) {
         match action {
-            DemoAction::OpenCityPicker(query) => self.demo_open_city_picker(query),
+            DemoAction::OpenCityPicker(query) => self.demo_open_city_picker(&query),
             DemoAction::SwitchCity(location) => self.demo_switch_city(tx, location),
             DemoAction::OpenSettings => self.demo_open_settings(),
             DemoAction::SetHeroVisual(visual) => self.demo_set_hero_visual(visual),
@@ -128,10 +123,11 @@ impl AppState {
         }
     }
 
-    pub(crate) fn demo_open_city_picker(&mut self, query: String) {
+    pub(crate) fn demo_open_city_picker(&mut self, query: &str) {
         self.settings_open = false;
         self.city_picker_open = true;
-        self.city_query.clone_from(&query);
+        self.city_query.clear();
+        self.city_query.push_str(query);
         self.city_history_selected = 0;
         self.city_status = Some(format!("Demo: search for {query}"));
     }

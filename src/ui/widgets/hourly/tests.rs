@@ -38,9 +38,9 @@ fn chart_mode_requires_more_height_than_hybrid() {
 
 #[test]
 fn sanitize_precip_non_negative() {
-    assert_eq!(sanitize_precip_mm(-1.0), 0.0);
-    assert_eq!(sanitize_precip_mm(0.0), 0.0);
-    assert_eq!(sanitize_precip_mm(1.2), 1.2);
+    assert!((sanitize_precip_mm(-1.0) - 0.0).abs() < f32::EPSILON);
+    assert!((sanitize_precip_mm(0.0) - 0.0).abs() < f32::EPSILON);
+    assert!((sanitize_precip_mm(1.2) - 1.2).abs() < f32::EPSILON);
 }
 
 #[test]

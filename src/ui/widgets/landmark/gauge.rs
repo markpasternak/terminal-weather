@@ -300,7 +300,7 @@ fn temp_range_label(values: &[f32]) -> String {
 fn precip_range_label(values: &[f32]) -> String {
     let max = values.iter().copied().fold(0.0_f32, f32::max);
     if max > 0.0 {
-        format!("{:.0}mm", max)
+        format!("{max:.0}mm")
     } else {
         String::new()
     }
@@ -321,7 +321,7 @@ fn range_label(values: &[f32], suffix: &str) -> String {
     }
     let min = values.iter().copied().fold(f32::INFINITY, f32::min);
     let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-    format!("{:.0}{suffix}–{:.0}{suffix}", min, max)
+    format!("{min:.0}{suffix}–{max:.0}{suffix}")
 }
 
 fn sparkline_blocks(values: &[f32], width: usize) -> String {

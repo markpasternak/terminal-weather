@@ -258,9 +258,13 @@ cargo install --locked rust-code-analysis-cli --version 0.0.25
 ```
 Tool versions are tracked in `Cargo.toml` under `[package.metadata.dev-tools]`.
 
-Quality gate commands (CI-enforced steps):
+Run the same quality checks as GitHub CI:
 ```bash
-cargo fmt --all
+./scripts/ci-local.sh
+```
+
+Quality gate commands (`./scripts/ci-local.sh`):
+```bash
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic
@@ -273,6 +277,7 @@ cargo build --release
 Additional local parity gate:
 ```bash
 ./scripts/codacy-complexity-gate.sh            # Codacy-style complexity thresholds
+./scripts/ci-local.sh --with-codacy            # CI checks + Codacy parity in one command
 ```
 
 Static-analysis gate policy (`./scripts/static-analysis-gate.sh`):
