@@ -79,13 +79,16 @@ fn gauge_context_line(data: &GaugeData) -> String {
             crate::domain::weather::round_wind_speed(data.gust)
         )
     } else if data.vis_km < 1.0 {
-        format!("Visibility {:.1}km · drive carefully", data.vis_km)
+        // Note: in fog, the atmos panel also shows a fog advisory
+        format!("Visibility {:.1}km · reduced visibility", data.vis_km)
     } else if data.precip_now > 0.5 {
         format!("Active precipitation {:.1}mm/h", data.precip_now)
-    } else if data.humidity > 85.0 {
+    } else if data.humidity > 85.0 && data.temp_c > 15 {
         format!("Humidity {:.0}% · feels muggy", data.humidity)
+    } else if data.humidity > 85.0 {
+        format!("Humidity {:.0}% · feels damp", data.humidity)
     } else {
-        format!("Pressure {:.0} hPa · conditions stable", data.pressure)
+        format!("All readings nominal · {:.0} hPa", data.pressure)
     }
 }
 

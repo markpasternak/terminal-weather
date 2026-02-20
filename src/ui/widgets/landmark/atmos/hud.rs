@@ -39,25 +39,38 @@ fn precip_context(bundle: &ForecastBundle, last_precip_idx: usize, total_precip_
         .hourly
         .first()
         .map_or(12, |hour| hour.time.hour() as usize);
-    let clearing_hour = (now_hour + last_precip_idx + 1) % 24;
-    format!("Precip clearing by {clearing_hour:02}:00 · {total_precip_mm:.0}mm expected")
+    let end_hour = (now_hour + last_precip_idx + 1) % 24;
+    let has_precip_now = bundle
+        .hourly
+        .first()
+        .and_then(|h| h.precipitation_mm)
+        .unwrap_or(0.0)
+        > 0.1;
+    if has_precip_now {
+        format!("Precip clearing by {end_hour:02}:00 · {total_precip_mm:.0}mm expected")
+    } else {
+        format!("Precipitation expected through {end_hour:02}:00 · {total_precip_mm:.0}mm")
+    }
 }
 
 fn stable_weather_context(bundle: &ForecastBundle, category: WeatherCategory) -> String {
     if matches!(category, WeatherCategory::Snow) {
-        return "Snowfall active · dress warm".to_string();
+        return "Snow conditions · dress warm".to_string();
     }
     if matches!(category, WeatherCategory::Fog) {
         return "Low visibility · fog advisory".to_string();
     }
     if matches!(category, WeatherCategory::Thunder) {
-        return "Thunderstorm active · stay indoors".to_string();
+        return "Thunderstorm conditions · stay alert".to_string();
     }
     if matches!(category, WeatherCategory::Clear) {
         return clear_context(bundle);
     }
     let temp_c = bundle.current.temperature_2m_c.round() as i32;
-    format!("Currently {temp_c}°C · conditions stable")
+    if matches!(category, WeatherCategory::Unknown) {
+        return format!("Currently {temp_c}°C");
+    }
+    format!("Currently {temp_c}°C · overcast skies")
 }
 
 fn clear_context(bundle: &ForecastBundle) -> String {

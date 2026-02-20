@@ -62,7 +62,7 @@ fn sky_context_line(sunrise_h: f32, sunset_h: f32, now_h: f32, is_day: bool) -> 
         let hours = remaining_mins / 60;
         let mins = remaining_mins % 60;
         if remaining_mins <= 0 {
-            "Sunset imminent · golden hour".to_string()
+            "Sunset passing · twilight".to_string()
         } else {
             format!("{hours}h {mins:02}m of daylight remaining")
         }
