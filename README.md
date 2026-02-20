@@ -3,7 +3,7 @@
 [![CI](https://github.com/markpasternak/terminal-weather/actions/workflows/ci.yml/badge.svg)](https://github.com/markpasternak/terminal-weather/actions/workflows/ci.yml)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/b1cd0d1c4dbb4fc2aaed5852536d50b0)](https://app.codacy.com/gh/markpasternak/terminal-weather/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Release](https://img.shields.io/github/v/release/markpasternak/terminal-weather?sort=semver)](https://github.com/markpasternak/terminal-weather/releases)
-[![License](https://img.shields.io/github/license/markpasternak/terminal-weather)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)](LICENSE)
 [![Rust Edition](https://img.shields.io/badge/rust-2024-edition?logo=rust)](https://www.rust-lang.org/)
 
 `terminal weather` is an animated, terminal-first weather dashboard with resilient live data, rich theming, and dense but readable forecasting views.
