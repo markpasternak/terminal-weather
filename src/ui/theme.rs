@@ -137,21 +137,12 @@ pub fn theme_for(
 fn theme_for_basic16(
     mode: ThemeArg,
     category: WeatherCategory,
-    mut top: (u8, u8, u8),
-    mut bottom: (u8, u8, u8),
+    top: (u8, u8, u8),
+    bottom: (u8, u8, u8),
     capability: ColorCapability,
 ) -> Theme {
     if mode == ThemeArg::Auto {
-        top = (0, 0, 0);
-        bottom = match category {
-            WeatherCategory::Clear => (0, 32, 72),
-            WeatherCategory::Cloudy => (25, 30, 35),
-            WeatherCategory::Rain => (0, 22, 56),
-            WeatherCategory::Snow => (28, 38, 56),
-            WeatherCategory::Fog => (30, 30, 30),
-            WeatherCategory::Thunder => (24, 0, 44),
-            WeatherCategory::Unknown => (20, 24, 32),
-        };
+        let (top, bottom) = auto_basic16_gradient(category);
 
         return Theme {
             top: quantize(Color::Rgb(top.0, top.1, top.2), capability),
@@ -183,7 +174,74 @@ fn theme_for_basic16(
         };
     }
 
-    let (surface, surface_alt, popup_surface, accent, border, popup_border) = match mode {
+    let (surface, surface_alt, popup_surface, accent, border, popup_border) =
+        basic16_mode_palette(mode);
+    let semantics = basic16_semantics(matches!(mode, ThemeArg::AyuLight | ThemeArg::Hoth));
+
+    Theme {
+        top: quantize(Color::Rgb(top.0, top.1, top.2), capability),
+        bottom: quantize(Color::Rgb(bottom.0, bottom.1, bottom.2), capability),
+        surface,
+        surface_alt,
+        popup_surface,
+        accent,
+        text: semantics.text,
+        muted_text: semantics.muted,
+        popup_text: semantics.text,
+        popup_muted_text: semantics.muted,
+        particle: semantics.particle,
+        border,
+        popup_border,
+        info: semantics.info,
+        success: semantics.success,
+        warning: semantics.warning,
+        danger: semantics.danger,
+        temp_freezing: semantics.temp_freezing,
+        temp_cold: semantics.temp_cold,
+        temp_mild: semantics.temp_mild,
+        temp_warm: semantics.temp_warm,
+        temp_hot: semantics.temp_hot,
+        range_track: semantics.muted,
+        landmark_warm: semantics.landmark_warm,
+        landmark_cool: semantics.landmark_cool,
+        landmark_neutral: semantics.muted,
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Basic16Semantics {
+    text: Color,
+    muted: Color,
+    particle: Color,
+    info: Color,
+    success: Color,
+    warning: Color,
+    danger: Color,
+    temp_freezing: Color,
+    temp_cold: Color,
+    temp_mild: Color,
+    temp_warm: Color,
+    temp_hot: Color,
+    landmark_warm: Color,
+    landmark_cool: Color,
+}
+
+fn auto_basic16_gradient(category: WeatherCategory) -> ((u8, u8, u8), (u8, u8, u8)) {
+    let top = (0, 0, 0);
+    let bottom = match category {
+        WeatherCategory::Clear => (0, 32, 72),
+        WeatherCategory::Cloudy => (25, 30, 35),
+        WeatherCategory::Rain => (0, 22, 56),
+        WeatherCategory::Snow => (28, 38, 56),
+        WeatherCategory::Fog => (30, 30, 30),
+        WeatherCategory::Thunder => (24, 0, 44),
+        WeatherCategory::Unknown => (20, 24, 32),
+    };
+    (top, bottom)
+}
+
+fn basic16_mode_palette(mode: ThemeArg) -> (Color, Color, Color, Color, Color, Color) {
+    match mode {
         ThemeArg::Aurora => (
             Color::Blue,
             Color::Cyan,
@@ -321,9 +379,10 @@ fn theme_for_basic16(
             Color::White,
         ),
         ThemeArg::Auto => unreachable!("handled above"),
-    };
+    }
+}
 
-    let is_light_theme = matches!(mode, ThemeArg::AyuLight | ThemeArg::Hoth);
+fn basic16_semantics(is_light_theme: bool) -> Basic16Semantics {
     let text = if is_light_theme {
         Color::Black
     } else {
@@ -364,8 +423,6 @@ fn theme_for_basic16(
     } else {
         Color::LightBlue
     };
-    let temp_cold = Color::Cyan;
-    let temp_mild = Color::Green;
     let temp_warm = if is_light_theme {
         Color::Magenta
     } else {
@@ -387,33 +444,21 @@ fn theme_for_basic16(
         Color::LightBlue
     };
 
-    Theme {
-        top: quantize(Color::Rgb(top.0, top.1, top.2), capability),
-        bottom: quantize(Color::Rgb(bottom.0, bottom.1, bottom.2), capability),
-        surface,
-        surface_alt,
-        popup_surface,
-        accent,
+    Basic16Semantics {
         text,
-        muted_text: muted,
-        popup_text: text,
-        popup_muted_text: muted,
+        muted,
         particle,
-        border,
-        popup_border,
         info,
         success,
         warning,
         danger,
         temp_freezing,
-        temp_cold,
-        temp_mild,
+        temp_cold: Color::Cyan,
+        temp_mild: Color::Green,
         temp_warm,
         temp_hot,
-        range_track: muted,
         landmark_warm,
         landmark_cool,
-        landmark_neutral: muted,
     }
 }
 
@@ -891,6 +936,44 @@ mod tests {
                 || aurora.accent != mono.accent
                 || aurora.border != mono.border
         );
+    }
+
+    #[test]
+    fn auto_basic16_gradient_matches_category_map() {
+        assert_eq!(
+            auto_basic16_gradient(WeatherCategory::Clear),
+            ((0, 0, 0), (0, 32, 72))
+        );
+        assert_eq!(
+            auto_basic16_gradient(WeatherCategory::Rain),
+            ((0, 0, 0), (0, 22, 56))
+        );
+        assert_eq!(
+            auto_basic16_gradient(WeatherCategory::Unknown),
+            ((0, 0, 0), (20, 24, 32))
+        );
+    }
+
+    #[test]
+    fn basic16_light_themes_keep_expected_semantic_polarity() {
+        for mode in [ThemeArg::AyuLight, ThemeArg::Hoth] {
+            let theme = theme_for(
+                WeatherCategory::Cloudy,
+                true,
+                ColorCapability::Basic16,
+                mode,
+            );
+            assert_eq!(theme.text, Color::Black);
+            assert_eq!(theme.muted_text, Color::DarkGray);
+            assert_eq!(theme.popup_text, Color::Black);
+            assert_eq!(theme.popup_muted_text, Color::DarkGray);
+            assert_eq!(theme.info, Color::Blue);
+            assert_eq!(theme.warning, Color::Magenta);
+            assert_eq!(theme.danger, Color::Red);
+            assert_eq!(theme.temp_hot, Color::Red);
+            assert_eq!(theme.landmark_cool, Color::Blue);
+            assert_eq!(theme.range_track, Color::DarkGray);
+        }
     }
 
     /// Every TrueColor theme must have readable text, accent, and semantic colors

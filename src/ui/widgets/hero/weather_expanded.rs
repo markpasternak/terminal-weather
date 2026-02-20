@@ -2,7 +2,7 @@ use chrono::Local;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -20,6 +20,48 @@ use super::weather::{
     HeroScale, cloud_layers_from_hourly, compass, format_cloud_layers, format_visibility,
     pressure_trend_marker,
 };
+
+#[derive(Debug)]
+struct ExpandedTopData {
+    temp: i32,
+    unit_symbol: &'static str,
+    condition: String,
+    condition_color: Color,
+    location: String,
+    high_low: Option<(i32, i32)>,
+    freshness: &'static str,
+    freshness_color: Color,
+    updated: String,
+}
+
+#[derive(Debug)]
+struct ExpandedMetricsData {
+    feels: i32,
+    dew: i32,
+    wind_dir: String,
+    wind: i32,
+    gust: i32,
+    visibility: String,
+    pressure: i32,
+    pressure_trend: &'static str,
+    humidity: i32,
+    cloud_total: i32,
+    cloud_split: String,
+    uv_today: String,
+    sunrise: String,
+    sunset: String,
+}
+
+#[derive(Debug)]
+struct ExpandedTrendsData {
+    chart_width: usize,
+    temp_values: Vec<f32>,
+    pressure_values: Vec<f32>,
+    gust_values: Vec<f32>,
+    precip_values: Vec<f32>,
+    cloud_values: Vec<f32>,
+    visibility_values: Vec<f32>,
+}
 
 pub fn render_weather_info_expanded(
     frame: &mut Frame,
@@ -49,115 +91,87 @@ pub fn render_weather_info_expanded(
     let metrics_area = sections[1];
     let trend_area = sections[2];
 
-    let temp = weather.current_temp(state.units);
-    let unit_symbol = if state.units == crate::domain::weather::Units::Celsius {
-        "C"
-    } else {
-        "F"
-    };
-    let condition = weather_label_for_time(code, weather.current.is_day);
-    let location = weather.location.display_name();
-    let feels = round_temp(convert_temp(
-        weather.current.apparent_temperature_c,
-        state.units,
-    ));
-    let humidity = weather.current.relative_humidity_2m.round() as i32;
-    let dew = round_temp(convert_temp(weather.current.dew_point_2m_c, state.units));
-    let wind_dir = compass(weather.current.wind_direction_10m);
-    let wind = weather.current.wind_speed_10m.round() as i32;
-    let gust = weather.current.wind_gusts_10m.round() as i32;
-    let visibility = format_visibility(weather.current.visibility_m);
-    let pressure = weather.current.pressure_msl_hpa.round() as i32;
-    let pressure_trend = pressure_trend_marker(&weather.hourly);
-    let uv_today = weather
-        .daily
-        .first()
-        .and_then(|d| d.uv_index_max)
-        .map(|v| format!("{v:.1}"))
-        .unwrap_or_else(|| "--".to_string());
-    let cloud_total = weather.current.cloud_cover.round() as i32;
-    let (cloud_low, cloud_mid, cloud_high) =
-        cloud_layers_from_hourly(&weather.hourly).unwrap_or((None, None, None));
-    let cloud_split = format_cloud_layers(cloud_low, cloud_mid, cloud_high);
-
-    let sunrise = weather
-        .daily
-        .first()
-        .and_then(|d| d.sunrise)
-        .map(|t| t.format("%H:%M").to_string())
-        .unwrap_or_else(|| "--:--".to_string());
-    let sunset = weather
-        .daily
-        .first()
-        .and_then(|d| d.sunset)
-        .map(|t| t.format("%H:%M").to_string())
-        .unwrap_or_else(|| "--:--".to_string());
-
-    let updated = state
-        .refresh_meta
-        .last_success
-        .map(|ts| {
-            let local = ts.with_timezone(&Local);
-            let mins = state.refresh_meta.age_minutes().unwrap_or(0);
-            format!(
-                "Last updated {} ({}m ago)",
-                local.format("%H:%M"),
-                mins.max(0)
-            )
-        })
-        .unwrap_or_else(|| "Last updated --:--".to_string());
-
-    let freshness = match state.refresh_meta.state {
-        crate::resilience::freshness::FreshnessState::Fresh => "Fresh",
-        crate::resilience::freshness::FreshnessState::Stale => "⚠ Stale",
-        crate::resilience::freshness::FreshnessState::Offline => "⚠ Offline",
-    };
-    let freshness_color = match state.refresh_meta.state {
-        crate::resilience::freshness::FreshnessState::Fresh => theme.success,
-        crate::resilience::freshness::FreshnessState::Stale => theme.warning,
-        crate::resilience::freshness::FreshnessState::Offline => theme.danger,
+    let top_data = ExpandedTopData {
+        temp: weather.current_temp(state.units),
+        unit_symbol: if state.units == crate::domain::weather::Units::Celsius {
+            "C"
+        } else {
+            "F"
+        },
+        condition: weather_label_for_time(code, weather.current.is_day).to_string(),
+        condition_color: condition_color(&theme, weather_code_to_category(code)),
+        location: weather.location.display_name(),
+        high_low: weather.high_low(state.units),
+        freshness: match state.refresh_meta.state {
+            crate::resilience::freshness::FreshnessState::Fresh => "Fresh",
+            crate::resilience::freshness::FreshnessState::Stale => "⚠ Stale",
+            crate::resilience::freshness::FreshnessState::Offline => "⚠ Offline",
+        },
+        freshness_color: match state.refresh_meta.state {
+            crate::resilience::freshness::FreshnessState::Fresh => theme.success,
+            crate::resilience::freshness::FreshnessState::Stale => theme.warning,
+            crate::resilience::freshness::FreshnessState::Offline => theme.danger,
+        },
+        updated: state
+            .refresh_meta
+            .last_success
+            .map(|ts| {
+                let local = ts.with_timezone(&Local);
+                let mins = state.refresh_meta.age_minutes().unwrap_or(0);
+                format!(
+                    "Last updated {} ({}m ago)",
+                    local.format("%H:%M"),
+                    mins.max(0)
+                )
+            })
+            .unwrap_or_else(|| "Last updated --:--".to_string()),
     };
 
-    let mut top_lines = vec![Line::from(vec![
-        Span::styled(
-            format!("{temp}°{unit_symbol}  "),
-            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            condition,
-            Style::default()
-                .fg(condition_color(&theme, weather_code_to_category(code)))
-                .add_modifier(Modifier::BOLD),
-        ),
-    ])];
-    if let Some((high, low)) = weather.high_low(state.units) {
-        top_lines.push(Line::from(vec![
-            Span::styled(
-                format!("H:{high}°  L:{low}°  "),
-                Style::default().fg(theme.text),
-            ),
-            Span::styled(location, Style::default().fg(theme.muted_text)),
-        ]));
-    } else {
-        top_lines.push(Line::from(Span::styled(
-            location,
-            Style::default().fg(theme.muted_text),
-        )));
-    }
-    top_lines.push(Line::from(vec![
-        Span::styled("Status ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            freshness,
-            Style::default()
-                .fg(freshness_color)
-                .add_modifier(Modifier::BOLD),
-        ),
-    ]));
-    top_lines.push(Line::from(Span::styled(
-        updated,
-        Style::default().fg(theme.muted_text),
-    )));
-    frame.render_widget(Paragraph::new(top_lines), top_area);
+    let metrics_data = ExpandedMetricsData {
+        feels: round_temp(convert_temp(
+            weather.current.apparent_temperature_c,
+            state.units,
+        )),
+        dew: round_temp(convert_temp(weather.current.dew_point_2m_c, state.units)),
+        wind_dir: compass(weather.current.wind_direction_10m).to_string(),
+        wind: weather.current.wind_speed_10m.round() as i32,
+        gust: weather.current.wind_gusts_10m.round() as i32,
+        visibility: format_visibility(weather.current.visibility_m),
+        pressure: weather.current.pressure_msl_hpa.round() as i32,
+        pressure_trend: pressure_trend_marker(&weather.hourly),
+        humidity: weather.current.relative_humidity_2m.round() as i32,
+        cloud_total: weather.current.cloud_cover.round() as i32,
+        cloud_split: {
+            let (cloud_low, cloud_mid, cloud_high) =
+                cloud_layers_from_hourly(&weather.hourly).unwrap_or((None, None, None));
+            format_cloud_layers(cloud_low, cloud_mid, cloud_high)
+        },
+        uv_today: weather
+            .daily
+            .first()
+            .and_then(|d| d.uv_index_max)
+            .map(|v| format!("{v:.1}"))
+            .unwrap_or_else(|| "--".to_string()),
+        sunrise: weather
+            .daily
+            .first()
+            .and_then(|d| d.sunrise)
+            .map(|t| t.format("%H:%M").to_string())
+            .unwrap_or_else(|| "--:--".to_string()),
+        sunset: weather
+            .daily
+            .first()
+            .and_then(|d| d.sunset)
+            .map(|t| t.format("%H:%M").to_string())
+            .unwrap_or_else(|| "--:--".to_string()),
+    };
+
+    let trends_data = collect_trend_series(weather, state.units, trend_area, scale);
+
+    frame.render_widget(
+        Paragraph::new(build_expanded_top_lines(&top_data, theme)),
+        top_area,
+    );
 
     let metric_cols = Layout::horizontal(if matches!(scale, HeroScale::Deluxe) {
         [Constraint::Percentage(46), Constraint::Percentage(54)]
@@ -165,60 +179,135 @@ pub fn render_weather_info_expanded(
         [Constraint::Percentage(50), Constraint::Percentage(50)]
     })
     .split(metrics_area);
+    let (left_metrics, right_metrics) = build_expanded_metric_lines(&metrics_data, theme);
+    frame.render_widget(Paragraph::new(left_metrics), metric_cols[0]);
+    frame.render_widget(Paragraph::new(right_metrics), metric_cols[1]);
+
+    frame.render_widget(
+        Paragraph::new(build_expanded_trend_lines(
+            &trends_data,
+            trend_area.height,
+            weather,
+            theme,
+        )),
+        trend_area,
+    );
+}
+
+fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'static>> {
+    let mut top_lines = vec![Line::from(vec![
+        Span::styled(
+            format!("{}°{}  ", data.temp, data.unit_symbol),
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            data.condition.clone(),
+            Style::default()
+                .fg(data.condition_color)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])];
+    if let Some((high, low)) = data.high_low {
+        top_lines.push(Line::from(vec![
+            Span::styled(
+                format!("H:{high}°  L:{low}°  "),
+                Style::default().fg(theme.text),
+            ),
+            Span::styled(data.location.clone(), Style::default().fg(theme.muted_text)),
+        ]));
+    } else {
+        top_lines.push(Line::from(Span::styled(
+            data.location.clone(),
+            Style::default().fg(theme.muted_text),
+        )));
+    }
+    top_lines.push(Line::from(vec![
+        Span::styled("Status ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            data.freshness,
+            Style::default()
+                .fg(data.freshness_color)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    top_lines.push(Line::from(Span::styled(
+        data.updated.clone(),
+        Style::default().fg(theme.muted_text),
+    )));
+    top_lines
+}
+
+fn build_expanded_metric_lines(
+    data: &ExpandedMetricsData,
+    theme: Theme,
+) -> (Vec<Line<'static>>, Vec<Line<'static>>) {
     let left_metrics = vec![
         Line::from(vec![
             Span::styled("Feels ", Style::default().fg(theme.muted_text)),
-            Span::styled(format!("{feels}°"), Style::default().fg(theme.text)),
+            Span::styled(format!("{}°", data.feels), Style::default().fg(theme.text)),
             Span::raw("  "),
             Span::styled("Dew ", Style::default().fg(theme.muted_text)),
-            Span::styled(format!("{dew}°"), Style::default().fg(theme.info)),
+            Span::styled(format!("{}°", data.dew), Style::default().fg(theme.info)),
         ]),
         Line::from(vec![
             Span::styled("Wind ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                format!("{wind}/{gust} km/h {wind_dir}"),
+                format!("{}/{} km/h {}", data.wind, data.gust, data.wind_dir),
                 Style::default().fg(theme.success),
             ),
             Span::raw("  "),
             Span::styled("Visibility ", Style::default().fg(theme.muted_text)),
-            Span::styled(visibility, Style::default().fg(theme.accent)),
+            Span::styled(data.visibility.clone(), Style::default().fg(theme.accent)),
         ]),
     ];
-    frame.render_widget(Paragraph::new(left_metrics), metric_cols[0]);
 
     let right_metrics = vec![
         Line::from(vec![
             Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                format!("{pressure}hPa{pressure_trend}"),
+                format!("{}hPa{}", data.pressure, data.pressure_trend),
                 Style::default().fg(theme.warning),
             ),
             Span::raw("  "),
             Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
-            Span::styled(format!("{humidity}%"), Style::default().fg(theme.info)),
+            Span::styled(
+                format!("{}%", data.humidity),
+                Style::default().fg(theme.info),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Cloud ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                format!("{cloud_total}%"),
+                format!("{}%", data.cloud_total),
                 Style::default().fg(theme.landmark_neutral),
             ),
             Span::raw(" "),
-            Span::styled(cloud_split, Style::default().fg(theme.muted_text)),
+            Span::styled(
+                data.cloud_split.clone(),
+                Style::default().fg(theme.muted_text),
+            ),
             Span::raw("  "),
             Span::styled("UV ", Style::default().fg(theme.muted_text)),
-            Span::styled(uv_today, Style::default().fg(theme.warning)),
+            Span::styled(data.uv_today.clone(), Style::default().fg(theme.warning)),
         ]),
         Line::from(vec![
             Span::styled("Sunrise ", Style::default().fg(theme.muted_text)),
-            Span::styled(sunrise, Style::default().fg(theme.warning)),
+            Span::styled(data.sunrise.clone(), Style::default().fg(theme.warning)),
             Span::raw("  "),
             Span::styled("Sunset ", Style::default().fg(theme.muted_text)),
-            Span::styled(sunset, Style::default().fg(theme.warning)),
+            Span::styled(data.sunset.clone(), Style::default().fg(theme.warning)),
         ]),
     ];
-    frame.render_widget(Paragraph::new(right_metrics), metric_cols[1]);
 
+    (left_metrics, right_metrics)
+}
+
+fn collect_trend_series(
+    weather: &ForecastBundle,
+    units: crate::domain::weather::Units,
+    trend_area: Rect,
+    scale: HeroScale,
+) -> ExpandedTrendsData {
     let chart_width = trend_area
         .width
         .saturating_sub(scale.chart_left_padding())
@@ -227,7 +316,7 @@ pub fn render_weather_info_expanded(
         .hourly
         .iter()
         .take(24)
-        .filter_map(|h| h.temperature_2m_c.map(|v| convert_temp(v, state.units)))
+        .filter_map(|h| h.temperature_2m_c.map(|v| convert_temp(v, units)))
         .collect::<Vec<_>>();
     let pressure_values = weather
         .hourly
@@ -260,60 +349,77 @@ pub fn render_weather_info_expanded(
         .filter_map(|h| h.visibility_m.map(|m| m / 1000.0))
         .collect::<Vec<_>>();
 
+    ExpandedTrendsData {
+        chart_width,
+        temp_values,
+        pressure_values,
+        gust_values,
+        precip_values,
+        cloud_values,
+        visibility_values,
+    }
+}
+
+fn build_expanded_trend_lines(
+    data: &ExpandedTrendsData,
+    trend_height: u16,
+    weather: &ForecastBundle,
+    theme: Theme,
+) -> Vec<Line<'static>> {
     let mut trend_lines = vec![
         Line::from(vec![
             Span::styled("Temp   ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                sparkline(&temp_values, chart_width),
+                sparkline(&data.temp_values, data.chart_width),
                 Style::default().fg(theme.accent),
             ),
         ]),
         Line::from(vec![
             Span::styled("Press  ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                sparkline(&pressure_values, chart_width),
+                sparkline(&data.pressure_values, data.chart_width),
                 Style::default().fg(theme.info),
             ),
         ]),
     ];
-    if trend_area.height >= 3 {
+    if trend_height >= 3 {
         trend_lines.push(Line::from(vec![
             Span::styled("Gust   ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                sparkline(&gust_values, chart_width),
+                sparkline(&data.gust_values, data.chart_width),
                 Style::default().fg(theme.warning),
             ),
         ]));
     }
-    if trend_area.height >= 4 {
+    if trend_height >= 4 {
         trend_lines.push(Line::from(vec![
             Span::styled("Precip ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                sparkline(&precip_values, chart_width),
+                sparkline(&data.precip_values, data.chart_width),
                 Style::default().fg(theme.info),
             ),
         ]));
     }
-    if trend_area.height >= 5 {
+    if trend_height >= 5 {
         trend_lines.push(Line::from(vec![
             Span::styled("Cloud  ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                sparkline(&cloud_values, chart_width),
+                sparkline(&data.cloud_values, data.chart_width),
                 Style::default().fg(theme.landmark_neutral),
             ),
         ]));
     }
-    if trend_area.height >= 6 {
+    if trend_height >= 6 {
         trend_lines.push(Line::from(vec![
             Span::styled("Vis km ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                sparkline(&visibility_values, chart_width),
+                sparkline(&data.visibility_values, data.chart_width),
                 Style::default().fg(theme.success),
             ),
         ]));
     }
-    if trend_area.height >= 7
-        && let Some((min_temp, max_temp)) = value_span(&temp_values)
+    if trend_height >= 7
+        && let Some((min_temp, max_temp)) = value_span(&data.temp_values)
     {
         trend_lines.push(Line::from(vec![
             Span::styled("24h span ", Style::default().fg(theme.muted_text)),
@@ -328,7 +434,7 @@ pub fn render_weather_info_expanded(
             ),
         ]));
     }
-    if trend_area.height >= 8 {
+    if trend_height >= 8 {
         trend_lines.push(Line::from(vec![
             Span::styled("Next rain ", Style::default().fg(theme.muted_text)),
             Span::styled(
@@ -337,7 +443,7 @@ pub fn render_weather_info_expanded(
             ),
         ]));
     }
-    if trend_area.height >= 9 {
+    if trend_height >= 9 {
         trend_lines.push(Line::from(vec![
             Span::styled("Peak gust ", Style::default().fg(theme.muted_text)),
             Span::styled(
@@ -346,16 +452,16 @@ pub fn render_weather_info_expanded(
             ),
         ]));
     }
-    if trend_area.height >= 10 {
+    if trend_height >= 10 {
         trend_lines.push(Line::from(vec![
             Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
             Span::styled(
-                pressure_span_summary(&pressure_values),
+                pressure_span_summary(&data.pressure_values),
                 Style::default().fg(theme.success),
             ),
         ]));
     }
-    frame.render_widget(Paragraph::new(trend_lines), trend_area);
+    trend_lines
 }
 
 fn sparkline(values: &[f32], width: usize) -> String {
@@ -419,4 +525,61 @@ pub fn pressure_span_summary(values: &[f32]) -> String {
     value_span(values)
         .map(|(min, max)| format!("{:.0}..{:.0}hPa", min, max))
         .unwrap_or_else(|| "--".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{next_precip_summary, pressure_span_summary};
+    use crate::domain::weather::HourlyForecast;
+    use chrono::{NaiveDate, NaiveDateTime};
+
+    #[test]
+    fn next_precip_summary_covers_now_in_nh_and_none() {
+        let now = vec![hour(0, Some(0.4)), hour(1, None), hour(2, None)];
+        assert_eq!(next_precip_summary(&now), "now (0.4mm)");
+
+        let later = vec![hour(0, Some(0.0)), hour(1, Some(0.1)), hour(2, Some(0.3))];
+        assert_eq!(next_precip_summary(&later), "in 2h (0.3mm)");
+
+        let dry = vec![hour(0, Some(0.0)), hour(1, None), hour(2, Some(0.1))];
+        assert_eq!(next_precip_summary(&dry), "none in 12h");
+    }
+
+    #[test]
+    fn pressure_span_summary_handles_empty_and_non_empty() {
+        assert_eq!(pressure_span_summary(&[]), "--");
+        assert_eq!(
+            pressure_span_summary(&[1008.2, 1012.9, 1010.0]),
+            "1008..1013hPa"
+        );
+    }
+
+    fn dt(hour: u32) -> NaiveDateTime {
+        NaiveDate::from_ymd_opt(2026, 2, 20)
+            .expect("valid date")
+            .and_hms_opt(hour, 0, 0)
+            .expect("valid time")
+    }
+
+    fn hour(hour: u32, precip_mm: Option<f32>) -> HourlyForecast {
+        HourlyForecast {
+            time: dt(hour),
+            temperature_2m_c: None,
+            weather_code: None,
+            is_day: None,
+            relative_humidity_2m: None,
+            precipitation_probability: None,
+            precipitation_mm: precip_mm,
+            rain_mm: None,
+            snowfall_cm: None,
+            wind_speed_10m: None,
+            wind_gusts_10m: None,
+            pressure_msl_hpa: None,
+            visibility_m: None,
+            cloud_cover: None,
+            cloud_cover_low: None,
+            cloud_cover_mid: None,
+            cloud_cover_high: None,
+        }
+    }
 }

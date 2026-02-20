@@ -313,134 +313,146 @@ struct WeekSummaryData {
     gusts: Vec<f32>,
 }
 
-fn summarize_week(bundle: &ForecastBundle, units: Units) -> WeekSummaryData {
-    let mut precip_total = 0.0f32;
-    let mut rain_total = 0.0f32;
-    let mut snow_total = 0.0f32;
-    let mut daylight_total = 0.0f32;
-    let mut sunshine_total = 0.0f32;
-    let mut daylight_count = 0usize;
-    let mut sunshine_count = 0usize;
-    let mut precipitation_hours_total = 0.0f32;
-    let mut precipitation_hours_count = 0usize;
-    let mut breeziest: Option<(String, f32)> = None;
-    let mut wettest: Option<(String, f32)> = None;
-    let mut strongest_uv: Option<(String, f32)> = None;
-    let mut week_min_temp_c: Option<f32> = None;
-    let mut week_max_temp_c: Option<f32> = None;
+#[derive(Debug, Default)]
+struct WeekAccumulator {
+    precip_total: f32,
+    rain_total: f32,
+    snow_total: f32,
+    daylight_total: f32,
+    sunshine_total: f32,
+    daylight_count: usize,
+    sunshine_count: usize,
+    precipitation_hours_total: f32,
+    precipitation_hours_count: usize,
+    breeziest: Option<(String, f32)>,
+    wettest: Option<(String, f32)>,
+    strongest_uv: Option<(String, f32)>,
+    week_min_temp_c: Option<f32>,
+    week_max_temp_c: Option<f32>,
+}
 
-    for day in &bundle.daily {
+impl WeekAccumulator {
+    fn ingest(&mut self, day: &DailyForecast) {
         if let Some(v) = day.precipitation_sum_mm {
-            precip_total += v.max(0.0);
+            self.precip_total += v.max(0.0);
             let tag = day.date.format("%a").to_string();
-            if wettest.as_ref().is_none_or(|(_, best)| v > *best) {
-                wettest = Some((tag, v));
+            if self.wettest.as_ref().is_none_or(|(_, best)| v > *best) {
+                self.wettest = Some((tag, v));
             }
         }
         if let Some(v) = day.rain_sum_mm {
-            rain_total += v.max(0.0);
+            self.rain_total += v.max(0.0);
         }
         if let Some(v) = day.snowfall_sum_cm {
-            snow_total += v.max(0.0);
+            self.snow_total += v.max(0.0);
         }
         if let Some(v) = day.daylight_duration_s {
-            daylight_total += v.max(0.0);
-            daylight_count += 1;
+            self.daylight_total += v.max(0.0);
+            self.daylight_count += 1;
         }
         if let Some(v) = day.sunshine_duration_s {
-            sunshine_total += v.max(0.0);
-            sunshine_count += 1;
+            self.sunshine_total += v.max(0.0);
+            self.sunshine_count += 1;
         }
         if let Some(v) = day.precipitation_hours {
-            precipitation_hours_total += v.max(0.0);
-            precipitation_hours_count += 1;
+            self.precipitation_hours_total += v.max(0.0);
+            self.precipitation_hours_count += 1;
         }
         if let Some(v) = day.wind_gusts_10m_max {
             let tag = day.date.format("%a").to_string();
-            if breeziest.as_ref().is_none_or(|(_, best)| v > *best) {
-                breeziest = Some((tag, v));
+            if self.breeziest.as_ref().is_none_or(|(_, best)| v > *best) {
+                self.breeziest = Some((tag, v));
             }
         }
         if let Some(v) = day.uv_index_max {
             let tag = day.date.format("%a").to_string();
-            if strongest_uv.as_ref().is_none_or(|(_, best)| v > *best) {
-                strongest_uv = Some((tag, v));
+            if self.strongest_uv.as_ref().is_none_or(|(_, best)| v > *best) {
+                self.strongest_uv = Some((tag, v));
             }
         }
         if let Some(v) = day.temperature_min_c {
-            week_min_temp_c = Some(week_min_temp_c.map_or(v, |current| current.min(v)));
+            self.week_min_temp_c = Some(self.week_min_temp_c.map_or(v, |current| current.min(v)));
         }
         if let Some(v) = day.temperature_max_c {
-            week_max_temp_c = Some(week_max_temp_c.map_or(v, |current| current.max(v)));
+            self.week_max_temp_c = Some(self.week_max_temp_c.map_or(v, |current| current.max(v)));
         }
     }
 
-    let wettest_txt =
-        wettest.map_or_else(|| "--".to_string(), |(day, mm)| format!("{day} {mm:.1}mm"));
-    let breeziest_txt = breeziest.map_or_else(
-        || "--".to_string(),
-        |(day, gust)| format!("{day} {}km/h", gust.round() as i32),
-    );
-    let avg_daylight = if daylight_count > 0 {
-        format_duration_hm(daylight_total / daylight_count as f32)
-    } else {
-        "--:--".to_string()
-    };
-    let avg_sun = if sunshine_count > 0 {
-        format_duration_hm(sunshine_total / sunshine_count as f32)
-    } else {
-        "--:--".to_string()
-    };
-    let precip_hours_avg = if precipitation_hours_count > 0 {
-        format!(
-            "{:.1}h/day",
-            precipitation_hours_total / precipitation_hours_count as f32
-        )
-    } else {
-        "--".to_string()
-    };
-    let uv_peak =
-        strongest_uv.map_or_else(|| "--".to_string(), |(day, uv)| format!("{day} {uv:.1}"));
-    let week_thermal = match (week_min_temp_c, week_max_temp_c) {
-        (Some(low), Some(high)) => {
-            let low = round_temp(convert_temp(low, units));
-            let high = round_temp(convert_temp(high, units));
-            format!("{low}°..{high}°")
-        }
-        _ => "--".to_string(),
-    };
-    let highs = bundle
-        .daily
-        .iter()
-        .filter_map(|d| d.temperature_max_c)
-        .map(|t| convert_temp(t, units))
-        .collect::<Vec<_>>();
-    let precip = bundle
-        .daily
-        .iter()
-        .map(|d| d.precipitation_sum_mm.unwrap_or(0.0))
-        .collect::<Vec<_>>();
-    let gusts = bundle
-        .daily
-        .iter()
-        .map(|d| d.wind_gusts_10m_max.unwrap_or(0.0))
-        .collect::<Vec<_>>();
+    fn finish(self, units: Units, daily: &[DailyForecast]) -> WeekSummaryData {
+        let wettest_txt = self
+            .wettest
+            .map_or_else(|| "--".to_string(), |(day, mm)| format!("{day} {mm:.1}mm"));
+        let breeziest_txt = self.breeziest.map_or_else(
+            || "--".to_string(),
+            |(day, gust)| format!("{day} {}km/h", gust.round() as i32),
+        );
+        let avg_daylight = if self.daylight_count > 0 {
+            format_duration_hm(self.daylight_total / self.daylight_count as f32)
+        } else {
+            "--:--".to_string()
+        };
+        let avg_sun = if self.sunshine_count > 0 {
+            format_duration_hm(self.sunshine_total / self.sunshine_count as f32)
+        } else {
+            "--:--".to_string()
+        };
+        let precip_hours_avg = if self.precipitation_hours_count > 0 {
+            format!(
+                "{:.1}h/day",
+                self.precipitation_hours_total / self.precipitation_hours_count as f32
+            )
+        } else {
+            "--".to_string()
+        };
+        let uv_peak = self
+            .strongest_uv
+            .map_or_else(|| "--".to_string(), |(day, uv)| format!("{day} {uv:.1}"));
+        let week_thermal = match (self.week_min_temp_c, self.week_max_temp_c) {
+            (Some(low), Some(high)) => {
+                let low = round_temp(convert_temp(low, units));
+                let high = round_temp(convert_temp(high, units));
+                format!("{low}°..{high}°")
+            }
+            _ => "--".to_string(),
+        };
+        let highs = daily
+            .iter()
+            .filter_map(|d| d.temperature_max_c)
+            .map(|t| convert_temp(t, units))
+            .collect::<Vec<_>>();
+        let precip = daily
+            .iter()
+            .map(|d| d.precipitation_sum_mm.unwrap_or(0.0))
+            .collect::<Vec<_>>();
+        let gusts = daily
+            .iter()
+            .map(|d| d.wind_gusts_10m_max.unwrap_or(0.0))
+            .collect::<Vec<_>>();
 
-    WeekSummaryData {
-        precip_total,
-        rain_total,
-        snow_total,
-        avg_daylight,
-        avg_sun,
-        breeziest_txt,
-        wettest_txt,
-        precip_hours_avg,
-        uv_peak,
-        week_thermal,
-        highs,
-        precip,
-        gusts,
+        WeekSummaryData {
+            precip_total: self.precip_total,
+            rain_total: self.rain_total,
+            snow_total: self.snow_total,
+            avg_daylight,
+            avg_sun,
+            breeziest_txt,
+            wettest_txt,
+            precip_hours_avg,
+            uv_peak,
+            week_thermal,
+            highs,
+            precip,
+            gusts,
+        }
     }
+}
+
+fn summarize_week(bundle: &ForecastBundle, units: Units) -> WeekSummaryData {
+    let mut accumulator = WeekAccumulator::default();
+    for day in &bundle.daily {
+        accumulator.ingest(day);
+    }
+    accumulator.finish(units, &bundle.daily)
 }
 
 fn week_summary_header_lines(
@@ -869,6 +881,8 @@ pub fn bar_bounds(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::weather::{CurrentConditions, ForecastBundle, Location};
+    use chrono::{NaiveDate, Utc};
 
     #[test]
     fn range_bounds_are_clamped() {
@@ -909,5 +923,138 @@ mod tests {
         assert!(!narrow.show_icon);
         assert!(!narrow.show_bar);
         assert!(!narrow.show_header);
+    }
+
+    #[test]
+    fn summarize_week_aggregates_three_day_dataset() {
+        let daily = vec![
+            sample_day(DayInput {
+                date: (2026, 2, 20),
+                precip_mm: 3.0,
+                rain_mm: 2.0,
+                snow_cm: 0.0,
+                gust_kmh: 30.0,
+                uv: 4.5,
+                min_c: -2.0,
+                max_c: 6.0,
+                daylight_s: 36000.0,
+                sunshine_s: 18000.0,
+                precip_hours: 2.0,
+            }),
+            sample_day(DayInput {
+                date: (2026, 2, 21),
+                precip_mm: 5.0,
+                rain_mm: 1.5,
+                snow_cm: 1.2,
+                gust_kmh: 52.0,
+                uv: 7.0,
+                min_c: -4.0,
+                max_c: 9.0,
+                daylight_s: 43200.0,
+                sunshine_s: 21600.0,
+                precip_hours: 4.0,
+            }),
+            sample_day(DayInput {
+                date: (2026, 2, 22),
+                precip_mm: 2.0,
+                rain_mm: 1.0,
+                snow_cm: 0.0,
+                gust_kmh: 22.0,
+                uv: 5.2,
+                min_c: 0.0,
+                max_c: 4.0,
+                daylight_s: 32400.0,
+                sunshine_s: 10800.0,
+                precip_hours: 1.0,
+            }),
+        ];
+        let bundle = sample_bundle(daily.clone());
+
+        let summary = summarize_week(&bundle, Units::Celsius);
+
+        assert!((summary.precip_total - 10.0).abs() < f32::EPSILON);
+        assert!((summary.rain_total - 4.5).abs() < f32::EPSILON);
+        assert!((summary.snow_total - 1.2).abs() < f32::EPSILON);
+        assert_eq!(summary.avg_daylight, "10:20");
+        assert_eq!(summary.avg_sun, "04:40");
+        assert_eq!(summary.precip_hours_avg, "2.3h/day");
+        assert_eq!(
+            summary.wettest_txt,
+            format!("{} 5.0mm", daily[1].date.format("%a"))
+        );
+        assert_eq!(
+            summary.breeziest_txt,
+            format!("{} 52km/h", daily[1].date.format("%a"))
+        );
+        assert_eq!(
+            summary.uv_peak,
+            format!("{} 7.0", daily[1].date.format("%a"))
+        );
+        assert_eq!(summary.week_thermal, "-4°..9°");
+        assert_eq!(summary.highs, vec![6.0, 9.0, 4.0]);
+        assert_eq!(summary.precip, vec![3.0, 5.0, 2.0]);
+        assert_eq!(summary.gusts, vec![30.0, 52.0, 22.0]);
+    }
+
+    #[derive(Clone, Copy)]
+    struct DayInput {
+        date: (i32, u32, u32),
+        precip_mm: f32,
+        rain_mm: f32,
+        snow_cm: f32,
+        gust_kmh: f32,
+        uv: f32,
+        min_c: f32,
+        max_c: f32,
+        daylight_s: f32,
+        sunshine_s: f32,
+        precip_hours: f32,
+    }
+
+    fn sample_day(input: DayInput) -> DailyForecast {
+        DailyForecast {
+            date: NaiveDate::from_ymd_opt(input.date.0, input.date.1, input.date.2)
+                .expect("valid date"),
+            weather_code: Some(3),
+            temperature_max_c: Some(input.max_c),
+            temperature_min_c: Some(input.min_c),
+            sunrise: None,
+            sunset: None,
+            uv_index_max: Some(input.uv),
+            precipitation_probability_max: Some(70.0),
+            precipitation_sum_mm: Some(input.precip_mm),
+            rain_sum_mm: Some(input.rain_mm),
+            snowfall_sum_cm: Some(input.snow_cm),
+            precipitation_hours: Some(input.precip_hours),
+            wind_gusts_10m_max: Some(input.gust_kmh),
+            daylight_duration_s: Some(input.daylight_s),
+            sunshine_duration_s: Some(input.sunshine_s),
+        }
+    }
+
+    fn sample_bundle(daily: Vec<DailyForecast>) -> ForecastBundle {
+        ForecastBundle {
+            location: Location::from_coords(59.3293, 18.0686),
+            current: CurrentConditions {
+                temperature_2m_c: 2.0,
+                relative_humidity_2m: 75.0,
+                apparent_temperature_c: 0.0,
+                dew_point_2m_c: -1.0,
+                weather_code: 3,
+                precipitation_mm: 0.0,
+                cloud_cover: 60.0,
+                pressure_msl_hpa: 1010.0,
+                visibility_m: 9000.0,
+                wind_speed_10m: 12.0,
+                wind_gusts_10m: 18.0,
+                wind_direction_10m: 180.0,
+                is_day: true,
+                high_today_c: Some(6.0),
+                low_today_c: Some(-2.0),
+            },
+            hourly: Vec::new(),
+            daily,
+            fetched_at: Utc::now(),
+        }
     }
 }

@@ -153,187 +153,19 @@ fn render_table_mode(
         };
 
     let mut rows = vec![
-        Row::new({
-            let mut cells = vec![Cell::from("Time").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().enumerate().map(|(idx, h)| {
-                let is_now = idx + offset == 0;
-                let is_cursor = cursor_in_view == Some(idx);
-                let label = if is_now {
-                    "Now".to_string()
-                } else {
-                    h.time.format("%H:%M").to_string()
-                };
-                let style = if is_cursor {
-                    Style::default()
-                        .fg(theme.accent)
-                        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
-                } else if is_now {
-                    Style::default()
-                        .fg(theme.accent)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(theme.muted_text)
-                };
-                Cell::from(label).style(style)
-            }));
-            cells
-        }),
-        Row::new({
-            let mut cells = vec![Cell::from("Wx").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
-                let code = h.weather_code.unwrap_or(bundle.current.weather_code);
-                let is_day = h.is_day.unwrap_or(bundle.current.is_day);
-                Cell::from(weather_icon(code, state.settings.icon_mode, is_day))
-                    .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))))
-            }));
-            cells
-        }),
-        Row::new({
-            let mut cells = vec![Cell::from("Temp").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().enumerate().map(|(idx, h)| {
-                let temp = h.temperature_2m_c.map(|t| convert_temp(t, state.units));
-                let is_cursor = cursor_in_view == Some(idx);
-                let mut style = Style::default()
-                    .fg(temp.map_or(theme.muted_text, |t| temp_color(&theme, t)))
-                    .add_modifier(Modifier::BOLD);
-                if is_cursor {
-                    style = style.add_modifier(Modifier::UNDERLINED);
-                }
-                Cell::from(temp.map_or_else(|| "--".to_string(), |t| format!("{}°", round_temp(t))))
-                    .style(style)
-            }));
-            cells
-        }),
+        build_time_row(slice, offset, cursor_in_view, theme),
+        build_weather_row(slice, bundle, state, theme),
+        build_temp_row(slice, state.units, cursor_in_view, theme),
     ];
 
-    let has_date_change = slice
-        .windows(2)
-        .any(|w| w[0].time.date() != w[1].time.date());
-    if has_date_change || offset > 0 {
-        rows.insert(
-            1,
-            Row::new({
-                let mut cells =
-                    vec![Cell::from("Date").style(Style::default().fg(theme.muted_text))];
-                let mut last_shown_date: Option<chrono::NaiveDate> = None;
-                cells.extend(slice.iter().map(|h| {
-                    let date = h.time.date();
-                    if last_shown_date != Some(date) {
-                        last_shown_date = Some(date);
-                        Cell::from(date.format("%a %d").to_string()).style(
-                            Style::default()
-                                .fg(theme.accent)
-                                .add_modifier(Modifier::BOLD),
-                        )
-                    } else {
-                        Cell::from("·").style(Style::default().fg(theme.muted_text))
-                    }
-                }));
-                cells
-            }),
-        );
+    if let Some(date_row) = build_optional_date_row(slice, offset, theme) {
+        rows.insert(1, date_row);
     }
 
-    if area.height >= 5 {
-        rows.push(Row::new({
-            let mut cells = vec![Cell::from("P mm").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
-                let text = h.precipitation_mm.map_or_else(
-                    || "--.-".to_string(),
-                    |p| format!("{:>4.1}", sanitize_precip_mm(p)),
-                );
-                Cell::from(text).style(Style::default().fg(theme.info))
-            }));
-            cells
-        }));
-    }
-    if area.height >= 6 {
-        rows.push(Row::new({
-            let mut cells = vec![Cell::from("Gust").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
-                let text = h
-                    .wind_gusts_10m
-                    .map_or_else(|| "-- ".to_string(), |g| format!("{:>3}", g.round() as i32));
-                Cell::from(text).style(Style::default().fg(theme.warning))
-            }));
-            cells
-        }));
-    }
-    if area.height >= 7 {
-        rows.push(Row::new({
-            let mut cells = vec![Cell::from("Vis").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
-                let text = h.visibility_m.map_or_else(
-                    || "-- ".to_string(),
-                    |v| format!("{:>3}", (v / 1000.0).round() as i32),
-                );
-                Cell::from(text).style(Style::default().fg(theme.success))
-            }));
-            cells
-        }));
-    }
-    if area.height >= 8 {
-        rows.push(Row::new({
-            let mut cells = vec![Cell::from("Cloud").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
-                let text = h.cloud_cover.map_or_else(
-                    || "-- ".to_string(),
-                    |c| format!("{:>3}%", c.round() as i32),
-                );
-                Cell::from(text).style(Style::default().fg(theme.landmark_neutral))
-            }));
-            cells
-        }));
-    }
-    if area.height >= 9 {
-        rows.push(Row::new({
-            let mut cells = vec![Cell::from("Press").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
-                let text = h
-                    .pressure_msl_hpa
-                    .map_or_else(|| " -- ".to_string(), |p| format!("{:>4.0}", p));
-                Cell::from(text).style(Style::default().fg(theme.info))
-            }));
-            cells
-        }));
-    }
-    if area.height >= 10 {
-        rows.push(Row::new({
-            let mut cells = vec![Cell::from("RH").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
-                let text = h.relative_humidity_2m.map_or_else(
-                    || "-- ".to_string(),
-                    |rh| format!("{:>3}%", rh.round() as i32),
-                );
-                Cell::from(text).style(Style::default().fg(theme.info))
-            }));
-            cells
-        }));
-    }
-    if area.height >= 11 {
-        rows.push(Row::new({
-            let mut cells = vec![Cell::from("P%").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
-                let text = h.precipitation_probability.map_or_else(
-                    || "-- ".to_string(),
-                    |p| format!("{:>3}%", p.round() as i32),
-                );
-                Cell::from(text).style(Style::default().fg(theme.warning))
-            }));
-            cells
-        }));
-    }
-    if area.height >= 12 {
-        rows.push(Row::new({
-            let mut cells = vec![Cell::from("Wind").style(Style::default().fg(theme.muted_text))];
-            cells.extend(slice.iter().map(|h| {
-                let text = h
-                    .wind_speed_10m
-                    .map_or_else(|| "-- ".to_string(), |w| format!("{:>3}", w.round() as i32));
-                Cell::from(text).style(Style::default().fg(theme.success))
-            }));
-            cells
-        }));
+    for (min_height, label, color, formatter) in metric_row_specs(theme) {
+        if area.height >= min_height {
+            rows.push(build_metric_row(label, slice, color, formatter, theme));
+        }
     }
 
     let column_spacing = if area.width >= 140 {
@@ -350,6 +182,186 @@ fn render_table_mode(
         .column_spacing(column_spacing)
         .style(panel_style);
     frame.render_widget(table, area);
+}
+
+type HourlyMetricFormatter = fn(&HourlyForecast) -> String;
+
+fn build_time_row(
+    slice: &[&HourlyForecast],
+    offset: usize,
+    cursor_in_view: Option<usize>,
+    theme: Theme,
+) -> Row<'static> {
+    let mut cells = vec![Cell::from("Time").style(Style::default().fg(theme.muted_text))];
+    cells.extend(slice.iter().enumerate().map(|(idx, h)| {
+        let is_now = idx + offset == 0;
+        let is_cursor = cursor_in_view == Some(idx);
+        let label = if is_now {
+            "Now".to_string()
+        } else {
+            h.time.format("%H:%M").to_string()
+        };
+        let style = if is_cursor {
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else if is_now {
+            Style::default()
+                .fg(theme.accent)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.muted_text)
+        };
+        Cell::from(label).style(style)
+    }));
+    Row::new(cells)
+}
+
+fn build_weather_row(
+    slice: &[&HourlyForecast],
+    bundle: &ForecastBundle,
+    state: &AppState,
+    theme: Theme,
+) -> Row<'static> {
+    let mut cells = vec![Cell::from("Wx").style(Style::default().fg(theme.muted_text))];
+    cells.extend(slice.iter().map(|h| {
+        let code = h.weather_code.unwrap_or(bundle.current.weather_code);
+        let is_day = h.is_day.unwrap_or(bundle.current.is_day);
+        Cell::from(weather_icon(code, state.settings.icon_mode, is_day))
+            .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))))
+    }));
+    Row::new(cells)
+}
+
+fn build_temp_row(
+    slice: &[&HourlyForecast],
+    units: Units,
+    cursor_in_view: Option<usize>,
+    theme: Theme,
+) -> Row<'static> {
+    let mut cells = vec![Cell::from("Temp").style(Style::default().fg(theme.muted_text))];
+    cells.extend(slice.iter().enumerate().map(|(idx, h)| {
+        let temp = h.temperature_2m_c.map(|t| convert_temp(t, units));
+        let is_cursor = cursor_in_view == Some(idx);
+        let mut style = Style::default()
+            .fg(temp.map_or(theme.muted_text, |t| temp_color(&theme, t)))
+            .add_modifier(Modifier::BOLD);
+        if is_cursor {
+            style = style.add_modifier(Modifier::UNDERLINED);
+        }
+        Cell::from(temp.map_or_else(|| "--".to_string(), |t| format!("{}°", round_temp(t))))
+            .style(style)
+    }));
+    Row::new(cells)
+}
+
+fn build_optional_date_row(
+    slice: &[&HourlyForecast],
+    offset: usize,
+    theme: Theme,
+) -> Option<Row<'static>> {
+    let has_date_change = slice
+        .windows(2)
+        .any(|w| w[0].time.date() != w[1].time.date());
+    if !has_date_change && offset == 0 {
+        return None;
+    }
+
+    let mut cells = vec![Cell::from("Date").style(Style::default().fg(theme.muted_text))];
+    let mut last_shown_date: Option<chrono::NaiveDate> = None;
+    cells.extend(slice.iter().map(|h| {
+        let date = h.time.date();
+        if last_shown_date != Some(date) {
+            last_shown_date = Some(date);
+            Cell::from(date.format("%a %d").to_string()).style(
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            )
+        } else {
+            Cell::from("·").style(Style::default().fg(theme.muted_text))
+        }
+    }));
+    Some(Row::new(cells))
+}
+
+fn build_metric_row(
+    label: &'static str,
+    slice: &[&HourlyForecast],
+    color: Color,
+    formatter: HourlyMetricFormatter,
+    theme: Theme,
+) -> Row<'static> {
+    let mut cells = vec![Cell::from(label).style(Style::default().fg(theme.muted_text))];
+    cells.extend(
+        slice
+            .iter()
+            .map(|h| Cell::from(formatter(h)).style(Style::default().fg(color))),
+    );
+    Row::new(cells)
+}
+
+fn metric_row_specs(theme: Theme) -> [(u16, &'static str, Color, HourlyMetricFormatter); 8] {
+    [
+        (5, "P mm", theme.info, format_precip_mm_metric),
+        (6, "Gust", theme.warning, format_gust_metric),
+        (7, "Vis", theme.success, format_visibility_metric),
+        (8, "Cloud", theme.landmark_neutral, format_cloud_metric),
+        (9, "Press", theme.info, format_pressure_metric),
+        (10, "RH", theme.info, format_humidity_metric),
+        (11, "P%", theme.warning, format_precip_probability_metric),
+        (12, "Wind", theme.success, format_wind_metric),
+    ]
+}
+
+fn format_precip_mm_metric(hour: &HourlyForecast) -> String {
+    hour.precipitation_mm.map_or_else(
+        || "--.-".to_string(),
+        |p| format!("{:>4.1}", sanitize_precip_mm(p)),
+    )
+}
+
+fn format_gust_metric(hour: &HourlyForecast) -> String {
+    hour.wind_gusts_10m
+        .map_or_else(|| "-- ".to_string(), |g| format!("{:>3}", g.round() as i32))
+}
+
+fn format_visibility_metric(hour: &HourlyForecast) -> String {
+    hour.visibility_m.map_or_else(
+        || "-- ".to_string(),
+        |v| format!("{:>3}", (v / 1000.0).round() as i32),
+    )
+}
+
+fn format_cloud_metric(hour: &HourlyForecast) -> String {
+    hour.cloud_cover.map_or_else(
+        || "-- ".to_string(),
+        |c| format!("{:>3}%", c.round() as i32),
+    )
+}
+
+fn format_pressure_metric(hour: &HourlyForecast) -> String {
+    hour.pressure_msl_hpa
+        .map_or_else(|| " -- ".to_string(), |p| format!("{:>4.0}", p))
+}
+
+fn format_humidity_metric(hour: &HourlyForecast) -> String {
+    hour.relative_humidity_2m.map_or_else(
+        || "-- ".to_string(),
+        |rh| format!("{:>3}%", rh.round() as i32),
+    )
+}
+
+fn format_precip_probability_metric(hour: &HourlyForecast) -> String {
+    hour.precipitation_probability.map_or_else(
+        || "-- ".to_string(),
+        |p| format!("{:>3}%", p.round() as i32),
+    )
+}
+
+fn format_wind_metric(hour: &HourlyForecast) -> String {
+    hour.wind_speed_10m
+        .map_or_else(|| "-- ".to_string(), |w| format!("{:>3}", w.round() as i32))
 }
 
 fn render_hybrid_mode(
@@ -471,15 +483,7 @@ fn render_daypart_cards(
             return false;
         }
 
-        let parts = Daypart::all()
-            .iter()
-            .filter_map(|part| {
-                summaries
-                    .iter()
-                    .find(|s| s.date == date && s.daypart == *part)
-                    .cloned()
-            })
-            .collect::<Vec<_>>();
+        let parts = collect_parts_for_date(&summaries, date);
         if parts.len() != Daypart::all().len() {
             continue;
         }
@@ -493,114 +497,143 @@ fn render_daypart_cards(
         );
 
         let card_area = day_rows[1];
-        let (show_secondary, show_wind, show_vis) = match card_area.height {
-            0..=2 => (false, false, false),
-            3 => (false, false, false),
-            4 => (false, false, true),
-            5 => (false, true, true),
-            _ => (true, true, true),
-        };
-
-        let row_part = Row::new(
-            Daypart::all()
-                .iter()
-                .map(|part| Cell::from(part.label()).style(Style::default().fg(theme.muted_text)))
-                .collect::<Vec<_>>(),
-        )
-        .style(Style::default().add_modifier(Modifier::BOLD));
-
-        let row_primary = Row::new(
-            parts
-                .iter()
-                .map(|summary| {
-                    Cell::from(format!(
-                        "{} {}",
-                        weather_icon(
-                            summary.weather_code,
-                            state.settings.icon_mode,
-                            !matches!(summary.daypart, Daypart::Night)
-                        ),
-                        temp_range(summary, state.units),
-                    ))
-                    .style(Style::default().fg(theme.text))
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        let row_precip = Row::new(
-            parts
-                .iter()
-                .map(|summary| {
-                    let prob = summary
-                        .precip_probability_max
-                        .map_or_else(|| "--".to_string(), |v| format!("{v:.0}%"));
-                    Cell::from(format!(
-                        "{:.1}mm {prob}",
-                        sanitize_precip_mm(summary.precip_sum_mm)
-                    ))
-                    .style(Style::default().fg(theme.info))
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        let row_secondary = Row::new(
-            parts
-                .iter()
-                .map(|summary| {
-                    let label = weather_label_for_time(
-                        summary.weather_code,
-                        !matches!(summary.daypart, Daypart::Night),
-                    );
-                    Cell::from(truncate(label, 14)).style(Style::default().fg(theme.muted_text))
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        let row_wind = Row::new(
-            parts
-                .iter()
-                .map(|summary| {
-                    let min_wind = summary
-                        .wind_min_kmh
-                        .map_or_else(|| "--".to_string(), |v| format!("{v:.0}"));
-                    let max_wind = summary
-                        .wind_max_kmh
-                        .map_or_else(|| "--".to_string(), |v| format!("{v:.0}"));
-                    Cell::from(format!("{min_wind}-{max_wind}km/h"))
-                        .style(Style::default().fg(theme.warning))
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        let row_vis = Row::new(
-            parts
-                .iter()
-                .map(|summary| {
-                    let vis = summary.visibility_median_m.map_or_else(
-                        || "--".to_string(),
-                        |v| format!("{:.0}km", (v / 1000.0).max(0.0)),
-                    );
-                    Cell::from(vis).style(Style::default().fg(theme.success))
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        let mut rows = vec![row_part, row_primary, row_precip];
-        if show_secondary {
-            rows.push(row_secondary);
-        }
-        if show_wind {
-            rows.push(row_wind);
-        }
-        if show_vis {
-            rows.push(row_vis);
-        }
+        let (show_secondary, show_wind, show_vis) = daypart_visibility(card_area.height);
+        let rows = build_daypart_rows(&parts, state, theme, show_secondary, show_wind, show_vis);
 
         let table = Table::new(rows, vec![Constraint::Ratio(1, 4); 4]).column_spacing(1);
         frame.render_widget(table, card_area);
     }
 
     true
+}
+
+fn daypart_visibility(height: u16) -> (bool, bool, bool) {
+    match height {
+        0..=3 => (false, false, false),
+        4 => (false, false, true),
+        5 => (false, true, true),
+        _ => (true, true, true),
+    }
+}
+
+fn collect_parts_for_date(
+    summaries: &[DaypartSummary],
+    date: chrono::NaiveDate,
+) -> Vec<DaypartSummary> {
+    Daypart::all()
+        .iter()
+        .filter_map(|part| {
+            summaries
+                .iter()
+                .find(|s| s.date == date && s.daypart == *part)
+                .cloned()
+        })
+        .collect()
+}
+
+fn build_daypart_rows(
+    parts: &[DaypartSummary],
+    state: &AppState,
+    theme: Theme,
+    show_secondary: bool,
+    show_wind: bool,
+    show_vis: bool,
+) -> Vec<Row<'static>> {
+    let row_part = Row::new(
+        Daypart::all()
+            .iter()
+            .map(|part| Cell::from(part.label()).style(Style::default().fg(theme.muted_text)))
+            .collect::<Vec<_>>(),
+    )
+    .style(Style::default().add_modifier(Modifier::BOLD));
+
+    let row_primary = Row::new(
+        parts
+            .iter()
+            .map(|summary| {
+                Cell::from(format!(
+                    "{} {}",
+                    weather_icon(
+                        summary.weather_code,
+                        state.settings.icon_mode,
+                        !matches!(summary.daypart, Daypart::Night)
+                    ),
+                    temp_range(summary, state.units),
+                ))
+                .style(Style::default().fg(theme.text))
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let row_precip = Row::new(
+        parts
+            .iter()
+            .map(|summary| {
+                let prob = summary
+                    .precip_probability_max
+                    .map_or_else(|| "--".to_string(), |v| format!("{v:.0}%"));
+                Cell::from(format!(
+                    "{:.1}mm {prob}",
+                    sanitize_precip_mm(summary.precip_sum_mm)
+                ))
+                .style(Style::default().fg(theme.info))
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let row_secondary = Row::new(
+        parts
+            .iter()
+            .map(|summary| {
+                let label = weather_label_for_time(
+                    summary.weather_code,
+                    !matches!(summary.daypart, Daypart::Night),
+                );
+                Cell::from(truncate(label, 14)).style(Style::default().fg(theme.muted_text))
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let row_wind = Row::new(
+        parts
+            .iter()
+            .map(|summary| {
+                let min_wind = summary
+                    .wind_min_kmh
+                    .map_or_else(|| "--".to_string(), |v| format!("{v:.0}"));
+                let max_wind = summary
+                    .wind_max_kmh
+                    .map_or_else(|| "--".to_string(), |v| format!("{v:.0}"));
+                Cell::from(format!("{min_wind}-{max_wind}km/h"))
+                    .style(Style::default().fg(theme.warning))
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let row_vis = Row::new(
+        parts
+            .iter()
+            .map(|summary| {
+                let vis = summary.visibility_median_m.map_or_else(
+                    || "--".to_string(),
+                    |v| format!("{:.0}km", (v / 1000.0).max(0.0)),
+                );
+                Cell::from(vis).style(Style::default().fg(theme.success))
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let mut rows = vec![row_part, row_primary, row_precip];
+    if show_secondary {
+        rows.push(row_secondary);
+    }
+    if show_wind {
+        rows.push(row_wind);
+    }
+    if show_vis {
+        rows.push(row_vis);
+    }
+    rows
 }
 
 fn render_temp_precip_timeline(
@@ -862,8 +895,16 @@ struct TimelineStats {
 
 #[cfg(test)]
 mod tests {
-    use super::{effective_hourly_mode, sanitize_precip_mm};
-    use crate::domain::weather::HourlyViewMode;
+    use super::{
+        build_optional_date_row, daypart_visibility, effective_hourly_mode, metric_row_specs,
+        sanitize_precip_mm,
+    };
+    use crate::{
+        cli::ThemeArg,
+        domain::weather::{HourlyForecast, HourlyViewMode, WeatherCategory},
+        ui::theme::{ColorCapability, theme_for},
+    };
+    use chrono::{NaiveDate, NaiveDateTime};
     use ratatui::layout::Rect;
 
     #[test]
@@ -898,5 +939,85 @@ mod tests {
         let value = sanitize_precip_mm(-0.0);
         assert_eq!(value.to_bits(), 0.0f32.to_bits());
         assert_eq!(format!("{value:.1}"), "0.0");
+    }
+
+    #[test]
+    fn optional_metric_rows_keep_height_thresholds() {
+        let theme = theme_for(
+            WeatherCategory::Cloudy,
+            true,
+            ColorCapability::Basic16,
+            ThemeArg::Aurora,
+        );
+        let count_for = |height: u16| {
+            metric_row_specs(theme)
+                .iter()
+                .filter(|(min_height, _, _, _)| *min_height <= height)
+                .count()
+        };
+
+        assert_eq!(count_for(4), 0);
+        assert_eq!(count_for(5), 1);
+        assert_eq!(count_for(6), 2);
+        assert_eq!(count_for(9), 5);
+        assert_eq!(count_for(12), 8);
+    }
+
+    #[test]
+    fn date_row_inserts_for_day_change_or_offset() {
+        let theme = theme_for(
+            WeatherCategory::Cloudy,
+            true,
+            ColorCapability::Basic16,
+            ThemeArg::Aurora,
+        );
+        let hours = [
+            sample_hour(dt(2026, 2, 20, 9)),
+            sample_hour(dt(2026, 2, 20, 10)),
+            sample_hour(dt(2026, 2, 21, 0)),
+        ];
+        let same_day = vec![&hours[0], &hours[1]];
+        let crosses_day = vec![&hours[1], &hours[2]];
+
+        assert!(build_optional_date_row(&same_day, 0, theme).is_none());
+        assert!(build_optional_date_row(&crosses_day, 0, theme).is_some());
+        assert!(build_optional_date_row(&same_day, 1, theme).is_some());
+    }
+
+    #[test]
+    fn daypart_visibility_thresholds_match_layout_contract() {
+        assert_eq!(daypart_visibility(3), (false, false, false));
+        assert_eq!(daypart_visibility(4), (false, false, true));
+        assert_eq!(daypart_visibility(5), (false, true, true));
+        assert_eq!(daypart_visibility(6), (true, true, true));
+    }
+
+    fn dt(year: i32, month: u32, day: u32, hour: u32) -> NaiveDateTime {
+        NaiveDate::from_ymd_opt(year, month, day)
+            .expect("valid date")
+            .and_hms_opt(hour, 0, 0)
+            .expect("valid time")
+    }
+
+    fn sample_hour(time: NaiveDateTime) -> HourlyForecast {
+        HourlyForecast {
+            time,
+            temperature_2m_c: Some(1.0),
+            weather_code: Some(3),
+            is_day: Some(true),
+            relative_humidity_2m: Some(75.0),
+            precipitation_probability: Some(10.0),
+            precipitation_mm: Some(0.2),
+            rain_mm: Some(0.2),
+            snowfall_cm: Some(0.0),
+            wind_speed_10m: Some(12.0),
+            wind_gusts_10m: Some(18.0),
+            pressure_msl_hpa: Some(1009.0),
+            visibility_m: Some(8000.0),
+            cloud_cover: Some(60.0),
+            cloud_cover_low: Some(20.0),
+            cloud_cover_mid: Some(25.0),
+            cloud_cover_high: Some(15.0),
+        }
     }
 }
