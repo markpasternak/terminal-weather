@@ -66,27 +66,33 @@ impl ParticleEngine {
             self.particles.clear();
             return;
         }
-
         let dt = dt.as_secs_f32().clamp(0.0, 0.25);
         self.accumulator += dt;
-
         let particle_kind = weather_code.map_or(ParticleKind::None, weather_code_to_particle);
+        let drift = wind_drift(wind_speed, wind_direction);
+        self.spawn_particles(particle_kind, drift);
+        self.advance_particles(dt);
+        self.maybe_trigger_flash(particle_kind);
+        self.flash_timer = (self.flash_timer - dt).max(0.0);
+    }
 
-        let drift_base = (wind_speed.unwrap_or_default() / 40.0).clamp(0.0, 1.0);
-        let drift_sign = wind_direction.map_or(1.0, |deg| deg.to_radians().sin().signum());
-        let drift = drift_base * drift_sign;
-
-        let density = if self.reduced_motion { 4 } else { 14 };
-
-        if self.accumulator >= 0.04 {
-            self.accumulator = 0.0;
-            for _ in 0..density {
-                if let Some(p) = spawn_particle(particle_kind, drift) {
-                    self.particles.push(p);
-                }
+    fn spawn_particles(&mut self, particle_kind: ParticleKind, drift: f32) {
+        if self.accumulator < 0.04 {
+            return;
+        }
+        self.accumulator = 0.0;
+        for _ in 0..self.particle_density() {
+            if let Some(p) = spawn_particle(particle_kind, drift) {
+                self.particles.push(p);
             }
         }
+    }
 
+    fn particle_density(&self) -> usize {
+        if self.reduced_motion { 4 } else { 14 }
+    }
+
+    fn advance_particles(&mut self, dt: f32) {
         let step = dt * 60.0;
         for p in &mut self.particles {
             p.x += p.vx * step;
@@ -94,15 +100,24 @@ impl ParticleEngine {
         }
         self.particles
             .retain(|p| p.y < 1.2 && p.x > -0.2 && p.x < 1.2);
-
-        if particle_kind == ParticleKind::Thunder && !self.no_flash {
-            let mut rng = rand::rng();
-            if rng.random_bool(if self.reduced_motion { 0.004 } else { 0.016 }) {
-                self.flash_timer = 0.12;
-            }
-        }
-        self.flash_timer = (self.flash_timer - dt).max(0.0);
     }
+
+    fn maybe_trigger_flash(&mut self, particle_kind: ParticleKind) {
+        if particle_kind != ParticleKind::Thunder || self.no_flash {
+            return;
+        }
+        let chance = if self.reduced_motion { 0.004 } else { 0.016 };
+        let mut rng = rand::rng();
+        if rng.random_bool(chance) {
+            self.flash_timer = 0.12;
+        }
+    }
+}
+
+fn wind_drift(wind_speed: Option<f32>, wind_direction: Option<f32>) -> f32 {
+    let drift_base = (wind_speed.unwrap_or_default() / 40.0).clamp(0.0, 1.0);
+    let drift_sign = wind_direction.map_or(1.0, |deg| deg.to_radians().sin().signum());
+    drift_base * drift_sign
 }
 
 fn spawn_particle(kind: ParticleKind, drift: f32) -> Option<Particle> {

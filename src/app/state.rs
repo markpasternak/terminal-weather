@@ -28,10 +28,12 @@ use crate::{
     ui::particles::ParticleEngine,
 };
 
-const SETTINGS_UNITS: usize = 0;
+mod methods_async;
+mod methods_fetch;
+mod methods_ui;
+
 const SETTINGS_THEME: usize = 1;
 const SETTINGS_MOTION: usize = 2;
-const SETTINGS_FLASH: usize = 3;
 const SETTINGS_ICONS: usize = 4;
 const SETTINGS_HOURLY_VIEW: usize = 5;
 const SETTINGS_HERO_VISUAL: usize = 6;
@@ -68,6 +70,8 @@ const THEME_OPTIONS: [ThemeArg; 18] = [
     ThemeArg::SelenizedDark,
     ThemeArg::NoClownFiesta,
 ];
+
+type SettingsAdjuster = fn(&mut AppState, i8) -> bool;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {
@@ -203,848 +207,96 @@ impl AppState {
 
     #[must_use]
     pub fn settings_hint(&self) -> String {
-        match self.settings_selected {
-            SETTINGS_HERO_VISUAL => match self.settings.hero_visual {
-                HeroVisualArg::AtmosCanvas => {
-                    "Current panel right side: data-driven terrain + condition sky overlays"
-                        .to_string()
-                }
-                HeroVisualArg::GaugeCluster => {
-                    "Current panel right side: live instrument panel (temp, humidity, wind, pressure, UV)"
-                        .to_string()
-                }
-                HeroVisualArg::SkyObservatory => {
-                    "Current panel right side: sun/moon arc with weather strip and precipitation lane"
-                        .to_string()
-                }
-            },
-            SETTINGS_THEME => {
-                "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status"
-                    .to_string()
-            }
-            SETTINGS_MOTION => {
-                "Motion controls the moving effects: weather particles + animated hero scene (Full/Reduced/Off)"
-                    .to_string()
-            }
-            SETTINGS_ICONS => {
-                "Icon mode affects weather symbols in Hourly and 7-Day panels".to_string()
-            }
-            SETTINGS_HOURLY_VIEW => {
-                "Hourly View controls the Hourly panel: Table, Hybrid cards+charts, or Chart"
-                    .to_string()
-            }
-            SETTINGS_REFRESH_INTERVAL => {
-                "Auto-refresh cadence persists and applies on next launch".to_string()
-            }
-            _ => "Use left/right or Enter to change the selected setting".to_string(),
+        if self.settings_selected == SETTINGS_HERO_VISUAL {
+            return hero_visual_hint(self.settings.hero_visual).to_string();
         }
+        settings_hint_for_index(self.settings_selected).to_string()
     }
+}
 
-    pub async fn handle_event(
-        &mut self,
-        event: AppEvent,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        if event_is_async(&event) {
-            self.handle_async_event(event, tx, cli).await?;
-        } else {
-            self.handle_sync_event(event, tx);
-        }
+const SETTINGS_ADJUSTERS: [SettingsAdjuster; SETTINGS_COUNT] = [
+    adjust_units_setting,
+    adjust_theme_setting,
+    adjust_motion_setting,
+    adjust_flash_setting,
+    adjust_icon_setting,
+    adjust_hourly_view_setting,
+    adjust_hero_visual_setting,
+    adjust_refresh_interval_setting,
+    no_adjustment,
+    no_adjustment,
+];
 
-        Ok(())
-    }
+fn adjust_units_setting(state: &mut AppState, direction: i8) -> bool {
+    state.settings.units = cycle(
+        &[Units::Celsius, Units::Fahrenheit],
+        state.settings.units,
+        direction,
+    );
+    true
+}
 
-    async fn handle_async_event(
-        &mut self,
-        event: AppEvent,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        match event {
-            AppEvent::Bootstrap => self.handle_bootstrap(tx, cli).await?,
-            AppEvent::TickRefresh => self.handle_tick_refresh(tx, cli).await?,
-            AppEvent::Input(event) => self.handle_input(event, tx, cli).await?,
-            AppEvent::Demo(action) => self.handle_demo_action(action, tx).await?,
-            _ => {}
-        }
-        Ok(())
-    }
+fn adjust_theme_setting(state: &mut AppState, direction: i8) -> bool {
+    state.settings.theme = cycle(&THEME_OPTIONS, state.settings.theme, direction);
+    true
+}
 
-    fn handle_sync_event(&mut self, event: AppEvent, tx: &mpsc::Sender<AppEvent>) {
-        match event {
-            AppEvent::TickFrame => self.handle_tick_frame(),
-            AppEvent::FetchStarted => self.handle_fetch_started(),
-            AppEvent::GeocodeResolved(resolution) => {
-                self.handle_geocode_resolved(tx, resolution);
-            }
-            AppEvent::FetchSucceeded(bundle) => self.handle_fetch_succeeded(bundle),
-            AppEvent::FetchFailed(err) => self.handle_fetch_failed(tx, err),
-            AppEvent::Quit => self.mode = AppMode::Quit,
-            _ => {}
-        }
-    }
+fn adjust_motion_setting(state: &mut AppState, direction: i8) -> bool {
+    state.settings.motion = cycle(
+        &[
+            MotionSetting::Full,
+            MotionSetting::Reduced,
+            MotionSetting::Off,
+        ],
+        state.settings.motion,
+        direction,
+    );
+    true
+}
 
-    async fn handle_bootstrap(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
-        cli.validate()?;
-        let frame_fps = match self.settings.motion {
-            MotionSetting::Full => cli.fps,
-            MotionSetting::Reduced => cli.fps.min(20),
-            MotionSetting::Off => 15,
-        };
-        start_frame_task(tx.clone(), frame_fps);
-        start_refresh_task(tx.clone(), self.settings.refresh_interval_secs);
-        if cli.demo {
-            start_demo_task(tx.clone());
-        }
-        self.start_fetch(tx, cli).await
-    }
+fn adjust_flash_setting(state: &mut AppState, _: i8) -> bool {
+    state.settings.no_flash = !state.settings.no_flash;
+    true
+}
 
-    fn handle_tick_frame(&mut self) {
-        let now = Instant::now();
-        let delta = now.duration_since(self.last_frame_at);
-        self.last_frame_at = now;
-        self.frame_tick = self.frame_tick.saturating_add(1);
+fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
+    state.settings.icon_mode = cycle(
+        &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
+        state.settings.icon_mode,
+        direction,
+    );
+    true
+}
 
-        self.particles.update(
-            self.weather
-                .as_ref()
-                .map(ForecastBundle::current_weather_code),
-            self.weather.as_ref().map(|w| w.current.wind_speed_10m),
-            self.weather.as_ref().map(|w| w.current.wind_direction_10m),
-            delta,
-        );
-        self.refresh_meta.state = evaluate_freshness(
-            self.refresh_meta.last_success,
-            self.refresh_meta.consecutive_failures,
-        );
-    }
+fn adjust_hourly_view_setting(state: &mut AppState, direction: i8) -> bool {
+    state.settings.hourly_view = cycle(&HOURLY_VIEW_OPTIONS, state.hourly_view_mode, direction);
+    true
+}
 
-    async fn handle_tick_refresh(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
-        if matches!(
-            self.mode,
-            AppMode::Ready | AppMode::Error | AppMode::Loading
-        ) {
-            self.start_fetch(tx, cli).await?;
-        }
-        Ok(())
-    }
+fn adjust_hero_visual_setting(state: &mut AppState, direction: i8) -> bool {
+    state.settings.hero_visual = cycle(
+        &[
+            HeroVisualArg::AtmosCanvas,
+            HeroVisualArg::GaugeCluster,
+            HeroVisualArg::SkyObservatory,
+        ],
+        state.settings.hero_visual,
+        direction,
+    );
+    true
+}
 
-    fn handle_fetch_started(&mut self) {
-        self.fetch_in_flight = true;
-        self.loading_message = "Fetching weather...".to_string();
-        if self.weather.is_none() {
-            self.mode = AppMode::Loading;
-        }
-        self.refresh_meta.last_attempt = Some(chrono::Utc::now());
-    }
+fn adjust_refresh_interval_setting(state: &mut AppState, direction: i8) -> bool {
+    state.settings.refresh_interval_secs = cycle(
+        &REFRESH_OPTIONS,
+        state.settings.refresh_interval_secs,
+        direction,
+    );
+    true
+}
 
-    fn handle_geocode_resolved(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        resolution: GeocodeResolution,
-    ) {
-        match resolution {
-            GeocodeResolution::Selected(location) => {
-                self.selected_location = Some(location.clone());
-                self.pending_locations.clear();
-                Self::fetch_forecast(tx, location);
-            }
-            GeocodeResolution::NeedsDisambiguation(locations) => {
-                self.pending_locations = locations;
-                self.fetch_in_flight = false;
-                self.mode = AppMode::SelectingLocation;
-                self.loading_message = "Choose a location (1-5)".to_string();
-                self.city_picker_open = false;
-            }
-            GeocodeResolution::NotFound(city) => {
-                self.fetch_in_flight = false;
-                self.mode = AppMode::Error;
-                self.last_error = Some(format!("No geocoding result for {city}"));
-            }
-        }
-    }
-
-    fn handle_fetch_succeeded(&mut self, bundle: ForecastBundle) {
-        let location = bundle.location.clone();
-        self.fetch_in_flight = false;
-        self.weather = Some(bundle);
-        self.mode = AppMode::Ready;
-        self.last_error = None;
-        self.refresh_meta.mark_success();
-        self.backoff.reset();
-        self.hourly_offset = 0;
-        self.hourly_cursor = 0;
-        self.push_recent_location(&location);
-        self.persist_settings();
-        self.city_status = None;
-    }
-
-    fn handle_fetch_failed(&mut self, tx: &mpsc::Sender<AppEvent>, err: String) {
-        self.fetch_in_flight = false;
-        self.last_error = Some(err);
-        self.mode = AppMode::Error;
-        self.city_status = Some("Search failed; keeping last successful weather".to_string());
-        self.refresh_meta.mark_failure();
-        self.refresh_meta.state = evaluate_freshness(
-            self.refresh_meta.last_success,
-            self.refresh_meta.consecutive_failures,
-        );
-        let delay = self.backoff.next_delay();
-        schedule_retry(tx.clone(), delay);
-    }
-
-    async fn handle_input(
-        &mut self,
-        event: Event,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        match event {
-            Event::Key(key) if key.kind == KeyEventKind::Press => {
-                self.handle_key_press(key, tx, cli).await?;
-            }
-            Event::Resize(width, _) => {
-                self.viewport_width = width;
-                self.particles.reset();
-            }
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    async fn handle_key_press(
-        &mut self,
-        key: KeyEvent,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        if self.handle_control_shortcuts(key, tx).await? {
-            return Ok(());
-        }
-        if self.handle_modal_key_press(key, tx, cli).await? {
-            return Ok(());
-        }
-        self.handle_main_key_press(key, tx, cli).await
-    }
-
-    async fn handle_control_shortcuts(
-        &self,
-        key: KeyEvent,
-        tx: &mpsc::Sender<AppEvent>,
-    ) -> Result<bool> {
-        if matches!(key.code, KeyCode::Char('c' | 'C'))
-            && key.modifiers.contains(KeyModifiers::CONTROL)
-        {
-            tx.send(AppEvent::Quit).await?;
-            return Ok(true);
-        }
-        if matches!(key.code, KeyCode::Char('l' | 'L'))
-            && key.modifiers.contains(KeyModifiers::CONTROL)
-        {
-            tx.send(AppEvent::ForceRedraw).await?;
-            return Ok(true);
-        }
-        Ok(false)
-    }
-
-    async fn handle_modal_key_press(
-        &mut self,
-        key: KeyEvent,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<bool> {
-        if self.settings_open {
-            self.handle_settings_key(key.code, tx, cli).await?;
-            return Ok(true);
-        }
-        if self.city_picker_open {
-            self.handle_city_picker_key(key, tx, cli);
-            return Ok(true);
-        }
-        if self.help_open {
-            self.handle_help_key(key, tx).await?;
-            return Ok(true);
-        }
-        Ok(false)
-    }
-
-    async fn handle_main_key_press(
-        &mut self,
-        key: KeyEvent,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        match key.code {
-            KeyCode::F(1) | KeyCode::Char('?') => {
-                self.open_help_overlay();
-            }
-            KeyCode::Esc => {
-                tx.send(AppEvent::Quit).await?;
-            }
-            KeyCode::Left => {
-                self.move_hourly_cursor_left();
-            }
-            KeyCode::Right => {
-                self.move_hourly_cursor_right();
-            }
-            KeyCode::Char(digit @ '1'..='5') if self.mode == AppMode::SelectingLocation => {
-                self.select_pending_location(tx, digit);
-            }
-            KeyCode::Char(_) => {
-                self.handle_char_command(key, tx, cli).await?;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    async fn handle_char_command(
-        &mut self,
-        key: KeyEvent,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<bool> {
-        if command_char_matches(key, 'q') {
-            tx.send(AppEvent::Quit).await?;
-            return Ok(true);
-        }
-        if command_char_matches(key, 's') {
-            if self.mode != AppMode::SelectingLocation {
-                self.open_settings_panel();
-            }
-            return Ok(true);
-        }
-        if command_char_matches(key, 'l') {
-            if self.mode != AppMode::SelectingLocation {
-                self.open_city_picker();
-            }
-            return Ok(true);
-        }
-        if command_char_matches(key, 'r') {
-            self.start_fetch(tx, cli).await?;
-            return Ok(true);
-        }
-        if command_char_matches(key, 'f') {
-            self.set_units(Units::Fahrenheit);
-            return Ok(true);
-        }
-        if command_char_matches(key, 'c') {
-            self.set_units(Units::Celsius);
-            return Ok(true);
-        }
-        if command_char_matches(key, 'v') {
-            self.settings.hourly_view = cycle(&HOURLY_VIEW_OPTIONS, self.hourly_view_mode, 1);
-            self.apply_runtime_settings();
-            self.persist_settings();
-            return Ok(true);
-        }
-        Ok(false)
-    }
-
-    fn select_pending_location(&mut self, tx: &mpsc::Sender<AppEvent>, digit: char) {
-        let idx = (digit as usize) - ('1' as usize);
-        if let Some(selected) = self.pending_locations.get(idx).cloned() {
-            self.selected_location = Some(selected.clone());
-            self.pending_locations.clear();
-            self.mode = AppMode::Loading;
-            Self::fetch_forecast(tx, selected);
-        }
-    }
-
-    fn open_help_overlay(&mut self) {
-        self.help_open = true;
-        self.settings_open = false;
-        self.city_picker_open = false;
-    }
-
-    fn open_settings_panel(&mut self) {
-        self.city_picker_open = false;
-        self.help_open = false;
-        self.settings_open = true;
-        self.settings_selected = 0;
-    }
-
-    fn open_city_picker(&mut self) {
-        self.settings_open = false;
-        self.help_open = false;
-        self.city_picker_open = true;
-        self.city_query.clear();
-        self.city_history_selected = 0;
-        self.city_status = Some("Type a city and press Enter, or pick from history".to_string());
-    }
-
-    fn set_units(&mut self, units: Units) {
-        if self.settings.units != units {
-            self.settings.units = units;
-            self.apply_runtime_settings();
-            self.persist_settings();
-        }
-    }
-
-    fn move_hourly_cursor_left(&mut self) {
-        if self.hourly_cursor > 0 {
-            self.hourly_cursor -= 1;
-            if self.hourly_cursor < self.hourly_offset {
-                self.hourly_offset = self.hourly_cursor;
-            }
-        }
-    }
-
-    fn move_hourly_cursor_right(&mut self) {
-        if let Some(bundle) = &self.weather {
-            let max = bundle.hourly.len().saturating_sub(1);
-            if self.hourly_cursor < max {
-                self.hourly_cursor += 1;
-                let visible = visible_hour_count(self.viewport_width);
-                if self.hourly_cursor >= self.hourly_offset + visible {
-                    self.hourly_offset =
-                        self.hourly_cursor.saturating_sub(visible.saturating_sub(1));
-                }
-            }
-        }
-    }
-
-    async fn handle_settings_key(
-        &mut self,
-        code: KeyCode,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        match code {
-            KeyCode::Esc => {
-                self.settings_open = false;
-            }
-            KeyCode::Char(_) if command_char_matches_keycode(code, 's') => {
-                self.settings_open = false;
-            }
-            KeyCode::Char(_) if command_char_matches_keycode(code, 'q') => {
-                self.settings_open = false;
-            }
-            KeyCode::Up => {
-                self.settings_selected = self.settings_selected.saturating_sub(1);
-            }
-            KeyCode::Down => {
-                self.settings_selected = (self.settings_selected + 1).min(SETTINGS_COUNT - 1);
-            }
-            KeyCode::Left => {
-                self.adjust_selected_setting(-1);
-            }
-            KeyCode::Right => {
-                self.adjust_selected_setting(1);
-            }
-            KeyCode::Enter => {
-                self.handle_settings_enter(tx, cli).await?;
-            }
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    async fn handle_settings_enter(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        if self.settings_selected == SETTINGS_REFRESH_NOW {
-            self.start_fetch(tx, cli).await?;
-        } else if self.settings_selected == SETTINGS_CLOSE {
-            self.settings_open = false;
-        } else {
-            self.adjust_selected_setting(1);
-        }
-        Ok(())
-    }
-
-    async fn handle_help_key(&mut self, key: KeyEvent, tx: &mpsc::Sender<AppEvent>) -> Result<()> {
-        match key.code {
-            KeyCode::Esc | KeyCode::F(1) | KeyCode::Char('?') => {
-                self.help_open = false;
-            }
-            KeyCode::Char('c' | 'C') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                tx.send(AppEvent::Quit).await?;
-            }
-            KeyCode::Char('l' | 'L') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                tx.send(AppEvent::ForceRedraw).await?;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn handle_city_picker_key(&mut self, key: KeyEvent, tx: &mpsc::Sender<AppEvent>, cli: &Cli) {
-        self.city_history_selected = self.city_history_selected.min(self.city_picker_max_index());
-        match key.code {
-            KeyCode::Esc => {
-                self.city_picker_open = false;
-                self.city_status = None;
-            }
-            KeyCode::Up => {
-                self.city_history_selected = self.city_history_selected.saturating_sub(1);
-            }
-            KeyCode::Down => {
-                self.city_history_selected =
-                    (self.city_history_selected + 1).min(self.city_picker_max_index());
-            }
-            KeyCode::Backspace => {
-                self.city_query.pop();
-            }
-            KeyCode::Delete => {
-                self.clear_recent_locations();
-            }
-            KeyCode::Char(digit @ '1'..='9') => {
-                self.select_recent_city_by_index(tx, (digit as usize) - ('1' as usize));
-            }
-            KeyCode::Enter => {
-                self.submit_city_picker(tx, cli);
-            }
-            KeyCode::Char(ch) => {
-                self.push_city_query_char(key, ch);
-            }
-            _ => {}
-        }
-    }
-
-    fn select_recent_city_by_index(&mut self, tx: &mpsc::Sender<AppEvent>, index: usize) {
-        if let Some(saved) = self.settings.recent_locations.get(index).cloned() {
-            self.city_picker_open = false;
-            self.switch_to_location(tx, saved.to_location());
-        }
-    }
-
-    fn submit_city_picker(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) {
-        let query = self.city_query.trim().to_string();
-        if !query.is_empty() {
-            self.city_picker_open = false;
-            self.city_status = Some(format!("Searching {query}..."));
-            self.start_city_search(tx, query, cli.country_code.clone());
-            return;
-        }
-        if Some(self.city_history_selected) == self.city_picker_action_index() {
-            self.clear_recent_locations();
-            return;
-        }
-        self.select_recent_city_by_index(tx, self.city_history_selected);
-    }
-
-    fn push_city_query_char(&mut self, key: KeyEvent, ch: char) {
-        if !key
-            .modifiers
-            .intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER)
-            && is_city_char(ch)
-        {
-            self.city_query.push(ch);
-        }
-    }
-
-    fn adjust_selected_setting(&mut self, direction: i8) {
-        let mut changed = false;
-        match self.settings_selected {
-            SETTINGS_UNITS => {
-                self.settings.units = cycle(
-                    &[Units::Celsius, Units::Fahrenheit],
-                    self.settings.units,
-                    direction,
-                );
-                changed = true;
-            }
-            SETTINGS_THEME => {
-                self.settings.theme = cycle(&THEME_OPTIONS, self.settings.theme, direction);
-                changed = true;
-            }
-            SETTINGS_MOTION => {
-                self.settings.motion = cycle(
-                    &[
-                        MotionSetting::Full,
-                        MotionSetting::Reduced,
-                        MotionSetting::Off,
-                    ],
-                    self.settings.motion,
-                    direction,
-                );
-                changed = true;
-            }
-            SETTINGS_FLASH => {
-                self.settings.no_flash = !self.settings.no_flash;
-                changed = true;
-            }
-            SETTINGS_ICONS => {
-                self.settings.icon_mode = cycle(
-                    &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
-                    self.settings.icon_mode,
-                    direction,
-                );
-                changed = true;
-            }
-            SETTINGS_HOURLY_VIEW => {
-                self.settings.hourly_view =
-                    cycle(&HOURLY_VIEW_OPTIONS, self.hourly_view_mode, direction);
-                changed = true;
-            }
-            SETTINGS_HERO_VISUAL => {
-                self.settings.hero_visual = cycle(
-                    &[
-                        HeroVisualArg::AtmosCanvas,
-                        HeroVisualArg::GaugeCluster,
-                        HeroVisualArg::SkyObservatory,
-                    ],
-                    self.settings.hero_visual,
-                    direction,
-                );
-                changed = true;
-            }
-            SETTINGS_REFRESH_INTERVAL => {
-                self.settings.refresh_interval_secs = cycle(
-                    &REFRESH_OPTIONS,
-                    self.settings.refresh_interval_secs,
-                    direction,
-                );
-                changed = true;
-            }
-            _ => {}
-        }
-
-        if changed {
-            self.apply_runtime_settings();
-            self.persist_settings();
-        }
-    }
-
-    fn apply_runtime_settings(&mut self) {
-        self.units = self.settings.units;
-        self.hourly_view_mode = self.settings.hourly_view;
-        self.animate_ui = matches!(self.settings.motion, MotionSetting::Full);
-        self.particles.set_options(
-            matches!(self.settings.motion, MotionSetting::Off),
-            matches!(self.settings.motion, MotionSetting::Reduced),
-            self.settings.no_flash,
-        );
-    }
-
-    fn persist_settings(&mut self) {
-        if self.demo_mode {
-            return;
-        }
-        if let Some(path) = &self.settings_path
-            && let Err(err) = save_runtime_settings(path, &self.settings)
-        {
-            self.last_error = Some(format!("Failed to save settings: {err}"));
-        }
-    }
-
-    fn push_recent_location(&mut self, location: &Location) {
-        let entry = RecentLocation::from_location(location);
-        self.settings
-            .recent_locations
-            .retain(|existing| !existing.same_place(&entry));
-        self.settings.recent_locations.insert(0, entry);
-        self.settings.recent_locations.truncate(HISTORY_MAX);
-        self.city_history_selected = self
-            .city_history_selected
-            .min(self.settings.recent_locations.len().saturating_sub(1));
-    }
-
-    fn clear_recent_locations(&mut self) {
-        if self.settings.recent_locations.is_empty() {
-            self.city_status = Some("No recent locations to clear".to_string());
-            self.city_history_selected = 0;
-            return;
-        }
-        self.settings.recent_locations.clear();
-        self.city_history_selected = 0;
-        self.city_status = Some("Cleared all recent locations".to_string());
-        self.persist_settings();
-    }
-
-    fn visible_recent_count(&self) -> usize {
-        self.settings
-            .recent_locations
-            .len()
-            .min(CITY_PICKER_VISIBLE_MAX)
-    }
-
-    fn city_picker_action_index(&self) -> Option<usize> {
-        let visible = self.visible_recent_count();
-        if visible > 0 { Some(visible) } else { None }
-    }
-
-    fn city_picker_max_index(&self) -> usize {
-        self.city_picker_action_index().unwrap_or(0)
-    }
-
-    fn switch_to_location(&mut self, tx: &mpsc::Sender<AppEvent>, location: Location) {
-        self.selected_location = Some(location.clone());
-        self.pending_locations.clear();
-        self.mode = AppMode::Loading;
-        self.city_status = Some(format!("Switching to {}", location.display_name()));
-        Self::fetch_forecast(tx, location);
-    }
-
-    fn start_city_search(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        city: String,
-        country_code: Option<String>,
-    ) {
-        self.pending_locations.clear();
-        self.mode = AppMode::Loading;
-        self.fetch_in_flight = true;
-        self.loading_message = format!("Searching {city}...");
-        self.refresh_meta.last_attempt = Some(chrono::Utc::now());
-
-        let geocoder = GeocodeClient::new();
-        let tx2 = tx.clone();
-        tokio::spawn(async move {
-            match geocoder.resolve(city, country_code).await {
-                Ok(resolution) => {
-                    let _ = tx2.send(AppEvent::GeocodeResolved(resolution)).await;
-                }
-                Err(err) => {
-                    let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
-                }
-            }
-        });
-    }
-
-    async fn start_fetch(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
-        if self.fetch_in_flight || self.mode == AppMode::SelectingLocation {
-            return Ok(());
-        }
-
-        tx.send(AppEvent::FetchStarted).await?;
-
-        if let Some(location) = self.selected_location.clone() {
-            Self::fetch_forecast(tx, location);
-            return Ok(());
-        }
-
-        if let (Some(lat), Some(lon)) = (cli.lat, cli.lon) {
-            let location = Location::from_coords(lat, lon);
-            tx.send(AppEvent::GeocodeResolved(GeocodeResolution::Selected(
-                location,
-            )))
-            .await?;
-            return Ok(());
-        }
-
-        if cli.city.is_none() && cli.lat.is_none() {
-            self.loading_message = "Detecting location...".to_string();
-            let tx2 = tx.clone();
-            let country_code = cli.country_code.clone();
-            tokio::spawn(async move {
-                // Try IP-based geolocation first
-                if let Some(location) = crate::data::geoip::detect_location().await {
-                    let _ = tx2
-                        .send(AppEvent::GeocodeResolved(GeocodeResolution::Selected(
-                            location,
-                        )))
-                        .await;
-                    return;
-                }
-                // Fall back to Stockholm
-                let geocoder = GeocodeClient::new();
-                match geocoder
-                    .resolve("Stockholm".to_string(), country_code)
-                    .await
-                {
-                    Ok(resolution) => {
-                        let _ = tx2.send(AppEvent::GeocodeResolved(resolution)).await;
-                    }
-                    Err(err) => {
-                        let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
-                    }
-                }
-            });
-        } else {
-            let geocoder = GeocodeClient::new();
-            let city = cli.default_city();
-            let country_code = cli.country_code.clone();
-            let tx2 = tx.clone();
-            tokio::spawn(async move {
-                match geocoder.resolve(city, country_code).await {
-                    Ok(resolution) => {
-                        let _ = tx2.send(AppEvent::GeocodeResolved(resolution)).await;
-                    }
-                    Err(err) => {
-                        let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
-                    }
-                }
-            });
-        }
-
-        Ok(())
-    }
-
-    fn fetch_forecast(tx: &mpsc::Sender<AppEvent>, location: Location) {
-        let client = ForecastClient::new();
-        let tx2 = tx.clone();
-        tokio::spawn(async move {
-            match client.fetch(location).await {
-                Ok(data) => {
-                    let _ = tx2.send(AppEvent::FetchSucceeded(data)).await;
-                }
-                Err(err) => {
-                    let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
-                }
-            }
-        });
-    }
-
-    async fn handle_demo_action(
-        &mut self,
-        action: DemoAction,
-        tx: &mpsc::Sender<AppEvent>,
-    ) -> Result<()> {
-        match action {
-            DemoAction::OpenCityPicker(query) => {
-                self.settings_open = false;
-                self.city_picker_open = true;
-                self.city_query.clone_from(&query);
-                self.city_history_selected = 0;
-                self.city_status = Some(format!("Demo: search for {query}"));
-            }
-            DemoAction::SwitchCity(location) => {
-                self.settings_open = false;
-                self.city_picker_open = true;
-                self.city_status = Some(format!("Demo: selected {}", location.display_name()));
-                self.city_query.clear();
-                self.city_picker_open = false;
-                self.switch_to_location(tx, location);
-            }
-            DemoAction::OpenSettings => {
-                self.city_picker_open = false;
-                self.settings_open = true;
-                self.settings_selected = SETTINGS_HERO_VISUAL;
-            }
-            DemoAction::SetHeroVisual(visual) => {
-                self.settings_open = true;
-                self.settings_selected = SETTINGS_HERO_VISUAL;
-                if self.settings.hero_visual != visual {
-                    self.settings.hero_visual = visual;
-                    self.apply_runtime_settings();
-                    self.persist_settings();
-                }
-            }
-            DemoAction::SetTheme(theme) => {
-                self.settings_open = true;
-                self.settings_selected = SETTINGS_THEME;
-                if self.settings.theme != theme {
-                    self.settings.theme = theme;
-                    self.apply_runtime_settings();
-                    self.persist_settings();
-                }
-            }
-            DemoAction::CloseSettings => {
-                self.settings_open = false;
-            }
-            DemoAction::Quit => {
-                tx.send(AppEvent::Quit).await?;
-            }
-        }
-        Ok(())
-    }
+fn no_adjustment(_: &mut AppState, _: i8) -> bool {
+    false
 }
 
 fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
@@ -1086,27 +338,34 @@ fn units_name(units: Units) -> &'static str {
 }
 
 fn theme_name(theme: ThemeArg) -> &'static str {
-    match theme {
-        ThemeArg::Auto => "Auto",
-        ThemeArg::Aurora => "Aurora",
-        ThemeArg::MidnightCyan => "Midnight Cyan",
-        ThemeArg::Aubergine => "Aubergine",
-        ThemeArg::Hoth => "Hoth",
-        ThemeArg::Monument => "Monument",
-        ThemeArg::Nord => "Nord",
-        ThemeArg::CatppuccinMocha => "Catppuccin Mocha",
-        ThemeArg::Mono => "Mono",
-        ThemeArg::HighContrast => "High contrast",
-        ThemeArg::Dracula => "Dracula",
-        ThemeArg::GruvboxMaterialDark => "Gruvbox Material",
-        ThemeArg::KanagawaWave => "Kanagawa Wave",
-        ThemeArg::AyuMirage => "Ayu Mirage",
-        ThemeArg::AyuLight => "Ayu Light",
-        ThemeArg::PoimandresStorm => "Poimandres Storm",
-        ThemeArg::SelenizedDark => "Selenized Dark",
-        ThemeArg::NoClownFiesta => "No Clown Fiesta",
+    for (candidate, label) in THEME_LABELS {
+        if *candidate == theme {
+            return label;
+        }
     }
+    "Auto"
 }
+
+const THEME_LABELS: &[(ThemeArg, &str)] = &[
+    (ThemeArg::Auto, "Auto"),
+    (ThemeArg::Aurora, "Aurora"),
+    (ThemeArg::MidnightCyan, "Midnight Cyan"),
+    (ThemeArg::Aubergine, "Aubergine"),
+    (ThemeArg::Hoth, "Hoth"),
+    (ThemeArg::Monument, "Monument"),
+    (ThemeArg::Nord, "Nord"),
+    (ThemeArg::CatppuccinMocha, "Catppuccin Mocha"),
+    (ThemeArg::Mono, "Mono"),
+    (ThemeArg::HighContrast, "High contrast"),
+    (ThemeArg::Dracula, "Dracula"),
+    (ThemeArg::GruvboxMaterialDark, "Gruvbox Material"),
+    (ThemeArg::KanagawaWave, "Kanagawa Wave"),
+    (ThemeArg::AyuMirage, "Ayu Mirage"),
+    (ThemeArg::AyuLight, "Ayu Light"),
+    (ThemeArg::PoimandresStorm, "Poimandres Storm"),
+    (ThemeArg::SelenizedDark, "Selenized Dark"),
+    (ThemeArg::NoClownFiesta, "No Clown Fiesta"),
+];
 
 fn motion_name(motion: MotionSetting) -> &'static str {
     match motion {
@@ -1140,18 +399,61 @@ fn hero_visual_name(mode: HeroVisualArg) -> &'static str {
     }
 }
 
+fn hero_visual_hint(mode: HeroVisualArg) -> &'static str {
+    match mode {
+        HeroVisualArg::AtmosCanvas => {
+            "Current panel right side: data-driven terrain + condition sky overlays"
+        }
+        HeroVisualArg::GaugeCluster => {
+            "Current panel right side: live instrument panel (temp, humidity, wind, pressure, UV)"
+        }
+        HeroVisualArg::SkyObservatory => {
+            "Current panel right side: sun/moon arc with weather strip and precipitation lane"
+        }
+    }
+}
+
+fn settings_hint_for_index(selected: usize) -> &'static str {
+    match selected {
+        SETTINGS_THEME => "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status",
+        SETTINGS_MOTION => {
+            "Motion controls the moving effects: weather particles + animated hero scene (Full/Reduced/Off)"
+        }
+        SETTINGS_ICONS => "Icon mode affects weather symbols in Hourly and 7-Day panels",
+        SETTINGS_HOURLY_VIEW => {
+            "Hourly View controls the Hourly panel: Table, Hybrid cards+charts, or Chart"
+        }
+        SETTINGS_REFRESH_INTERVAL => "Auto-refresh cadence persists and applies on next launch",
+        _ => "Use left/right or Enter to change the selected setting",
+    }
+}
+
 fn is_city_char(ch: char) -> bool {
     ch.is_alphanumeric() || matches!(ch, ' ' | '-' | '\'' | '’' | ',' | '.')
 }
 
-fn command_char_matches(key: KeyEvent, target: char) -> bool {
-    !key.modifiers
+fn command_char(key: KeyEvent) -> Option<char> {
+    if key
+        .modifiers
         .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER)
-        && matches!(key.code, KeyCode::Char(ch) if ch.eq_ignore_ascii_case(&target))
+    {
+        return None;
+    }
+    if let KeyCode::Char(ch) = key.code {
+        Some(ch.to_ascii_lowercase())
+    } else {
+        None
+    }
 }
 
 fn command_char_matches_keycode(code: KeyCode, target: char) -> bool {
     matches!(code, KeyCode::Char(ch) if ch.eq_ignore_ascii_case(&target))
+}
+
+fn settings_close_key(code: KeyCode) -> bool {
+    matches!(code, KeyCode::Esc)
+        || command_char_matches_keycode(code, 's')
+        || command_char_matches_keycode(code, 'q')
 }
 
 #[cfg(test)]

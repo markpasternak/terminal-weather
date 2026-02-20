@@ -239,65 +239,78 @@ mod tests {
     fn sample_bundle() -> ForecastBundle {
         ForecastBundle {
             location: Location::from_coords(59.3293, 18.0686),
-            current: CurrentConditions {
-                temperature_2m_c: 2.0,
-                relative_humidity_2m: 70.0,
-                apparent_temperature_c: 1.0,
-                dew_point_2m_c: 0.0,
-                weather_code: 3,
-                precipitation_mm: 0.0,
-                cloud_cover: 60.0,
-                pressure_msl_hpa: 1012.0,
-                visibility_m: 9000.0,
-                wind_speed_10m: 12.0,
-                wind_gusts_10m: 20.0,
-                wind_direction_10m: 180.0,
-                is_day: true,
-                high_today_c: Some(6.0),
-                low_today_c: Some(-2.0),
-            },
-            hourly: (0..24)
-                .map(|_| HourlyForecast {
-                    time: NaiveDate::from_ymd_opt(2026, 2, 20)
-                        .expect("valid date")
-                        .and_hms_opt(0, 0, 0)
-                        .expect("valid time"),
-                    temperature_2m_c: Some(5.0),
-                    weather_code: Some(3),
-                    is_day: Some(true),
-                    relative_humidity_2m: Some(70.0),
-                    precipitation_probability: Some(10.0),
-                    precipitation_mm: Some(0.0),
-                    rain_mm: Some(0.0),
-                    snowfall_cm: Some(0.0),
-                    wind_speed_10m: Some(10.0),
-                    wind_gusts_10m: Some(20.0),
-                    pressure_msl_hpa: Some(1010.0),
-                    visibility_m: Some(10000.0),
-                    cloud_cover: Some(50.0),
-                    cloud_cover_low: Some(20.0),
-                    cloud_cover_mid: Some(20.0),
-                    cloud_cover_high: Some(10.0),
-                })
-                .collect(),
-            daily: vec![DailyForecast {
-                date: NaiveDate::from_ymd_opt(2026, 2, 20).expect("valid date"),
-                weather_code: Some(3),
-                temperature_max_c: Some(6.0),
-                temperature_min_c: Some(-2.0),
-                sunrise: None,
-                sunset: None,
-                uv_index_max: Some(5.0),
-                precipitation_probability_max: Some(20.0),
-                precipitation_sum_mm: Some(0.0),
-                rain_sum_mm: Some(0.0),
-                snowfall_sum_cm: Some(0.0),
-                precipitation_hours: Some(0.0),
-                wind_gusts_10m_max: Some(20.0),
-                daylight_duration_s: Some(36000.0),
-                sunshine_duration_s: Some(18000.0),
-            }],
+            current: sample_current_conditions(),
+            hourly: sample_hourly_forecast(),
+            daily: vec![sample_daily_forecast()],
             fetched_at: Utc::now(),
+        }
+    }
+
+    fn sample_current_conditions() -> CurrentConditions {
+        CurrentConditions {
+            temperature_2m_c: 2.0,
+            relative_humidity_2m: 70.0,
+            apparent_temperature_c: 1.0,
+            dew_point_2m_c: 0.0,
+            weather_code: 3,
+            precipitation_mm: 0.0,
+            cloud_cover: 60.0,
+            pressure_msl_hpa: 1012.0,
+            visibility_m: 9000.0,
+            wind_speed_10m: 12.0,
+            wind_gusts_10m: 20.0,
+            wind_direction_10m: 180.0,
+            is_day: true,
+            high_today_c: Some(6.0),
+            low_today_c: Some(-2.0),
+        }
+    }
+
+    fn sample_hourly_forecast() -> Vec<HourlyForecast> {
+        let time = NaiveDate::from_ymd_opt(2026, 2, 20)
+            .expect("valid date")
+            .and_hms_opt(0, 0, 0)
+            .expect("valid time");
+        (0..24)
+            .map(|_| HourlyForecast {
+                time,
+                temperature_2m_c: Some(5.0),
+                weather_code: Some(3),
+                is_day: Some(true),
+                relative_humidity_2m: Some(70.0),
+                precipitation_probability: Some(10.0),
+                precipitation_mm: Some(0.0),
+                rain_mm: Some(0.0),
+                snowfall_cm: Some(0.0),
+                wind_speed_10m: Some(10.0),
+                wind_gusts_10m: Some(20.0),
+                pressure_msl_hpa: Some(1010.0),
+                visibility_m: Some(10000.0),
+                cloud_cover: Some(50.0),
+                cloud_cover_low: Some(20.0),
+                cloud_cover_mid: Some(20.0),
+                cloud_cover_high: Some(10.0),
+            })
+            .collect()
+    }
+
+    fn sample_daily_forecast() -> DailyForecast {
+        DailyForecast {
+            date: NaiveDate::from_ymd_opt(2026, 2, 20).expect("valid date"),
+            weather_code: Some(3),
+            temperature_max_c: Some(6.0),
+            temperature_min_c: Some(-2.0),
+            sunrise: None,
+            sunset: None,
+            uv_index_max: Some(5.0),
+            precipitation_probability_max: Some(20.0),
+            precipitation_sum_mm: Some(0.0),
+            rain_sum_mm: Some(0.0),
+            snowfall_sum_cm: Some(0.0),
+            precipitation_hours: Some(0.0),
+            wind_gusts_10m_max: Some(20.0),
+            daylight_duration_s: Some(36000.0),
+            sunshine_duration_s: Some(18000.0),
         }
     }
 }

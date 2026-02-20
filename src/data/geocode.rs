@@ -65,27 +65,37 @@ impl GeocodeClient {
             .await
             .context("failed to decode geocoding response")?;
 
-        let Some(results) = payload.results else {
-            return Ok(GeocodeResolution::NotFound(city));
-        };
-
-        if results.is_empty() {
+        if no_geocode_results(payload.results.as_ref()) {
             return Ok(GeocodeResolution::NotFound(city));
         }
 
-        let mut ranked = rank_locations(results, &city, country_code.as_deref());
+        let mut ranked = rank_locations(
+            payload.results.unwrap_or_default(),
+            &city,
+            country_code.as_deref(),
+        );
         let top = ranked.remove(0);
 
-        if let Some(second) = ranked.first()
-            && is_ambiguous(&top, second)
-        {
-            let mut options = vec![top.location.clone()];
-            options.extend(ranked.into_iter().map(|s| s.location).take(4));
+        if let Some(options) = ambiguous_options(&top, &ranked) {
             return Ok(GeocodeResolution::NeedsDisambiguation(options));
         }
 
         Ok(GeocodeResolution::Selected(top.location))
     }
+}
+
+fn no_geocode_results(results: Option<&Vec<GeocodeResult>>) -> bool {
+    results.is_none_or(Vec::is_empty)
+}
+
+fn ambiguous_options(top: &ScoredLocation, ranked: &[ScoredLocation]) -> Option<Vec<Location>> {
+    let second = ranked.first()?;
+    if !is_ambiguous(top, second) {
+        return None;
+    }
+    let mut options = vec![top.location.clone()];
+    options.extend(ranked.iter().map(|s| s.location.clone()).take(4));
+    Some(options)
 }
 
 #[derive(Debug, Deserialize)]

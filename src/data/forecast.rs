@@ -45,28 +45,7 @@ impl ForecastClient {
         let response = self
             .client
             .get(&self.base_url)
-            .query(&[
-                ("latitude", location.latitude.to_string()),
-                ("longitude", location.longitude.to_string()),
-                (
-                    "current",
-                    "temperature_2m,relative_humidity_2m,apparent_temperature,dew_point_2m,weather_code,precipitation,cloud_cover,pressure_msl,visibility,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day"
-                        .to_string(),
-                ),
-                (
-                    "hourly",
-                    "temperature_2m,weather_code,is_day,relative_humidity_2m,precipitation_probability,precipitation,rain,snowfall,wind_speed_10m,wind_gusts_10m,pressure_msl,visibility,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
-                        .to_string(),
-                ),
-                (
-                    "daily",
-                    "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max,precipitation_sum,rain_sum,snowfall_sum,precipitation_hours,wind_gusts_10m_max,daylight_duration,sunshine_duration"
-                        .to_string(),
-                ),
-                ("timezone", "auto".to_string()),
-                ("forecast_days", "7".to_string()),
-                ("forecast_hours", "48".to_string()),
-            ])
+            .query(&forecast_query(&location))
             .send()
             .await
             .context("forecast request failed")?
@@ -79,23 +58,7 @@ impl ForecastClient {
             .context("failed to parse forecast payload")?;
 
         let daily = parse_daily(&payload.daily);
-        let current = CurrentConditions {
-            temperature_2m_c: payload.current.temperature_2m,
-            relative_humidity_2m: payload.current.relative_humidity_2m,
-            apparent_temperature_c: payload.current.apparent_temperature,
-            dew_point_2m_c: payload.current.dew_point_2m,
-            weather_code: payload.current.weather_code,
-            precipitation_mm: payload.current.precipitation,
-            cloud_cover: payload.current.cloud_cover,
-            pressure_msl_hpa: payload.current.pressure_msl,
-            visibility_m: payload.current.visibility,
-            wind_speed_10m: payload.current.wind_speed_10m,
-            wind_gusts_10m: payload.current.wind_gusts_10m,
-            wind_direction_10m: payload.current.wind_direction_10m,
-            is_day: payload.current.is_day == 1,
-            high_today_c: daily.first().and_then(|d| d.temperature_max_c),
-            low_today_c: daily.first().and_then(|d| d.temperature_min_c),
-        };
+        let current = current_from_payload(&payload, &daily);
 
         Ok(ForecastBundle {
             location,
@@ -104,6 +67,51 @@ impl ForecastClient {
             daily,
             fetched_at: Utc::now(),
         })
+    }
+}
+
+fn forecast_query(location: &Location) -> Vec<(&'static str, String)> {
+    vec![
+        ("latitude", location.latitude.to_string()),
+        ("longitude", location.longitude.to_string()),
+        (
+            "current",
+            "temperature_2m,relative_humidity_2m,apparent_temperature,dew_point_2m,weather_code,precipitation,cloud_cover,pressure_msl,visibility,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day"
+                .to_string(),
+        ),
+        (
+            "hourly",
+            "temperature_2m,weather_code,is_day,relative_humidity_2m,precipitation_probability,precipitation,rain,snowfall,wind_speed_10m,wind_gusts_10m,pressure_msl,visibility,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
+                .to_string(),
+        ),
+        (
+            "daily",
+            "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max,precipitation_sum,rain_sum,snowfall_sum,precipitation_hours,wind_gusts_10m_max,daylight_duration,sunshine_duration"
+                .to_string(),
+        ),
+        ("timezone", "auto".to_string()),
+        ("forecast_days", "7".to_string()),
+        ("forecast_hours", "48".to_string()),
+    ]
+}
+
+fn current_from_payload(payload: &ForecastResponse, daily: &[DailyForecast]) -> CurrentConditions {
+    CurrentConditions {
+        temperature_2m_c: payload.current.temperature_2m,
+        relative_humidity_2m: payload.current.relative_humidity_2m,
+        apparent_temperature_c: payload.current.apparent_temperature,
+        dew_point_2m_c: payload.current.dew_point_2m,
+        weather_code: payload.current.weather_code,
+        precipitation_mm: payload.current.precipitation,
+        cloud_cover: payload.current.cloud_cover,
+        pressure_msl_hpa: payload.current.pressure_msl,
+        visibility_m: payload.current.visibility,
+        wind_speed_10m: payload.current.wind_speed_10m,
+        wind_gusts_10m: payload.current.wind_gusts_10m,
+        wind_direction_10m: payload.current.wind_direction_10m,
+        is_day: payload.current.is_day == 1,
+        high_today_c: daily.first().and_then(|d| d.temperature_max_c),
+        low_today_c: daily.first().and_then(|d| d.temperature_min_c),
     }
 }
 

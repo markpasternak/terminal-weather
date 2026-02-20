@@ -134,13 +134,21 @@ fn print_one_shot_daily(
         let max = day
             .temperature_max_c
             .map(|t| round_temp(convert_temp(t, units)));
-        let min_str = min.map_or_else(|| "--".to_string(), |v| format!("{v}°"));
-        let max_str = max.map_or_else(|| "--".to_string(), |v| format!("{v}°"));
-        let precip = day
-            .precipitation_sum_mm
-            .map_or_else(|| "--".to_string(), |p| format!("{p:.1}mm"));
-        println!("  {day_name:<8} {icon:<4} {min_str:>4} / {max_str:<4}  {precip}");
+        print_daily_line(day_name, icon, min, max, day.precipitation_sum_mm);
     }
+}
+
+fn print_daily_line(
+    day_name: String,
+    icon: &str,
+    min: Option<i32>,
+    max: Option<i32>,
+    precip_mm: Option<f32>,
+) {
+    let min_str = min.map_or_else(|| "--".to_string(), |v| format!("{v}°"));
+    let max_str = max.map_or_else(|| "--".to_string(), |v| format!("{v}°"));
+    let precip = precip_mm.map_or_else(|| "--".to_string(), |p| format!("{p:.1}mm"));
+    println!("  {day_name:<8} {icon:<4} {min_str:>4} / {max_str:<4}  {precip}");
 }
 
 async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) -> Result<()> {
@@ -154,17 +162,10 @@ async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) 
     while app.running {
         tokio::select! {
             maybe_input = input_stream.next() => {
-                if let Some(input) = maybe_input {
-                    app.handle_event(AppEvent::Input(input), &tx, &cli).await?;
-                }
+                handle_input_event(&mut app, maybe_input, &tx, &cli).await?;
             }
             maybe_event = rx.recv() => {
-                if let Some(event) = maybe_event {
-                    if matches!(event, AppEvent::ForceRedraw) {
-                        terminal.clear()?;
-                    }
-                    app.handle_event(event, &tx, &cli).await?;
-                }
+                handle_app_event(terminal, &mut app, maybe_event, &tx, &cli).await?;
             }
         }
 
@@ -176,6 +177,34 @@ async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) 
         }
     }
 
+    Ok(())
+}
+
+async fn handle_input_event(
+    app: &mut AppState,
+    maybe_input: Option<crossterm::event::Event>,
+    tx: &mpsc::Sender<AppEvent>,
+    cli: &Cli,
+) -> Result<()> {
+    if let Some(input) = maybe_input {
+        app.handle_event(AppEvent::Input(input), tx, cli).await?;
+    }
+    Ok(())
+}
+
+async fn handle_app_event(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    app: &mut AppState,
+    maybe_event: Option<AppEvent>,
+    tx: &mpsc::Sender<AppEvent>,
+    cli: &Cli,
+) -> Result<()> {
+    if let Some(event) = maybe_event {
+        if matches!(event, AppEvent::ForceRedraw) {
+            terminal.clear()?;
+        }
+        app.handle_event(event, tx, cli).await?;
+    }
     Ok(())
 }
 

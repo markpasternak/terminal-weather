@@ -24,7 +24,10 @@ use crate::{
     ui::theme::{Theme, condition_color},
 };
 
+mod loading;
+
 use super::weather_expanded::render_weather_info_expanded;
+use loading::render_loading_choreography;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HeroScale {
@@ -145,40 +148,18 @@ fn build_header_lines(
     scale: HeroScale,
 ) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
-    let temp = weather.current_temp(state.units);
-    let unit_symbol = if state.units == crate::domain::weather::Units::Celsius {
-        "C"
-    } else {
-        "F"
-    };
+    let (temp, unit_symbol) = current_temp_display(state, weather);
     let weather_label = weather_label_for_time(code, weather.current.is_day);
     let weather_color = condition_color(&theme, weather_code_to_category(code));
-    if matches!(scale, HeroScale::Deluxe) {
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!("{temp}°{unit_symbol}"),
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::raw("  ·  "),
-            Span::styled(
-                weather_label,
-                Style::default()
-                    .fg(weather_color)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]));
-    } else {
-        lines.push(Line::from(vec![Span::styled(
-            format!("{temp}°{unit_symbol}"),
-            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-        )]));
-        lines.push(Line::from(Span::styled(
-            weather_label,
-            Style::default()
-                .fg(weather_color)
-                .add_modifier(Modifier::BOLD),
-        )));
-    }
+    append_header_main_line(
+        &mut lines,
+        scale,
+        theme,
+        temp,
+        unit_symbol,
+        weather_label,
+        weather_color,
+    );
     if let Some((high, low)) = weather.high_low(state.units) {
         lines.push(Line::from(Span::styled(
             format!("H:{high}°  L:{low}°"),
@@ -190,6 +171,54 @@ fn build_header_lines(
         Style::default().fg(theme.text),
     )));
     lines
+}
+
+fn current_temp_display(state: &AppState, weather: &ForecastBundle) -> (i32, &'static str) {
+    (
+        weather.current_temp(state.units),
+        if state.units == crate::domain::weather::Units::Celsius {
+            "C"
+        } else {
+            "F"
+        },
+    )
+}
+
+fn append_header_main_line(
+    lines: &mut Vec<Line<'static>>,
+    scale: HeroScale,
+    theme: Theme,
+    temp: i32,
+    unit_symbol: &'static str,
+    weather_label: &str,
+    weather_color: Color,
+) {
+    if matches!(scale, HeroScale::Deluxe) {
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("{temp}°{unit_symbol}"),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  ·  "),
+            Span::styled(
+                weather_label.to_string(),
+                Style::default()
+                    .fg(weather_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        return;
+    }
+    lines.push(Line::from(vec![Span::styled(
+        format!("{temp}°{unit_symbol}"),
+        Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+    )]));
+    lines.push(Line::from(Span::styled(
+        weather_label.to_string(),
+        Style::default()
+            .fg(weather_color)
+            .add_modifier(Modifier::BOLD),
+    )));
 }
 
 fn collect_weather_metrics(state: &AppState, weather: &ForecastBundle) -> WeatherMetricsData {
@@ -260,14 +289,32 @@ fn push_standard_metric_lines(
     theme: Theme,
     metric_gap: &'static str,
 ) {
-    lines.push(Line::from(vec![
+    lines.push(standard_metric_feels_line(data, theme, metric_gap));
+    lines.push(standard_metric_wind_line(data, theme, metric_gap));
+    lines.push(standard_metric_pressure_line(data, theme, metric_gap));
+    lines.push(standard_metric_cloud_line(data, theme, metric_gap));
+}
+
+fn standard_metric_feels_line(
+    data: &WeatherMetricsData,
+    theme: Theme,
+    metric_gap: &'static str,
+) -> Line<'static> {
+    Line::from(vec![
         Span::styled("Feels ", Style::default().fg(theme.muted_text)),
         Span::styled(format!("{}°", data.feels), Style::default().fg(theme.text)),
         Span::raw(metric_gap),
         Span::styled("Dew ", Style::default().fg(theme.muted_text)),
         Span::styled(format!("{}°", data.dew), Style::default().fg(theme.info)),
-    ]));
-    lines.push(Line::from(vec![
+    ])
+}
+
+fn standard_metric_wind_line(
+    data: &WeatherMetricsData,
+    theme: Theme,
+    metric_gap: &'static str,
+) -> Line<'static> {
+    Line::from(vec![
         Span::styled("Wind ", Style::default().fg(theme.muted_text)),
         Span::styled(
             format!("{}/{} km/h {}", data.wind, data.gust, data.wind_dir),
@@ -276,8 +323,15 @@ fn push_standard_metric_lines(
         Span::raw(metric_gap),
         Span::styled("Visibility ", Style::default().fg(theme.muted_text)),
         Span::styled(data.visibility.clone(), Style::default().fg(theme.accent)),
-    ]));
-    lines.push(Line::from(vec![
+    ])
+}
+
+fn standard_metric_pressure_line(
+    data: &WeatherMetricsData,
+    theme: Theme,
+    metric_gap: &'static str,
+) -> Line<'static> {
+    Line::from(vec![
         Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
         Span::styled(
             format!("{}hPa{}", data.pressure, data.pressure_trend),
@@ -289,8 +343,15 @@ fn push_standard_metric_lines(
             format!("{}%", data.humidity),
             Style::default().fg(theme.info),
         ),
-    ]));
-    lines.push(Line::from(vec![
+    ])
+}
+
+fn standard_metric_cloud_line(
+    data: &WeatherMetricsData,
+    theme: Theme,
+    metric_gap: &'static str,
+) -> Line<'static> {
+    Line::from(vec![
         Span::styled("Cloud ", Style::default().fg(theme.muted_text)),
         Span::styled(
             format!("{}%", data.cloud_total),
@@ -304,7 +365,7 @@ fn push_standard_metric_lines(
         Span::raw(metric_gap),
         Span::styled("UV ", Style::default().fg(theme.muted_text)),
         Span::styled(data.uv_today.clone(), Style::default().fg(theme.warning)),
-    ]));
+    ])
 }
 
 fn freshness_flag(state: &AppState, theme: Theme) -> Option<(&'static str, Color)> {
@@ -431,134 +492,4 @@ fn average(values: &[f32]) -> Option<f32> {
     } else {
         Some(values.iter().sum::<f32>() / values.len() as f32)
     }
-}
-
-fn render_loading_choreography(
-    frame: &mut Frame,
-    area: Rect,
-    state: &AppState,
-    theme: Theme,
-    scale: HeroScale,
-) {
-    let stage_idx = loading_stage_index(state.frame_tick);
-    let spinner = loading_spinner(state.frame_tick);
-    let bar = indeterminate_bar(
-        state.frame_tick,
-        match scale {
-            HeroScale::Compact => 18,
-            HeroScale::Standard => 24,
-            HeroScale::Deluxe => 34,
-        },
-    );
-
-    let stage_labels = [
-        "Locate city context",
-        "Fetch weather layers",
-        "Compose ambient scene",
-    ];
-    let mut stage_spans = Vec::new();
-    for (idx, label) in stage_labels.into_iter().enumerate() {
-        let (marker, color) = if idx < stage_idx {
-            ("● ", theme.success)
-        } else if idx == stage_idx {
-            ("◉ ", theme.accent)
-        } else {
-            ("○ ", theme.muted_text)
-        };
-        stage_spans.push(Span::styled(marker, Style::default().fg(color)));
-        stage_spans.push(Span::styled(label, Style::default().fg(color)));
-        if idx + 1 < stage_labels.len() {
-            stage_spans.push(Span::raw("   "));
-        }
-    }
-
-    let mut lines = vec![
-        Line::from(Span::styled(
-            format!("{spinner} Preparing atmosphere"),
-            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(stage_spans),
-        Line::from(Span::styled(bar, Style::default().fg(theme.info))),
-        Line::from(Span::styled(
-            state.loading_message.clone(),
-            Style::default().fg(theme.text),
-        )),
-    ];
-
-    if area.height >= 9 {
-        lines.push(Line::from(""));
-        let skeleton_width = usize::from(area.width).saturating_sub(4).clamp(16, 56);
-        lines.push(Line::from(vec![
-            Span::styled("Hero   ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                loading_skeleton_row(state.frame_tick, skeleton_width, 0),
-                Style::default().fg(theme.accent),
-            ),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("Hourly ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                loading_skeleton_row(state.frame_tick, skeleton_width, 1),
-                Style::default().fg(theme.info),
-            ),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("Daily  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                loading_skeleton_row(state.frame_tick, skeleton_width, 2),
-                Style::default().fg(theme.success),
-            ),
-        ]));
-    }
-
-    lines.push(Line::from(Span::styled(
-        "Tip: press l for cities, s for settings, r to retry, q to quit",
-        Style::default().fg(theme.muted_text),
-    )));
-
-    frame.render_widget(Paragraph::new(lines), area);
-}
-
-fn loading_skeleton_row(frame_tick: u64, width: usize, lane: usize) -> String {
-    if width == 0 {
-        return String::new();
-    }
-    let mut chars = vec!['·'; width];
-    let head = ((frame_tick as usize) + lane * 5) % width;
-    chars[head] = '█';
-    if head > 0 {
-        chars[head - 1] = '▓';
-    }
-    if head + 1 < width {
-        chars[head + 1] = '▓';
-    }
-    if head + 2 < width {
-        chars[head + 2] = '▒';
-    }
-    chars.into_iter().collect()
-}
-
-fn loading_spinner(frame_tick: u64) -> &'static str {
-    const FRAMES: [&str; 8] = ["-", "\\", "|", "/", "-", "\\", "|", "/"];
-    FRAMES[(frame_tick as usize) % FRAMES.len()]
-}
-
-fn loading_stage_index(frame_tick: u64) -> usize {
-    ((frame_tick / 14) as usize) % 3
-}
-
-fn indeterminate_bar(frame_tick: u64, width: usize) -> String {
-    if width == 0 {
-        return String::new();
-    }
-    let mut chars = vec!['·'; width];
-    let head = (frame_tick as usize) % width;
-    chars[head] = '█';
-    if head > 0 {
-        chars[head - 1] = '▓';
-    }
-    if head + 1 < width {
-        chars[head + 1] = '▓';
-    }
-    format!("[{}]", chars.into_iter().collect::<String>())
 }

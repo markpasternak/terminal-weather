@@ -13,6 +13,13 @@ use crate::ui::widgets::landmark::compact::compact_condition_scene;
 use crate::ui::widgets::landmark::shared::{canvas_to_lines, paint_char};
 use crate::ui::widgets::landmark::{LandmarkScene, scene_name, tint_for_category};
 
+mod effects;
+
+use effects::{
+    draw_ambient_cloud, paint_ambient_sky_life, paint_fog_banks, paint_hail, paint_heat_shimmer,
+    paint_ice_glaze, paint_lightning_bolts, paint_rain, paint_snowfall,
+};
+
 #[must_use]
 pub fn scene_for_weather(
     bundle: &ForecastBundle,
@@ -269,29 +276,42 @@ fn paint_terrain(
     w: usize,
     h: usize,
 ) {
-    // Smooth terrain edge using graduated block characters
     for (x, &top) in terrain_top.iter().enumerate().take(w) {
         for (y, row) in canvas.iter_mut().enumerate().take(h) {
             if y < top {
                 continue;
             }
-            row[x] = if y == top {
-                '▁'
-            } else if y == top + 1 {
-                '▃'
-            } else if y <= horizon_y {
-                '▅'
-            } else {
-                '█'
-            };
+            row[x] = terrain_glyph(y, top, horizon_y);
         }
     }
-    // Horizon line overlay
-    if horizon_y < h {
-        for (x, cell) in canvas[horizon_y].iter_mut().enumerate().take(w) {
-            if terrain_top[x] > horizon_y {
-                *cell = '─';
-            }
+    overlay_horizon_line(canvas, terrain_top, horizon_y, w, h);
+}
+
+fn terrain_glyph(y: usize, top: usize, horizon_y: usize) -> char {
+    if y == top {
+        '▁'
+    } else if y == top + 1 {
+        '▃'
+    } else if y <= horizon_y {
+        '▅'
+    } else {
+        '█'
+    }
+}
+
+fn overlay_horizon_line(
+    canvas: &mut [Vec<char>],
+    terrain_top: &[usize],
+    horizon_y: usize,
+    width: usize,
+    height: usize,
+) {
+    if horizon_y >= height {
+        return;
+    }
+    for (x, cell) in canvas[horizon_y].iter_mut().enumerate().take(width) {
+        if terrain_top[x] > horizon_y {
+            *cell = '─';
         }
     }
 }
@@ -433,481 +453,5 @@ struct AmbientSkyLifeContext {
     width: usize,
 }
 
-fn paint_ambient_sky_life(canvas: &mut [Vec<char>], ctx: AmbientSkyLifeContext) {
-    if !ctx.animate
-        || !ctx.is_day
-        || ctx.phase == 0
-        || !matches!(
-            ctx.category,
-            WeatherCategory::Clear | WeatherCategory::Cloudy
-        )
-        || ctx.cloud_pct > 85.0
-        || ctx.width < 32
-        || ctx.horizon_y < 6
-    {
-        return;
-    }
-
-    let sky_rows = ctx.horizon_y.saturating_sub(2);
-    if sky_rows <= 1 {
-        return;
-    }
-
-    let bird_count = (ctx.width / 24).clamp(2, 5);
-    let bird_cycle = ctx.width + 12;
-    for i in 0..bird_count {
-        let speed = 1 + (i % 3);
-        let x = ((ctx.phase * speed + i * 17) % bird_cycle) as isize - 6;
-        let lane = 1 + ((i * 3 + ctx.phase / 19) % sky_rows.saturating_sub(1).max(1));
-        let glyph = if ((ctx.phase / 6) + i).is_multiple_of(2) {
-            'v'
-        } else {
-            'V'
-        };
-        paint_char(canvas, x, lane as isize, glyph, false);
-    }
-
-    let plane_cycle = 220;
-    let plane_window = 90;
-    let window_phase = ctx.phase % plane_cycle;
-    if window_phase >= plane_window {
-        return;
-    }
-
-    let plane = ['=', '=', '>'];
-    let plane_len = plane.len();
-    let progress = window_phase as f32 / (plane_window.saturating_sub(1)) as f32;
-    let wind_drift = ((ctx.wind_speed / 18.0).round() as isize).clamp(0, 3);
-    let plane_span = ctx.width + plane_len + 8;
-    let plane_x =
-        (progress * plane_span as f32).round() as isize - (plane_len as isize + 4) + wind_drift;
-    let lane_count = ctx.horizon_y.saturating_sub(4).max(1);
-    let plane_y = 1 + ((ctx.phase / plane_cycle + ctx.width / 9) % lane_count);
-
-    for (idx, ch) in plane.iter().enumerate() {
-        paint_char(canvas, plane_x + idx as isize, plane_y as isize, *ch, false);
-    }
-
-    let contrail_len = (1 + (ctx.wind_speed as usize / 20)).clamp(1, 3);
-    for step in 1..=contrail_len {
-        paint_char(
-            canvas,
-            plane_x - step as isize,
-            plane_y as isize,
-            '-',
-            false,
-        );
-    }
-}
-
-fn draw_ambient_cloud(
-    canvas: &mut [Vec<char>],
-    cx: usize,
-    cy: usize,
-    cloud_w: usize,
-    rows: usize,
-    canvas_w: usize,
-    horizon_y: usize,
-) {
-    // Multi-row cloud with density falloff from center
-    // Top row: lighter/thinner  ░░▒▒▒░░
-    // Middle row: denser         ▒▓▓▓▓▓▒
-    // Bottom row: wispy          ░░▒░░
-    let patterns: &[&[char]] = if rows >= 3 {
-        &[
-            &[' ', '░', '░', '▒', '▒', '░', '░', ' '],
-            &['░', '▒', '▓', '▓', '▓', '▓', '▒', '░'],
-            &[' ', ' ', '░', '▒', '▒', '░', ' ', ' '],
-        ]
-    } else {
-        &[
-            &[' ', '░', '▒', '▒', '▒', '░', ' '],
-            &['░', '▒', '▓', '▓', '▒', '░', ' '],
-        ]
-    };
-
-    for (row_idx, pattern) in patterns.iter().enumerate() {
-        let y = cy + row_idx;
-        if y >= horizon_y || y >= canvas.len() {
-            break;
-        }
-        let pat_len = pattern.len();
-        for col in 0..cloud_w {
-            let x = cx.wrapping_sub(cloud_w / 2).wrapping_add(col);
-            if x >= canvas_w {
-                continue;
-            }
-            let pat_idx = (col * pat_len) / cloud_w.max(1);
-            let ch = pattern[pat_idx.min(pat_len - 1)];
-            if ch != ' ' && canvas[y][x] == ' ' {
-                canvas[y][x] = ch;
-            }
-        }
-    }
-}
-
-fn paint_rain(canvas: &mut [Vec<char>], precip_mm: f32, phase: usize, horizon_y: usize, w: usize) {
-    if w == 0 || horizon_y < 3 {
-        return;
-    }
-    let density = rain_density(precip_mm);
-    let drops = rain_drops_per_column(precip_mm);
-    let ch = rain_glyph(precip_mm);
-    for x in 0..w {
-        if !(x + phase).is_multiple_of(density) {
-            continue;
-        }
-        paint_rain_column(canvas, x, phase, horizon_y, drops, ch);
-    }
-    paint_rain_splashes(canvas, horizon_y, w, phase, density);
-}
-
-fn rain_density(precip_mm: f32) -> usize {
-    if precip_mm >= 5.0 {
-        2
-    } else if precip_mm >= 1.0 {
-        3
-    } else {
-        5
-    }
-}
-
-fn rain_drops_per_column(precip_mm: f32) -> usize {
-    if precip_mm >= 5.0 {
-        3
-    } else if precip_mm >= 1.0 {
-        2
-    } else {
-        1
-    }
-}
-
-fn rain_glyph(precip_mm: f32) -> char {
-    if precip_mm >= 3.0 { '/' } else { '╱' }
-}
-
-fn paint_rain_column(
-    canvas: &mut [Vec<char>],
-    x: usize,
-    phase: usize,
-    horizon_y: usize,
-    drops: usize,
-    ch: char,
-) {
-    let h = canvas.len();
-    for d in 0..drops {
-        let y_offset = (phase + x * 3 + d * 4) % horizon_y.max(2);
-        let y = 1 + y_offset;
-        if y < h
-            && y < horizon_y
-            && let Some(cell) = canvas.get_mut(y).and_then(|row| row.get_mut(x))
-            && matches!(*cell, ' ' | '·')
-        {
-            *cell = ch;
-        }
-    }
-}
-
-fn paint_rain_splashes(
-    canvas: &mut [Vec<char>],
-    horizon_y: usize,
-    width: usize,
-    phase: usize,
-    density: usize,
-) {
-    if horizon_y >= canvas.len() {
-        return;
-    }
-    for (x, cell) in canvas[horizon_y].iter_mut().enumerate().take(width) {
-        if (x + phase / 2).is_multiple_of(density + 1) && matches!(*cell, '─' | ' ') {
-            *cell = '.';
-        }
-    }
-}
-
-fn paint_snowfall(canvas: &mut [Vec<char>], phase: usize, horizon_y: usize, w: usize) {
-    if w == 0 || horizon_y < 3 {
-        return;
-    }
-    let h = canvas.len();
-    let flakes = ['·', '*', '✧', '·', '·', '*'];
-    // Snow drifts gently — multiple layers with different speeds
-    for layer in 0..3 {
-        let speed = layer + 1;
-        let spacing = 3 + layer;
-        for x in 0..w {
-            if (x + layer * 7) % spacing != 0 {
-                continue;
-            }
-            let y_off = (phase * speed / 2 + x * 5 + layer * 11) % horizon_y.max(2);
-            let y = 1 + y_off;
-            if y < h && y < horizon_y && canvas[y][x] == ' ' {
-                let flake = flakes[(x + layer + phase) % flakes.len()];
-                canvas[y][x] = flake;
-            }
-        }
-    }
-    // Snow accumulation on terrain
-    let top = horizon_y.saturating_sub(1);
-    if top < h {
-        for cell in canvas[top].iter_mut().take(w) {
-            if matches!(*cell, '▁' | ' ') {
-                *cell = '∴';
-            }
-        }
-    }
-}
-
-#[allow(clippy::needless_range_loop)]
-fn paint_fog_banks(canvas: &mut [Vec<char>], phase: usize, horizon_y: usize, w: usize, h: usize) {
-    if w == 0 {
-        return;
-    }
-    // Rolling fog bands across the full scene with varying density
-    let band_count = 4;
-    for band in 0..band_count {
-        let base_y = horizon_y.saturating_sub(3) + band;
-        if base_y >= h {
-            continue;
-        }
-        let drift = (phase + band * 7) % w;
-        let density_chars = ['░', '░', '▒', '░'];
-        for x in 0..w {
-            let shifted = (x + drift) % w;
-            // Sine-wave fog density
-            let wave = ((shifted as f32 / w as f32) * std::f32::consts::PI * 3.0).sin();
-            if wave > -0.2 && canvas[base_y][x] == ' ' {
-                let idx = ((wave + 1.0) / 2.0 * (density_chars.len() - 1) as f32).round() as usize;
-                canvas[base_y][x] = density_chars[idx.min(density_chars.len() - 1)];
-            }
-        }
-    }
-    // Upper mist wisps
-    for y in 2..horizon_y.saturating_sub(3) {
-        if y >= h {
-            break;
-        }
-        for x in 0..w {
-            if (x + y + phase / 3).is_multiple_of(7) && canvas[y][x] == ' ' {
-                canvas[y][x] = '·';
-            }
-        }
-    }
-}
-
-fn paint_lightning_bolts(canvas: &mut [Vec<char>], phase: usize, horizon_y: usize, w: usize) {
-    if w < 6 || horizon_y < 5 {
-        return;
-    }
-    // Flash visible only every few frames for dramatic effect
-    let flash_on = (phase / 3).is_multiple_of(5);
-    if !flash_on {
-        return;
-    }
-    // Draw 1-2 jagged lightning bolts
-    let bolt_count = 1 + (phase / 7) % 2;
-    for b in 0..bolt_count {
-        let start_x = (w / 3 + b * w / 3 + phase % (w / 4 + 1)).min(w.saturating_sub(3));
-        let mut x = start_x;
-        for (y, row) in canvas
-            .iter_mut()
-            .enumerate()
-            .take(horizon_y.saturating_sub(1))
-            .skip(1)
-        {
-            if x >= w {
-                break;
-            }
-            let ch = if y % 2 == 0 { '╲' } else { '╱' };
-            row[x] = ch;
-            // Zigzag
-            if y % 2 == 0 && x + 1 < w {
-                x += 1;
-            } else {
-                x = x.saturating_sub(1);
-            }
-        }
-    }
-}
-
-fn paint_heat_shimmer(canvas: &mut [Vec<char>], phase: usize, horizon_y: usize, w: usize) {
-    // Subtle rising heat distortion near the terrain on clear hot days
-    if horizon_y < 3 {
-        return;
-    }
-    let shimmer_band = horizon_y.saturating_sub(2)..horizon_y;
-    for y in shimmer_band {
-        if y >= canvas.len() {
-            break;
-        }
-        for (x, cell) in canvas[y].iter_mut().enumerate().take(w) {
-            let wave = ((x + phase) as f32 * 0.4).sin();
-            if wave > 0.6 && *cell == ' ' {
-                *cell = if (x + phase).is_multiple_of(3) {
-                    '.'
-                } else {
-                    ','
-                };
-            }
-        }
-    }
-}
-
-fn paint_ice_glaze(canvas: &mut [Vec<char>], horizon_y: usize, w: usize) {
-    // Ice crystals on terrain surface for freezing rain/drizzle
-    if horizon_y >= canvas.len() {
-        return;
-    }
-    for x in 0..w {
-        if x % 2 == 0 {
-            let y = horizon_y;
-            if y < canvas.len() && matches!(canvas[y][x], '─' | '.' | ',' | ' ') {
-                canvas[y][x] = '❆';
-            }
-        }
-        // Ice accumulation just above terrain
-        let above = horizon_y.saturating_sub(1);
-        if above < canvas.len() && x % 4 == 0 && canvas[above][x] == ' ' {
-            canvas[above][x] = '·';
-        }
-    }
-}
-
-fn paint_hail(canvas: &mut [Vec<char>], phase: usize, horizon_y: usize, w: usize) {
-    if w == 0 || horizon_y < 3 {
-        return;
-    }
-    let h = canvas.len();
-    // Hailstones fall straighter and harder than rain
-    for x in 0..w {
-        if !(x + phase).is_multiple_of(4) {
-            continue;
-        }
-        let y = 1 + (phase + x * 3) % horizon_y.max(2);
-        if y < h
-            && y < horizon_y
-            && let Some(cell) = canvas.get_mut(y).and_then(|row| row.get_mut(x))
-            && matches!(*cell, ' ' | '·')
-        {
-            *cell = 'o';
-        }
-    }
-    // Bounce marks on terrain
-    if horizon_y < h {
-        for (x, cell) in canvas[horizon_y].iter_mut().enumerate().take(w) {
-            if (x + phase / 2).is_multiple_of(5) && *cell == '─' {
-                *cell = '•';
-            }
-        }
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::{AmbientSkyLifeContext, paint_ambient_sky_life};
-    use crate::domain::weather::WeatherCategory;
-
-    fn blank_canvas(width: usize, height: usize) -> Vec<Vec<char>> {
-        vec![vec![' '; width]; height]
-    }
-
-    fn ambient_marks(canvas: &[Vec<char>]) -> usize {
-        canvas
-            .iter()
-            .flatten()
-            .filter(|ch| matches!(**ch, 'v' | 'V' | '=' | '>' | '-'))
-            .count()
-    }
-
-    #[test]
-    fn ambient_sky_life_not_rendered_at_night() {
-        let mut canvas = blank_canvas(40, 16);
-        paint_ambient_sky_life(
-            &mut canvas,
-            AmbientSkyLifeContext {
-                category: WeatherCategory::Clear,
-                is_day: false,
-                cloud_pct: 30.0,
-                wind_speed: 10.0,
-                phase: 24,
-                animate: true,
-                horizon_y: 10,
-                width: 40,
-            },
-        );
-        assert_eq!(ambient_marks(&canvas), 0);
-    }
-
-    #[test]
-    fn ambient_sky_life_not_rendered_in_rain_or_thunder() {
-        for category in [WeatherCategory::Rain, WeatherCategory::Thunder] {
-            let mut canvas = blank_canvas(40, 16);
-            paint_ambient_sky_life(
-                &mut canvas,
-                AmbientSkyLifeContext {
-                    category,
-                    is_day: true,
-                    cloud_pct: 30.0,
-                    wind_speed: 10.0,
-                    phase: 24,
-                    animate: true,
-                    horizon_y: 10,
-                    width: 40,
-                },
-            );
-            assert_eq!(ambient_marks(&canvas), 0);
-        }
-    }
-
-    #[test]
-    fn ambient_sky_life_renders_when_clear_day_and_phase_nonzero() {
-        let mut canvas = blank_canvas(48, 16);
-        paint_ambient_sky_life(
-            &mut canvas,
-            AmbientSkyLifeContext {
-                category: WeatherCategory::Clear,
-                is_day: true,
-                cloud_pct: 28.0,
-                wind_speed: 12.0,
-                phase: 20,
-                animate: true,
-                horizon_y: 10,
-                width: 48,
-            },
-        );
-        assert!(ambient_marks(&canvas) > 0);
-    }
-
-    #[test]
-    fn ambient_sky_life_deterministic_for_same_inputs() {
-        let mut first = blank_canvas(48, 16);
-        let mut second = blank_canvas(48, 16);
-        paint_ambient_sky_life(
-            &mut first,
-            AmbientSkyLifeContext {
-                category: WeatherCategory::Cloudy,
-                is_day: true,
-                cloud_pct: 35.0,
-                wind_speed: 14.0,
-                phase: 37,
-                animate: true,
-                horizon_y: 10,
-                width: 48,
-            },
-        );
-        paint_ambient_sky_life(
-            &mut second,
-            AmbientSkyLifeContext {
-                category: WeatherCategory::Cloudy,
-                is_day: true,
-                cloud_pct: 35.0,
-                wind_speed: 14.0,
-                phase: 37,
-                animate: true,
-                horizon_y: 10,
-                width: 48,
-            },
-        );
-        assert_eq!(first, second);
-    }
-}
+mod tests;

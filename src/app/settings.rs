@@ -171,34 +171,65 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
     {
         settings = saved;
     }
+    apply_cli_overrides(&mut settings, cli);
 
+    (settings, Some(path))
+}
+
+fn apply_cli_overrides(settings: &mut RuntimeSettings, cli: &Cli) {
+    override_units(settings, cli);
+    override_theme(settings, cli);
+    override_motion(settings, cli);
+    override_flash(settings, cli);
+    override_icon_mode(settings, cli);
+    override_hero_visual(settings, cli);
+    override_refresh_interval(settings, cli);
+}
+
+fn override_units(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.units != UnitsArg::Celsius {
         settings.units = Units::Fahrenheit;
     }
+}
+
+fn override_theme(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.theme != ThemeArg::Auto {
         settings.theme = cli.theme;
     }
+}
+
+fn override_motion(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.no_animation {
         settings.motion = MotionSetting::Off;
     } else if cli.reduced_motion {
         settings.motion = MotionSetting::Reduced;
     }
+}
+
+fn override_flash(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.no_flash {
         settings.no_flash = true;
     }
+}
+
+fn override_icon_mode(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.ascii_icons {
         settings.icon_mode = IconMode::Ascii;
     } else if cli.emoji_icons {
         settings.icon_mode = IconMode::Emoji;
     }
+}
+
+fn override_hero_visual(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.hero_visual != HeroVisualArg::AtmosCanvas {
         settings.hero_visual = cli.hero_visual;
     }
+}
+
+fn override_refresh_interval(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.refresh_interval != 600 {
         settings.refresh_interval_secs = cli.refresh_interval;
     }
-
-    (settings, Some(path))
 }
 
 #[must_use]

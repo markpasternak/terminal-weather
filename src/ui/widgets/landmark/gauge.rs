@@ -65,6 +65,8 @@ fn collect_gauge_data(bundle: &ForecastBundle, width: usize) -> GaugeData {
     let current = &bundle.current;
     let left_col_width = left_column_width(width);
     let trend_width = width.saturating_sub(left_col_width + 12).clamp(8, 28);
+    let (sunrise, sunset) = gauge_sun_times(bundle);
+    let (temp_track, precip_track, gust_track) = gauge_tracks(bundle);
 
     GaugeData {
         temp_c: current.temperature_2m_c.round() as i32,
@@ -84,35 +86,50 @@ fn collect_gauge_data(bundle: &ForecastBundle, width: usize) -> GaugeData {
         meter_w: width.saturating_sub(26).clamp(10, 56),
         left_col_width,
         right_trend_width: trend_width.saturating_sub(6),
-        sunrise: bundle
-            .daily
-            .first()
-            .and_then(|d| d.sunrise)
-            .map_or_else(|| "--:--".to_string(), |t| t.format("%H:%M").to_string()),
-        sunset: bundle
-            .daily
-            .first()
-            .and_then(|d| d.sunset)
-            .map_or_else(|| "--:--".to_string(), |t| t.format("%H:%M").to_string()),
-        temp_track: bundle
-            .hourly
-            .iter()
-            .take(24)
-            .filter_map(|h| h.temperature_2m_c)
-            .collect::<Vec<_>>(),
-        precip_track: bundle
-            .hourly
-            .iter()
-            .take(24)
-            .map(|h| h.precipitation_mm.unwrap_or(0.0))
-            .collect::<Vec<_>>(),
-        gust_track: bundle
-            .hourly
-            .iter()
-            .take(24)
-            .map(|h| h.wind_gusts_10m.unwrap_or(0.0))
-            .collect::<Vec<_>>(),
+        sunrise,
+        sunset,
+        temp_track,
+        precip_track,
+        gust_track,
     }
+}
+
+fn gauge_sun_times(bundle: &ForecastBundle) -> (String, String) {
+    let sunrise = bundle
+        .daily
+        .first()
+        .and_then(|day| day.sunrise)
+        .map_or_else(
+            || "--:--".to_string(),
+            |value| value.format("%H:%M").to_string(),
+        );
+    let sunset = bundle.daily.first().and_then(|day| day.sunset).map_or_else(
+        || "--:--".to_string(),
+        |value| value.format("%H:%M").to_string(),
+    );
+    (sunrise, sunset)
+}
+
+fn gauge_tracks(bundle: &ForecastBundle) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
+    let temp_track = bundle
+        .hourly
+        .iter()
+        .take(24)
+        .filter_map(|hour| hour.temperature_2m_c)
+        .collect::<Vec<_>>();
+    let precip_track = bundle
+        .hourly
+        .iter()
+        .take(24)
+        .map(|hour| hour.precipitation_mm.unwrap_or(0.0))
+        .collect::<Vec<_>>();
+    let gust_track = bundle
+        .hourly
+        .iter()
+        .take(24)
+        .map(|hour| hour.wind_gusts_10m.unwrap_or(0.0))
+        .collect::<Vec<_>>();
+    (temp_track, precip_track, gust_track)
 }
 
 fn left_column_width(width: usize) -> usize {

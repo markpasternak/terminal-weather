@@ -56,50 +56,33 @@ pub fn fit_lines_centered(lines: Vec<String>, width: usize, height: usize) -> Ve
 }
 
 pub fn paint_char(canvas: &mut [Vec<char>], x: isize, y: isize, ch: char, force: bool) {
-    if canvas.is_empty() || canvas[0].is_empty() {
+    let (ux, uy) = match (usize::try_from(x), usize::try_from(y)) {
+        (Ok(x), Ok(y)) => (x, y),
+        _ => return,
+    };
+    let Some(row) = canvas.get_mut(uy) else {
         return;
-    }
-    if x < 0 || y < 0 {
+    };
+    let Some(cell) = row.get_mut(ux) else {
         return;
-    }
-    let ux = x as usize;
-    let uy = y as usize;
-    if uy >= canvas.len() || ux >= canvas[0].len() {
-        return;
-    }
-
-    let current = canvas[uy][ux];
-    if force || matches!(current, ' ' | '·') {
-        canvas[uy][ux] = ch;
+    };
+    if force || matches!(*cell, ' ' | '·') {
+        *cell = ch;
     }
 }
 
 #[must_use]
 pub fn compass_arrow(deg: f32) -> char {
-    let d = deg.rem_euclid(360.0);
-    match d as i32 {
-        23..=67 => '↗',
-        68..=112 => '→',
-        113..=157 => '↘',
-        158..=202 => '↓',
-        203..=247 => '↙',
-        248..=292 => '←',
-        293..=337 => '↖',
-        _ => '↑',
-    }
+    const ARROWS: [char; 8] = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+    ARROWS[compass_sector(deg)]
 }
 
 #[must_use]
 pub fn compass_short(deg: f32) -> &'static str {
-    let d = deg.rem_euclid(360.0);
-    match d as i32 {
-        23..=67 => "NE",
-        68..=112 => "E",
-        113..=157 => "SE",
-        158..=202 => "S",
-        203..=247 => "SW",
-        248..=292 => "W",
-        293..=337 => "NW",
-        _ => "N",
-    }
+    const LABELS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    LABELS[compass_sector(deg)]
+}
+
+fn compass_sector(deg: f32) -> usize {
+    ((deg.rem_euclid(360.0) / 45.0) + 0.5).floor() as usize % 8
 }

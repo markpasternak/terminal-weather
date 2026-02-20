@@ -164,27 +164,41 @@ fn scene_char_color(ch: char, theme: Theme, base_tint: Color, visual: HeroVisual
 }
 
 fn scene_char_color_atmos(ch: char, theme: Theme, base_tint: Color) -> Color {
-    match ch {
-        '█' | '▅' | '▃' | '▁' => theme.accent,
-        '◉' | '◐' | 'o' | '•' => theme.warning,
-        'v' | 'V' | '>' | '=' | '-' => theme.info,
-        '░' | '▒' | '▓' => theme.landmark_neutral,
-        '/' | '╱' | '╲' | '.' | ',' => theme.info,
-        '❆' | '*' | '✦' | '✧' => theme.landmark_cool,
-        '·' | '∴' | '─' => theme.muted_text,
-        _ => base_tint,
+    if char_in(ch, &['█', '▅', '▃', '▁']) {
+        theme.accent
+    } else if char_in(ch, &['◉', '◐', 'o', '•']) {
+        theme.warning
+    } else if char_in(ch, &['v', 'V', '>', '=', '-', '/', '╱', '╲', '.', ',']) {
+        theme.info
+    } else if char_in(ch, &['░', '▒', '▓']) {
+        theme.landmark_neutral
+    } else if char_in(ch, &['❆', '*', '✦', '✧']) {
+        theme.landmark_cool
+    } else if char_in(ch, &['·', '∴', '─']) {
+        theme.muted_text
+    } else {
+        base_tint
     }
 }
 
 fn scene_char_color_gauge(ch: char, theme: Theme, base_tint: Color) -> Color {
-    match ch {
-        '█' | '▓' | '▒' => theme.accent,
-        '[' | ']' | '|' | '+' | '◉' => theme.info,
-        '↑' | '→' | '↓' | '←' | '↗' | '↘' | '↙' | '↖' => theme.warning,
-        _ if ch.is_ascii_digit() || matches!(ch, '%' | '.') => theme.text,
-        _ if ch.is_ascii_alphabetic() => theme.muted_text,
-        _ => base_tint,
+    if char_in(ch, &['█', '▓', '▒']) {
+        theme.accent
+    } else if char_in(ch, &['[', ']', '|', '+', '◉']) {
+        theme.info
+    } else if char_in(ch, &['↑', '→', '↓', '←', '↗', '↘', '↙', '↖']) {
+        theme.warning
+    } else if ch.is_ascii_digit() || matches!(ch, '%' | '.') {
+        theme.text
+    } else if ch.is_ascii_alphabetic() {
+        theme.muted_text
+    } else {
+        base_tint
     }
+}
+
+fn char_in(ch: char, set: &[char]) -> bool {
+    set.contains(&ch)
 }
 
 fn scene_char_color_sky(ch: char, theme: Theme, base_tint: Color) -> Color {

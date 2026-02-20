@@ -24,45 +24,67 @@ pub struct GradientBackground<'a> {
 impl Widget for GradientBackground<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         if self.flash {
-            for y in area.top()..area.bottom() {
-                for x in area.left()..area.right() {
-                    if let Some(cell) = buf.cell_mut((x, y)) {
-                        cell.set_char(' ').set_bg(self.flash_bg);
-                    }
-                }
-            }
+            paint_flash_background(area, buf, self.flash_bg);
             return;
         }
 
-        let bg_top = color_to_rgb(self.top);
-        let bg_bot = color_to_rgb(self.bottom);
-        for y in area.top()..area.bottom() {
-            let t = if area.height <= 1 {
-                0.0
-            } else {
-                (y - area.top()) as f32 / (area.height - 1) as f32
-            };
-            let c = lerp_color(bg_top, bg_bot, t);
-            for x in area.left()..area.right() {
-                if let Some(cell) = buf.cell_mut((x, y)) {
-                    cell.set_char(' ').set_bg(c);
-                }
-            }
-        }
+        paint_gradient_background(area, buf, self.top, self.bottom);
+        paint_particles(area, buf, self.particles, self.particle);
+    }
+}
 
-        for p in self.particles {
-            let px = area.x + ((p.x.clamp(0.0, 1.0)) * area.width as f32) as u16;
-            let py = area.y + ((p.y.clamp(0.0, 1.0)) * area.height as f32) as u16;
-            if px < area.right()
-                && py < area.bottom()
-                && let Some(cell) = buf.cell_mut((px, py))
-            {
-                let bg = cell.bg;
-                cell.set_symbol(&p.glyph.to_string())
-                    .set_fg(self.particle)
-                    .set_bg(bg);
+fn paint_flash_background(area: Rect, buf: &mut Buffer, flash_bg: Color) {
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            if let Some(cell) = buf.cell_mut((x, y)) {
+                cell.set_char(' ').set_bg(flash_bg);
             }
         }
+    }
+}
+
+fn paint_gradient_background(area: Rect, buf: &mut Buffer, top: Color, bottom: Color) {
+    let bg_top = color_to_rgb(top);
+    let bg_bottom = color_to_rgb(bottom);
+    for y in area.top()..area.bottom() {
+        let t = gradient_ratio(area, y);
+        let color = lerp_color(bg_top, bg_bottom, t);
+        for x in area.left()..area.right() {
+            if let Some(cell) = buf.cell_mut((x, y)) {
+                cell.set_char(' ').set_bg(color);
+            }
+        }
+    }
+}
+
+fn gradient_ratio(area: Rect, y: u16) -> f32 {
+    if area.height <= 1 {
+        0.0
+    } else {
+        (y - area.top()) as f32 / (area.height - 1) as f32
+    }
+}
+
+fn paint_particles(area: Rect, buf: &mut Buffer, particles: &[Particle], particle_color: Color) {
+    for particle in particles {
+        if let Some((x, y)) = particle_position(area, particle)
+            && let Some(cell) = buf.cell_mut((x, y))
+        {
+            let bg = cell.bg;
+            cell.set_symbol(&particle.glyph.to_string())
+                .set_fg(particle_color)
+                .set_bg(bg);
+        }
+    }
+}
+
+fn particle_position(area: Rect, particle: &Particle) -> Option<(u16, u16)> {
+    let x = area.x + ((particle.x.clamp(0.0, 1.0)) * area.width as f32) as u16;
+    let y = area.y + ((particle.y.clamp(0.0, 1.0)) * area.height as f32) as u16;
+    if x < area.right() && y < area.bottom() {
+        Some((x, y))
+    } else {
+        None
     }
 }
 

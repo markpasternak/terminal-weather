@@ -303,21 +303,29 @@ fn adaptive_hourly_length(height: u16, mode: HourlyViewMode) -> Option<u16> {
     }
 
     match mode {
-        HourlyViewMode::Hybrid => Some(if height >= 36 {
-            11
-        } else if height >= 28 {
-            10
-        } else {
-            9
-        }),
-        HourlyViewMode::Chart => Some(if height >= 36 {
-            13
-        } else if height >= 28 {
-            11
-        } else {
-            10
-        }),
+        HourlyViewMode::Hybrid => Some(hybrid_hourly_length(height)),
+        HourlyViewMode::Chart => Some(chart_hourly_length(height)),
         HourlyViewMode::Table => None,
+    }
+}
+
+fn hybrid_hourly_length(height: u16) -> u16 {
+    if height >= 36 {
+        11
+    } else if height >= 28 {
+        10
+    } else {
+        9
+    }
+}
+
+fn chart_hourly_length(height: u16) -> u16 {
+    if height >= 36 {
+        13
+    } else if height >= 28 {
+        11
+    } else {
+        10
     }
 }
 
