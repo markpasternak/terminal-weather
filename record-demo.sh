@@ -17,7 +17,7 @@ echo "==> Converting to GIF..."
 agg "$CAST_FILE" "$GIF_FILE" --idle-time-limit 2
 
 echo "==> Optimizing GIF..."
-gifsicle --optimize=3 --lossy=80 -o "$GIF_FILE" "$GIF_FILE"
+gifsicle --optimize=3 --lossy=80 --resize-fit-width 900 -o "$GIF_FILE" "$GIF_FILE"
 
 echo "==> Moving to $OUTPUT_PATH..."
 mv "$GIF_FILE" "$OUTPUT_PATH"
