@@ -8,7 +8,7 @@
 
 use chrono::Timelike;
 
-use crate::domain::weather::{ForecastBundle, WeatherCategory, weather_code_to_category};
+use crate::domain::weather::{ForecastBundle, Units, WeatherCategory, weather_code_to_category};
 use crate::ui::widgets::landmark::compact::compact_condition_scene;
 use crate::ui::widgets::landmark::shared::{canvas_to_lines, paint_char};
 use crate::ui::widgets::landmark::{LandmarkScene, scene_name, tint_for_category};
@@ -25,6 +25,7 @@ use hud::{atmos_context_line, paint_hud_badge};
 #[must_use]
 pub fn scene_for_weather(
     bundle: &ForecastBundle,
+    units: Units,
     frame_tick: u64,
     animate: bool,
     width: u16,
@@ -42,7 +43,7 @@ pub fn scene_for_weather(
         return compact_condition_scene(category, bundle.current.is_day, width, height);
     };
 
-    paint_hud_badge(&mut canvas, bundle, w);
+    paint_hud_badge(&mut canvas, bundle, units, w);
 
     LandmarkScene {
         label: format!(
@@ -51,7 +52,7 @@ pub fn scene_for_weather(
         ),
         lines: canvas_to_lines(canvas, w),
         tint: tint_for_category(category),
-        context_line: Some(atmos_context_line(bundle, category)),
+        context_line: Some(atmos_context_line(bundle, units, category)),
     }
 }
 

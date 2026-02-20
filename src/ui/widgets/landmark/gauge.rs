@@ -4,7 +4,9 @@
     clippy::cast_sign_loss
 )]
 
-use crate::domain::weather::{ForecastBundle, WeatherCategory, weather_code_to_category};
+use crate::domain::weather::{
+    ForecastBundle, Units, WeatherCategory, convert_temp, round_temp, weather_code_to_category,
+};
 use crate::ui::widgets::landmark::shared::{
     compass_arrow, compass_short, fit_lines, fit_lines_centered,
 };
@@ -13,6 +15,8 @@ use crate::ui::widgets::landmark::{LandmarkScene, scene_name, tint_for_category}
 #[derive(Debug)]
 struct GaugeData {
     temp_c: i32,
+    temp_display: i32,
+    temp_unit: &'static str,
     humidity: f32,
     pressure: f32,
     wind: f32,
@@ -27,17 +31,22 @@ struct GaugeData {
     right_trend_width: usize,
     sunrise: String,
     sunset: String,
-    temp_track: Vec<f32>,
+    temp_track_display: Vec<f32>,
     precip_track: Vec<f32>,
     gust_track: Vec<f32>,
 }
 
 #[must_use]
-pub fn scene_for_gauge_cluster(bundle: &ForecastBundle, width: u16, height: u16) -> LandmarkScene {
+pub fn scene_for_gauge_cluster(
+    bundle: &ForecastBundle,
+    units: Units,
+    width: u16,
+    height: u16,
+) -> LandmarkScene {
     let w = width as usize;
     let h = height as usize;
     let category = weather_code_to_category(bundle.current.weather_code);
-    let data = collect_gauge_data(bundle, w);
+    let data = collect_gauge_data(bundle, units, w);
     let left_lines = build_left_lines(&data);
     let mut lines = if w >= 74 && h >= 9 {
         let right_lines = build_right_lines(&data, category, bundle.current.is_day);
@@ -82,7 +91,7 @@ fn gauge_context_line(data: &GaugeData) -> String {
         // Note: in fog, the atmos panel also shows a fog advisory
         format!("Visibility {:.1}km · reduced visibility", data.vis_km)
     } else if data.precip_now > 0.5 {
-        format!("Active precipitation {:.1}mm/h", data.precip_now)
+        format!("Active precipitation {:.1}mm", data.precip_now)
     } else if data.humidity > 85.0 && data.temp_c > 15 {
         format!("Humidity {:.0}% · feels muggy", data.humidity)
     } else if data.humidity > 85.0 {
@@ -92,15 +101,21 @@ fn gauge_context_line(data: &GaugeData) -> String {
     }
 }
 
-fn collect_gauge_data(bundle: &ForecastBundle, width: usize) -> GaugeData {
+fn collect_gauge_data(bundle: &ForecastBundle, units: Units, width: usize) -> GaugeData {
     let current = &bundle.current;
     let left_col_width = left_column_width(width);
     let trend_width = width.saturating_sub(left_col_width + 12).clamp(8, 28);
     let (sunrise, sunset) = gauge_sun_times(bundle);
-    let (temp_track, precip_track, gust_track) = gauge_tracks(bundle);
+    let (temp_track_display, precip_track, gust_track) = gauge_tracks(bundle, units);
 
     GaugeData {
         temp_c: current.temperature_2m_c.round() as i32,
+        temp_display: round_temp(convert_temp(current.temperature_2m_c, units)),
+        temp_unit: if matches!(units, Units::Celsius) {
+            "C"
+        } else {
+            "F"
+        },
         humidity: current.relative_humidity_2m.clamp(0.0, 100.0),
         pressure: current.pressure_msl_hpa,
         wind: current.wind_speed_10m.max(0.0),
@@ -119,7 +134,7 @@ fn collect_gauge_data(bundle: &ForecastBundle, width: usize) -> GaugeData {
         right_trend_width: trend_width.saturating_sub(6),
         sunrise,
         sunset,
-        temp_track,
+        temp_track_display,
         precip_track,
         gust_track,
     }
@@ -141,12 +156,15 @@ fn gauge_sun_times(bundle: &ForecastBundle) -> (String, String) {
     (sunrise, sunset)
 }
 
-fn gauge_tracks(bundle: &ForecastBundle) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
+fn gauge_tracks(bundle: &ForecastBundle, units: Units) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
     let temp_track = bundle
         .hourly
         .iter()
         .take(24)
-        .filter_map(|hour| hour.temperature_2m_c)
+        .filter_map(|hour| {
+            hour.temperature_2m_c
+                .map(|temp_c| convert_temp(temp_c, units))
+        })
         .collect::<Vec<_>>();
     let precip_track = bundle
         .hourly
@@ -183,9 +201,10 @@ fn build_left_lines(data: &GaugeData) -> Vec<String> {
     vec![
         "Current conditions".to_string(),
         format!(
-            "Temp   {} {:>4}°C",
+            "Temp   {} {:>4}°{}",
             meter_with_threshold(temp_norm, data.meter_w, Some(0.67)),
-            data.temp_c
+            data.temp_display,
+            data.temp_unit
         ),
         format!(
             "Humid  {} {:>4.0}%",
@@ -227,8 +246,8 @@ fn build_right_lines(data: &GaugeData, category: WeatherCategory, is_day: bool) 
         format!("Sun arc {} -> {}", data.sunrise, data.sunset),
         format!(
             "24h Temp  {} {}",
-            sparkline_annotated(&data.temp_track, data.right_trend_width, "°"),
-            temp_range_label(&data.temp_track)
+            sparkline_annotated(&data.temp_track_display, data.right_trend_width, "°"),
+            temp_range_label(&data.temp_track_display)
         ),
         format!(
             "24h Rain  {} {}",

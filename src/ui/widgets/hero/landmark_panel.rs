@@ -157,6 +157,7 @@ fn select_atmos_scene(
         |bundle| {
             scene_for_weather(
                 bundle,
+                state.units,
                 state.frame_tick,
                 state.animate_ui,
                 scene_area.0,
@@ -174,7 +175,7 @@ fn select_gauge_scene(
 ) -> crate::ui::widgets::landmark::LandmarkScene {
     state.weather.as_ref().map_or_else(
         || loading_scene("Gauge Cluster", area.width, area.height, is_day),
-        |bundle| scene_for_gauge_cluster(bundle, scene_area.0, scene_area.1),
+        |bundle| scene_for_gauge_cluster(bundle, state.units, scene_area.0, scene_area.1),
     )
 }
 

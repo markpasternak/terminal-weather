@@ -11,7 +11,7 @@ expression: "render_with_hourly_mode_to_string(120, 40, 61, HourlyViewMode::Hybr
 │ Pressure 1008↗                                          │        ░░▒▓▓▓▒░        ··· ░▒▒▒▒▒░                         │
 │ Dew 2°  Humidity 73%                                    │  ·  ·  ·  ·  ·  ·  ·  · ··░▒·▓▓·▒░·  ·  ·  · ▁▁▁▁▁▁▁▁▁▁    │
 │ Rain chance 35%  AQI N/A                                │  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▃▃▃▃▃▃▃▃    │
-│ Last updated: --:-- · TZ Europe/Stockholm               │  ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃██████████    │
+│ Last updated: --:-- local · City TZ Europe/Stockholm    │  ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃██████████    │
 │                                                         │  ██████████████████████████████████████████████████████    │
 │                                                         │  Precip clearing by 22:00 · 11mm expected                  │
 │                                                         │                                                            │

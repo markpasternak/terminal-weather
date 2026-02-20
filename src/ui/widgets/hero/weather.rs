@@ -436,13 +436,13 @@ fn last_updated_label(state: &AppState, weather: &ForecastBundle) -> String {
             let local = ts.with_timezone(&Local);
             let mins = state.refresh_meta.age_minutes().unwrap_or(0);
             format!(
-                "Last updated: {} ({}m ago) · TZ {}",
+                "Last updated: {} local ({}m ago) · City TZ {}",
                 local.format("%H:%M"),
                 mins.max(0),
                 timezone
             )
         })
-        .unwrap_or_else(|| format!("Last updated: --:-- · TZ {timezone}"))
+        .unwrap_or_else(|| format!("Last updated: --:-- local · City TZ {timezone}"))
 }
 
 fn build_error_lines(state: &AppState, theme: Theme) -> Vec<Line<'static>> {

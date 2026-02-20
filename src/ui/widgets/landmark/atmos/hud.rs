@@ -3,22 +3,31 @@ use chrono::Timelike;
 
 use crate::domain::weather::{
     ForecastBundle, PRECIP_NEAR_TERM_HOURS, PRECIP_SIGNIFICANT_THRESHOLD_MM, PrecipWindowSummary,
-    WeatherCategory, summarize_precip_window, weather_icon,
+    Units, WeatherCategory, convert_temp, round_temp, summarize_precip_window, weather_icon,
 };
 use crate::ui::widgets::landmark::shared::paint_char;
 
-pub(super) fn atmos_context_line(bundle: &ForecastBundle, category: WeatherCategory) -> String {
+pub(super) fn atmos_context_line(
+    bundle: &ForecastBundle,
+    units: Units,
+    category: WeatherCategory,
+) -> String {
     if let Some(summary) = precip_summary(bundle) {
         return precip_context(bundle, summary);
     }
-    stable_weather_context(bundle, category)
+    stable_weather_context(bundle, units, category)
 }
 
-pub(super) fn paint_hud_badge(canvas: &mut [Vec<char>], bundle: &ForecastBundle, width: usize) {
+pub(super) fn paint_hud_badge(
+    canvas: &mut [Vec<char>],
+    bundle: &ForecastBundle,
+    units: Units,
+    width: usize,
+) {
     if width < 30 || canvas.len() < 4 {
         return;
     }
-    let badge = hud_badge_text(bundle);
+    let badge = hud_badge_text(bundle, units);
     let start_x = width.saturating_sub(badge.chars().count() + 1);
     for (idx, ch) in badge.chars().enumerate() {
         paint_char(canvas, (start_x + idx) as isize, 0, ch, true);
@@ -52,7 +61,11 @@ fn precip_context(bundle: &ForecastBundle, summary: PrecipWindowSummary) -> Stri
     }
 }
 
-fn stable_weather_context(bundle: &ForecastBundle, category: WeatherCategory) -> String {
+fn stable_weather_context(
+    bundle: &ForecastBundle,
+    units: Units,
+    category: WeatherCategory,
+) -> String {
     if matches!(category, WeatherCategory::Snow) {
         return "Snow conditions · dress warm".to_string();
     }
@@ -65,11 +78,11 @@ fn stable_weather_context(bundle: &ForecastBundle, category: WeatherCategory) ->
     if matches!(category, WeatherCategory::Clear) {
         return clear_context(bundle);
     }
-    let temp_c = bundle.current.temperature_2m_c.round() as i32;
+    let (temp, unit) = temp_display(bundle.current.temperature_2m_c, units);
     if matches!(category, WeatherCategory::Unknown) {
-        return format!("Currently {temp_c}°C");
+        return format!("Currently {temp}°{unit}");
     }
-    format!("Currently {temp_c}°C · overcast skies")
+    format!("Currently {temp}°{unit} · overcast skies")
 }
 
 fn clear_context(bundle: &ForecastBundle) -> String {
@@ -88,8 +101,8 @@ fn clear_context(bundle: &ForecastBundle) -> String {
     }
 }
 
-fn hud_badge_text(bundle: &ForecastBundle) -> String {
-    let temp_c = bundle.current.temperature_2m_c.round() as i32;
+fn hud_badge_text(bundle: &ForecastBundle, units: Units) -> String {
+    let (temp, unit) = temp_display(bundle.current.temperature_2m_c, units);
     let icon = weather_icon(
         bundle.current.weather_code,
         IconMode::Unicode,
@@ -98,21 +111,33 @@ fn hud_badge_text(bundle: &ForecastBundle) -> String {
     .chars()
     .next()
     .unwrap_or('?');
-    format!("{temp_c}°C {icon}")
+    format!("{temp}°{unit} {icon}")
+}
+
+fn temp_display(celsius: f32, units: Units) -> (i32, &'static str) {
+    (
+        round_temp(convert_temp(celsius, units)),
+        if matches!(units, Units::Celsius) {
+            "C"
+        } else {
+            "F"
+        },
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::atmos_context_line;
     use crate::domain::weather::{
-        CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location, WeatherCategory,
+        CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location, Units,
+        WeatherCategory,
     };
     use chrono::{NaiveDate, NaiveDateTime, Utc};
 
     #[test]
     fn atmos_context_ignores_precip_beyond_12h_window() {
         let bundle = sample_bundle_with_precip_at(13, 0.4);
-        let context = atmos_context_line(&bundle, WeatherCategory::Cloudy);
+        let context = atmos_context_line(&bundle, Units::Celsius, WeatherCategory::Cloudy);
         assert!(!context.contains("Precipitation expected"));
         assert!(context.contains("overcast skies"));
     }
@@ -120,7 +145,7 @@ mod tests {
     #[test]
     fn atmos_context_reports_precip_within_12h_window() {
         let bundle = sample_bundle_with_precip_at(12, 0.4);
-        let context = atmos_context_line(&bundle, WeatherCategory::Cloudy);
+        let context = atmos_context_line(&bundle, Units::Celsius, WeatherCategory::Cloudy);
         assert!(context.contains("Precipitation expected"));
     }
 
