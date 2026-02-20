@@ -76,6 +76,24 @@ pub fn summarize_dayparts(
         return Vec::new();
     }
 
+    let dates = unique_dates(hourly, max_days);
+
+    let mut out = Vec::with_capacity(dates.len() * Daypart::all().len());
+    for date in dates {
+        for part in Daypart::all() {
+            out.push(summarize_date_daypart(
+                hourly,
+                date,
+                part,
+                fallback_weather_code,
+            ));
+        }
+    }
+
+    out
+}
+
+fn unique_dates(hourly: &[HourlyForecast], max_days: usize) -> Vec<NaiveDate> {
     let mut dates = Vec::<NaiveDate>::new();
     for hour in hourly {
         let date = hour.time.date();
@@ -86,52 +104,49 @@ pub fn summarize_dayparts(
             }
         }
     }
+    dates
+}
 
-    let mut out = Vec::with_capacity(dates.len() * Daypart::all().len());
-    for date in dates {
-        for part in Daypart::all() {
-            let samples = hourly
-                .iter()
-                .filter(|h| h.time.date() == date && daypart_for_time(h.time) == part)
-                .collect::<Vec<_>>();
+fn summarize_date_daypart(
+    hourly: &[HourlyForecast],
+    date: NaiveDate,
+    part: Daypart,
+    fallback_weather_code: u8,
+) -> DaypartSummary {
+    let samples = hourly
+        .iter()
+        .filter(|h| h.time.date() == date && daypart_for_time(h.time) == part)
+        .collect::<Vec<_>>();
 
-            let temp_values = samples
-                .iter()
-                .filter_map(|h| h.temperature_2m_c)
-                .collect::<Vec<_>>();
-            let wind_values = samples
-                .iter()
-                .filter_map(|h| h.wind_speed_10m)
-                .collect::<Vec<_>>();
-            let precip_sum_mm = samples
-                .iter()
-                .filter_map(|h| h.precipitation_mm)
-                .map(|v| v.max(0.0))
-                .sum::<f32>();
-            let precip_probability_max = samples
-                .iter()
-                .filter_map(|h| h.precipitation_probability)
-                .max_by(|a, b| a.total_cmp(b));
-            let visibility_median_m = median(samples.iter().filter_map(|h| h.visibility_m));
-            let weather_code = dominant_weather_code(&samples, fallback_weather_code);
+    let temp_values = samples
+        .iter()
+        .filter_map(|h| h.temperature_2m_c)
+        .collect::<Vec<_>>();
+    let wind_values = samples
+        .iter()
+        .filter_map(|h| h.wind_speed_10m)
+        .collect::<Vec<_>>();
 
-            out.push(DaypartSummary {
-                date,
-                daypart: part,
-                weather_code,
-                temp_min_c: temp_values.iter().copied().min_by(|a, b| a.total_cmp(b)),
-                temp_max_c: temp_values.iter().copied().max_by(|a, b| a.total_cmp(b)),
-                wind_min_kmh: wind_values.iter().copied().min_by(|a, b| a.total_cmp(b)),
-                wind_max_kmh: wind_values.iter().copied().max_by(|a, b| a.total_cmp(b)),
-                precip_sum_mm,
-                precip_probability_max,
-                visibility_median_m,
-                sample_count: samples.len(),
-            });
-        }
+    DaypartSummary {
+        date,
+        daypart: part,
+        weather_code: dominant_weather_code(&samples, fallback_weather_code),
+        temp_min_c: temp_values.iter().copied().min_by(|a, b| a.total_cmp(b)),
+        temp_max_c: temp_values.iter().copied().max_by(|a, b| a.total_cmp(b)),
+        wind_min_kmh: wind_values.iter().copied().min_by(|a, b| a.total_cmp(b)),
+        wind_max_kmh: wind_values.iter().copied().max_by(|a, b| a.total_cmp(b)),
+        precip_sum_mm: samples
+            .iter()
+            .filter_map(|h| h.precipitation_mm)
+            .map(|v| v.max(0.0))
+            .sum::<f32>(),
+        precip_probability_max: samples
+            .iter()
+            .filter_map(|h| h.precipitation_probability)
+            .max_by(|a, b| a.total_cmp(b)),
+        visibility_median_m: median(samples.iter().filter_map(|h| h.visibility_m)),
+        sample_count: samples.len(),
     }
-
-    out
 }
 
 fn dominant_weather_code(samples: &[&HourlyForecast], fallback: u8) -> u8 {

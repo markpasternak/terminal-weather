@@ -31,49 +31,72 @@ pub async fn run(cli: Cli) -> Result<()> {
 }
 
 async fn run_one_shot(cli: &Cli) -> Result<()> {
-    use crate::cli::{IconMode, UnitsArg};
     use crate::data::forecast::ForecastClient;
     use crate::data::geocode::GeocodeClient;
-    use crate::domain::weather::{
-        GeocodeResolution, Location, Units, convert_temp, round_temp, weather_icon, weather_label,
-    };
 
-    let units = match cli.units {
-        UnitsArg::Celsius => Units::Celsius,
-        UnitsArg::Fahrenheit => Units::Fahrenheit,
-    };
-    let unit_symbol = match units {
-        Units::Celsius => "C",
-        Units::Fahrenheit => "F",
-    };
-
-    // Resolve location
-    let location = if let (Some(lat), Some(lon)) = (cli.lat, cli.lon) {
-        Location::from_coords(lat, lon)
-    } else {
-        let geocoder = GeocodeClient::new();
-        let city = cli.default_city();
-        match geocoder
-            .resolve(city.clone(), cli.country_code.clone())
-            .await?
-        {
-            GeocodeResolution::Selected(loc) => loc,
-            GeocodeResolution::NeedsDisambiguation(locs) => {
-                locs.into_iter().next().context("no locations found")?
-            }
-            GeocodeResolution::NotFound(name) => {
-                anyhow::bail!("City not found: {name}");
-            }
-        }
-    };
-
+    let (units, unit_symbol) = one_shot_units(cli.units);
+    let location = resolve_one_shot_location(cli, &GeocodeClient::new()).await?;
     let display_name = location.display_name();
+    let bundle = ForecastClient::new().fetch(location).await?;
 
-    // Fetch weather
-    let client = ForecastClient::new();
-    let bundle = client.fetch(location).await?;
+    print_one_shot_current(&bundle, &display_name, units, unit_symbol);
+    print_one_shot_daily(&bundle, units, one_shot_icon_mode(cli));
 
-    // Print current conditions
+    Ok(())
+}
+
+fn one_shot_units(
+    units_arg: crate::cli::UnitsArg,
+) -> (crate::domain::weather::Units, &'static str) {
+    use crate::cli::UnitsArg;
+    use crate::domain::weather::Units;
+
+    match units_arg {
+        UnitsArg::Celsius => (Units::Celsius, "C"),
+        UnitsArg::Fahrenheit => (Units::Fahrenheit, "F"),
+    }
+}
+
+async fn resolve_one_shot_location(
+    cli: &Cli,
+    geocoder: &crate::data::geocode::GeocodeClient,
+) -> Result<crate::domain::weather::Location> {
+    use crate::domain::weather::{GeocodeResolution, Location};
+
+    if let (Some(lat), Some(lon)) = (cli.lat, cli.lon) {
+        return Ok(Location::from_coords(lat, lon));
+    }
+
+    let city = cli.default_city();
+    match geocoder.resolve(city, cli.country_code.clone()).await? {
+        GeocodeResolution::Selected(loc) => Ok(loc),
+        GeocodeResolution::NeedsDisambiguation(locs) => {
+            locs.into_iter().next().context("no locations found")
+        }
+        GeocodeResolution::NotFound(name) => anyhow::bail!("City not found: {name}"),
+    }
+}
+
+fn one_shot_icon_mode(cli: &Cli) -> crate::cli::IconMode {
+    use crate::cli::IconMode;
+
+    if cli.ascii_icons {
+        IconMode::Ascii
+    } else if cli.emoji_icons {
+        IconMode::Emoji
+    } else {
+        IconMode::Unicode
+    }
+}
+
+fn print_one_shot_current(
+    bundle: &crate::domain::weather::ForecastBundle,
+    display_name: &str,
+    units: crate::domain::weather::Units,
+    unit_symbol: &str,
+) {
+    use crate::domain::weather::{convert_temp, round_temp, weather_label};
+
     let temp = round_temp(convert_temp(bundle.current.temperature_2m_c, units));
     let feels = round_temp(convert_temp(bundle.current.apparent_temperature_c, units));
     let condition = weather_label(bundle.current.weather_code);
@@ -88,16 +111,16 @@ async fn run_one_shot(cli: &Cli) -> Result<()> {
     println!("  Feels {feels}°{unit_symbol}  Humidity {humidity}%  Wind {wind}/{gust} km/h");
     println!("  Pressure {pressure}hPa  Visibility {vis_km:.1}km");
     println!();
+}
 
-    // Print daily forecast
+fn print_one_shot_daily(
+    bundle: &crate::domain::weather::ForecastBundle,
+    units: crate::domain::weather::Units,
+    icon_mode: crate::cli::IconMode,
+) {
+    use crate::domain::weather::{convert_temp, round_temp, weather_icon};
+
     println!("  7-Day Forecast");
-    let icon_mode = if cli.ascii_icons {
-        IconMode::Ascii
-    } else if cli.emoji_icons {
-        IconMode::Emoji
-    } else {
-        IconMode::Unicode
-    };
     for day in &bundle.daily {
         let day_name = day.date.format("%a %d").to_string();
         let icon = day
@@ -116,8 +139,6 @@ async fn run_one_shot(cli: &Cli) -> Result<()> {
             .map_or_else(|| "--".to_string(), |p| format!("{p:.1}mm"));
         println!("  {day_name:<8} {icon:<4} {min_str:>4} / {max_str:<4}  {precip}");
     }
-
-    Ok(())
 }
 
 async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) -> Result<()> {

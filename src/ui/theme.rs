@@ -852,27 +852,37 @@ fn basic16_from_rgb(r: u8, g: u8, b: u8) -> Color {
     let light = (max + min) / 2.0;
 
     if delta < 0.08 {
-        if light < 0.20 {
-            return Color::Black;
-        }
-        if light < 0.40 {
-            return Color::DarkGray;
-        }
-        if light < 0.72 {
-            return Color::Gray;
-        }
-        return Color::White;
+        return achromatic_basic16(light);
     }
 
-    let hue = if (max - rf).abs() < f32::EPSILON {
-        60.0 * ((gf - bf) / delta).rem_euclid(6.0)
-    } else if (max - gf).abs() < f32::EPSILON {
-        60.0 * (((bf - rf) / delta) + 2.0)
-    } else {
-        60.0 * (((rf - gf) / delta) + 4.0)
-    };
+    let hue = hue_from_rgb_components(rf, gf, bf, max, delta);
+    hue_to_basic16(hue, light >= 0.55)
+}
 
-    let bright = light >= 0.55;
+fn achromatic_basic16(light: f32) -> Color {
+    if light < 0.20 {
+        return Color::Black;
+    }
+    if light < 0.40 {
+        return Color::DarkGray;
+    }
+    if light < 0.72 {
+        return Color::Gray;
+    }
+    Color::White
+}
+
+fn hue_from_rgb_components(rf: f32, gf: f32, bf: f32, max: f32, delta: f32) -> f32 {
+    if (max - rf).abs() < f32::EPSILON {
+        return 60.0 * ((gf - bf) / delta).rem_euclid(6.0);
+    }
+    if (max - gf).abs() < f32::EPSILON {
+        return 60.0 * (((bf - rf) / delta) + 2.0);
+    }
+    60.0 * (((rf - gf) / delta) + 4.0)
+}
+
+fn hue_to_basic16(hue: f32, bright: bool) -> Color {
     match hue {
         h if !(30.0..330.0).contains(&h) => {
             if bright {
