@@ -16,16 +16,16 @@ use crate::{
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
     frame.render_widget(Clear, area);
 
-    let (category, is_day) = state
-        .weather
-        .as_ref()
-        .map(|w| {
-            (
-                weather_code_to_category(w.current.weather_code),
-                w.current.is_day,
-            )
-        })
-        .unwrap_or((WeatherCategory::Unknown, false));
+    let (category, is_day) =
+        state
+            .weather
+            .as_ref()
+            .map_or((WeatherCategory::Unknown, false), |w| {
+                (
+                    weather_code_to_category(w.current.weather_code),
+                    w.current.is_day,
+                )
+            });
     let theme = theme_for(
         category,
         is_day,

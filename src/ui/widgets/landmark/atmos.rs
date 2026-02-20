@@ -1,3 +1,11 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::manual_midpoint
+)]
+
 use chrono::Timelike;
 
 use crate::domain::weather::{ForecastBundle, WeatherCategory, weather_code_to_category};
@@ -136,7 +144,7 @@ fn paint_weather_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext) {
         WeatherCategory::Rain => paint_rain_effects(canvas, ctx, is_freezing),
         WeatherCategory::Snow => paint_snowfall(canvas, ctx.phase, ctx.horizon_y, ctx.width),
         WeatherCategory::Fog => {
-            paint_fog_banks(canvas, ctx.phase, ctx.horizon_y, ctx.width, ctx.height)
+            paint_fog_banks(canvas, ctx.phase, ctx.horizon_y, ctx.width, ctx.height);
         }
         WeatherCategory::Thunder => paint_thunder_effects(canvas, ctx, has_hail),
         _ => {}

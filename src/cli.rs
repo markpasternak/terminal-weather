@@ -1,3 +1,5 @@
+#![allow(clippy::missing_errors_doc)]
+
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 
@@ -64,6 +66,7 @@ pub enum HeroVisualArg {
     SkyObservatory,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Parser, Clone)]
 #[command(
     name = "terminal-weather",

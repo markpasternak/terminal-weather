@@ -1,3 +1,5 @@
+#![allow(clippy::must_use_candidate)]
+
 use ratatui::{
     Frame,
     layout::Rect,
@@ -19,16 +21,16 @@ pub fn render(frame: &mut Frame, area: Rect, alerts: &[WeatherAlert], state: &Ap
     }
 
     let capability = detect_color_capability(state.color_mode);
-    let (category, is_day) = state
-        .weather
-        .as_ref()
-        .map(|w| {
-            (
-                weather_code_to_category(w.current.weather_code),
-                w.current.is_day,
-            )
-        })
-        .unwrap_or((WeatherCategory::Unknown, false));
+    let (category, is_day) =
+        state
+            .weather
+            .as_ref()
+            .map_or((WeatherCategory::Unknown, false), |w| {
+                (
+                    weather_code_to_category(w.current.weather_code),
+                    w.current.is_day,
+                )
+            });
     let theme = theme_for(category, is_day, capability, state.settings.theme);
 
     let available_width = area.width as usize;
@@ -67,6 +69,7 @@ pub fn render(frame: &mut Frame, area: Rect, alerts: &[WeatherAlert], state: &Ap
     frame.render_widget(paragraph, area);
 }
 
+#[must_use]
 pub fn alert_row_height(alerts: &[WeatherAlert]) -> u16 {
-    if alerts.is_empty() { 0 } else { 1 }
+    u16::from(!alerts.is_empty())
 }

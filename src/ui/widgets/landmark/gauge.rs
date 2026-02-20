@@ -1,3 +1,9 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss
+)]
+
 use crate::domain::weather::{ForecastBundle, WeatherCategory, weather_code_to_category};
 use crate::ui::widgets::landmark::shared::{
     compass_arrow, compass_short, fit_lines, fit_lines_centered,
@@ -26,6 +32,7 @@ struct GaugeData {
     gust_track: Vec<f32>,
 }
 
+#[must_use]
 pub fn scene_for_gauge_cluster(bundle: &ForecastBundle, width: u16, height: u16) -> LandmarkScene {
     let w = width as usize;
     let h = height as usize;
@@ -81,14 +88,12 @@ fn collect_gauge_data(bundle: &ForecastBundle, width: usize) -> GaugeData {
             .daily
             .first()
             .and_then(|d| d.sunrise)
-            .map(|t| t.format("%H:%M").to_string())
-            .unwrap_or_else(|| "--:--".to_string()),
+            .map_or_else(|| "--:--".to_string(), |t| t.format("%H:%M").to_string()),
         sunset: bundle
             .daily
             .first()
             .and_then(|d| d.sunset)
-            .map(|t| t.format("%H:%M").to_string())
-            .unwrap_or_else(|| "--:--".to_string()),
+            .map_or_else(|| "--:--".to_string(), |t| t.format("%H:%M").to_string()),
         temp_track: bundle
             .hourly
             .iter()
@@ -191,16 +196,13 @@ fn merge_columns(left: &[String], right: &[String], left_col_width: usize) -> Ve
     for idx in 0..left.len().max(right.len()) {
         let left_line = left.get(idx).map_or("", String::as_str);
         let right_line = right.get(idx).map_or("", String::as_str);
-        merged.push(format!(
-            "{left_line:<left_col_width$}  {right_line}",
-            left_col_width = left_col_width
-        ));
+        merged.push(format!("{left_line:<left_col_width$}  {right_line}"));
     }
     merged
 }
 
 fn append_wind_direction_block(lines: &mut Vec<String>, wind_direction_10m: f32) {
-    lines.push("".to_string());
+    lines.push(String::new());
     lines.push("Wind direction".to_string());
     lines.push("    N".to_string());
     lines.push(wind_direction_row(wind_direction_10m));

@@ -24,6 +24,7 @@ pub struct ParticleEngine {
 }
 
 impl ParticleEngine {
+    #[must_use]
     pub fn new(disabled: bool, reduced_motion: bool, no_flash: bool) -> Self {
         Self {
             disabled,
@@ -49,6 +50,7 @@ impl ParticleEngine {
         }
     }
 
+    #[must_use]
     pub fn flash_active(&self) -> bool {
         !self.no_flash && self.flash_timer > 0.0
     }
@@ -68,14 +70,10 @@ impl ParticleEngine {
         let dt = dt.as_secs_f32().clamp(0.0, 0.25);
         self.accumulator += dt;
 
-        let particle_kind = weather_code
-            .map(weather_code_to_particle)
-            .unwrap_or(ParticleKind::None);
+        let particle_kind = weather_code.map_or(ParticleKind::None, weather_code_to_particle);
 
         let drift_base = (wind_speed.unwrap_or_default() / 40.0).clamp(0.0, 1.0);
-        let drift_sign = wind_direction
-            .map(|deg| deg.to_radians().sin().signum())
-            .unwrap_or(1.0);
+        let drift_sign = wind_direction.map_or(1.0, |deg| deg.to_radians().sin().signum());
         let drift = drift_base * drift_sign;
 
         let density = if self.reduced_motion { 4 } else { 14 };

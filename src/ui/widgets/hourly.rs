@@ -1,3 +1,9 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss
+)]
+
 use chrono::{Datelike, Timelike};
 use ratatui::{
     Frame,
@@ -271,15 +277,15 @@ fn build_optional_date_row(
     let mut last_shown_date: Option<chrono::NaiveDate> = None;
     cells.extend(slice.iter().map(|h| {
         let date = h.time.date();
-        if last_shown_date != Some(date) {
+        if last_shown_date == Some(date) {
+            Cell::from("·").style(Style::default().fg(theme.muted_text))
+        } else {
             last_shown_date = Some(date);
             Cell::from(date.format("%a %d").to_string()).style(
                 Style::default()
                     .fg(theme.accent)
                     .add_modifier(Modifier::BOLD),
             )
-        } else {
-            Cell::from("·").style(Style::default().fg(theme.muted_text))
         }
     }));
     Some(Row::new(cells))
@@ -342,7 +348,7 @@ fn format_cloud_metric(hour: &HourlyForecast) -> String {
 
 fn format_pressure_metric(hour: &HourlyForecast) -> String {
     hour.pressure_msl_hpa
-        .map_or_else(|| " -- ".to_string(), |p| format!("{:>4.0}", p))
+        .map_or_else(|| " -- ".to_string(), |p| format!("{p:>4.0}"))
 }
 
 fn format_humidity_metric(hour: &HourlyForecast) -> String {

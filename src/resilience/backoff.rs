@@ -6,6 +6,7 @@ pub struct Backoff {
 }
 
 impl Backoff {
+    #[must_use]
     pub fn new(base: u64, max: u64) -> Self {
         Self {
             current: base,

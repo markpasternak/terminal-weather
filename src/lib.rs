@@ -1,3 +1,5 @@
+#![allow(clippy::missing_errors_doc)]
+
 pub mod app;
 pub mod cli;
 pub mod data;

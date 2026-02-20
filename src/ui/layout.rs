@@ -6,6 +6,7 @@ pub enum HourlyDensity {
     Compact6,
 }
 
+#[must_use]
 pub fn hourly_density(width: u16) -> HourlyDensity {
     match width {
         130..=u16::MAX => HourlyDensity::Full16,
@@ -15,6 +16,7 @@ pub fn hourly_density(width: u16) -> HourlyDensity {
     }
 }
 
+#[must_use]
 pub fn visible_hour_count(width: u16) -> usize {
     match hourly_density(width) {
         HourlyDensity::Full16 => 16,

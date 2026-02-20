@@ -1,3 +1,5 @@
+#![allow(clippy::missing_errors_doc)]
+
 use anyhow::{Context, Result};
 use chrono::Utc;
 use reqwest::Client;

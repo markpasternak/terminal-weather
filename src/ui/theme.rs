@@ -1,3 +1,15 @@
+#![allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::doc_markdown,
+    clippy::manual_midpoint,
+    clippy::match_same_arms,
+    clippy::must_use_candidate,
+    clippy::too_many_lines
+)]
+
 use ratatui::style::Color;
 
 use crate::{
@@ -105,23 +117,72 @@ pub fn theme_for(
     theme_for_extended(top, bottom, accent_seed, capability)
 }
 
+const AUTO_THEME_SEEDS: &[((WeatherCategory, bool), ThemeSeed)] = &[
+    (
+        (WeatherCategory::Clear, true),
+        ((13, 53, 102), (30, 102, 158), (255, 215, 117)),
+    ),
+    (
+        (WeatherCategory::Clear, false),
+        ((9, 18, 44), (21, 43, 79), (173, 216, 255)),
+    ),
+    (
+        (WeatherCategory::Cloudy, true),
+        ((25, 36, 51), (48, 63, 84), (210, 223, 235)),
+    ),
+    (
+        (WeatherCategory::Cloudy, false),
+        ((20, 26, 40), (34, 42, 62), (194, 207, 224)),
+    ),
+    (
+        (WeatherCategory::Rain, true),
+        ((17, 47, 88), (32, 73, 126), (153, 214, 255)),
+    ),
+    (
+        (WeatherCategory::Rain, false),
+        ((12, 25, 52), (25, 44, 78), (143, 196, 255)),
+    ),
+    (
+        (WeatherCategory::Snow, true),
+        ((27, 51, 77), (43, 74, 106), (237, 247, 255)),
+    ),
+    (
+        (WeatherCategory::Snow, false),
+        ((19, 35, 55), (34, 55, 80), (226, 241, 255)),
+    ),
+    (
+        (WeatherCategory::Fog, true),
+        ((30, 34, 40), (50, 55, 62), (216, 220, 224)),
+    ),
+    (
+        (WeatherCategory::Fog, false),
+        ((21, 24, 30), (33, 37, 43), (201, 207, 211)),
+    ),
+    (
+        (WeatherCategory::Thunder, true),
+        ((28, 25, 66), (42, 40, 97), (255, 223, 112)),
+    ),
+    (
+        (WeatherCategory::Thunder, false),
+        ((18, 15, 44), (28, 24, 63), (255, 208, 95)),
+    ),
+    (
+        (WeatherCategory::Unknown, true),
+        ((28, 36, 51), (42, 53, 73), (205, 219, 234)),
+    ),
+    (
+        (WeatherCategory::Unknown, false),
+        ((19, 24, 35), (31, 39, 53), (195, 205, 215)),
+    ),
+];
+
 fn auto_theme_seed(category: WeatherCategory, is_day: bool) -> ThemeSeed {
-    match (category, is_day) {
-        (WeatherCategory::Clear, true) => ((13, 53, 102), (30, 102, 158), (255, 215, 117)),
-        (WeatherCategory::Clear, false) => ((9, 18, 44), (21, 43, 79), (173, 216, 255)),
-        (WeatherCategory::Cloudy, true) => ((25, 36, 51), (48, 63, 84), (210, 223, 235)),
-        (WeatherCategory::Cloudy, false) => ((20, 26, 40), (34, 42, 62), (194, 207, 224)),
-        (WeatherCategory::Rain, true) => ((17, 47, 88), (32, 73, 126), (153, 214, 255)),
-        (WeatherCategory::Rain, false) => ((12, 25, 52), (25, 44, 78), (143, 196, 255)),
-        (WeatherCategory::Snow, true) => ((27, 51, 77), (43, 74, 106), (237, 247, 255)),
-        (WeatherCategory::Snow, false) => ((19, 35, 55), (34, 55, 80), (226, 241, 255)),
-        (WeatherCategory::Fog, true) => ((30, 34, 40), (50, 55, 62), (216, 220, 224)),
-        (WeatherCategory::Fog, false) => ((21, 24, 30), (33, 37, 43), (201, 207, 211)),
-        (WeatherCategory::Thunder, true) => ((28, 25, 66), (42, 40, 97), (255, 223, 112)),
-        (WeatherCategory::Thunder, false) => ((18, 15, 44), (28, 24, 63), (255, 208, 95)),
-        (WeatherCategory::Unknown, true) => ((28, 36, 51), (42, 53, 73), (205, 219, 234)),
-        (WeatherCategory::Unknown, false) => ((19, 24, 35), (31, 39, 53), (195, 205, 215)),
+    for ((candidate_category, candidate_is_day), seed) in AUTO_THEME_SEEDS {
+        if *candidate_category == category && *candidate_is_day == is_day {
+            return *seed;
+        }
     }
+    ((28, 36, 51), (42, 53, 73), (205, 219, 234))
 }
 
 const PRESET_THEME_SEEDS: &[(ThemeArg, ThemeSeed)] = &[

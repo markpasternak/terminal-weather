@@ -7,6 +7,7 @@ pub enum FreshnessState {
     Offline,
 }
 
+#[must_use]
 pub fn evaluate_freshness(
     last_success: Option<DateTime<Utc>>,
     consecutive_failures: u32,

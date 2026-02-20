@@ -31,18 +31,17 @@ fn inset_rect(r: Rect, dw: u16, dh: u16) -> Rect {
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
-    let (category, is_day, code) = state
-        .weather
-        .as_ref()
-        .map(|w| {
+    let (category, is_day, code) = state.weather.as_ref().map_or(
+        // Loading/no-data should default to a dark palette to avoid bright blank panels.
+        (WeatherCategory::Unknown, false, 0),
+        |w| {
             (
                 weather_code_to_category(w.current.weather_code),
                 w.current.is_day,
                 w.current.weather_code,
             )
-        })
-        // Loading/no-data should default to a dark palette to avoid bright blank panels.
-        .unwrap_or((WeatherCategory::Unknown, false, 0));
+        },
+    );
 
     let capability = detect_color_capability(state.color_mode);
     let theme = theme_for(category, is_day, capability, state.settings.theme);

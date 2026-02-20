@@ -2,6 +2,7 @@ use crate::domain::weather::WeatherCategory;
 use crate::ui::widgets::landmark::shared::fit_lines;
 use crate::ui::widgets::landmark::{LandmarkScene, scene_name, tint_for_category};
 
+#[must_use]
 pub fn compact_condition_scene(
     category: WeatherCategory,
     is_day: bool,

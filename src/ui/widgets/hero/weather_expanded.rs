@@ -1,3 +1,11 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::map_unwrap_or,
+    clippy::must_use_candidate
+)]
+
 use chrono::Local;
 use ratatui::{
     Frame,
@@ -545,9 +553,10 @@ pub fn peak_gust_summary(hourly: &[HourlyForecast]) -> String {
 }
 
 pub fn pressure_span_summary(values: &[f32]) -> String {
-    value_span(values)
-        .map(|(min, max)| format!("{:.0}..{:.0}hPa", min, max))
-        .unwrap_or_else(|| "--".to_string())
+    value_span(values).map_or_else(
+        || "--".to_string(),
+        |(min, max)| format!("{min:.0}..{max:.0}hPa"),
+    )
 }
 
 #[cfg(test)]

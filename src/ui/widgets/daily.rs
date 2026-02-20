@@ -1,3 +1,9 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss
+)]
+
 use ratatui::{
     Frame,
     layout::{Constraint, Rect},
@@ -869,6 +875,7 @@ fn day_cue(day: &DailyForecast) -> String {
     parts.join(", ")
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy)]
 struct DailyLayout {
     show_icon: bool,
@@ -950,7 +957,7 @@ impl DailyLayout {
     }
 
     fn max_rows(self, inner_height: u16) -> usize {
-        let reserved = if self.show_header { 1 } else { 0 };
+        let reserved = u16::from(self.show_header);
         usize::from(inner_height.saturating_sub(reserved)).min(7)
     }
 }
@@ -979,6 +986,7 @@ fn profile_bar(values: &[f32], width: usize) -> String {
         .collect()
 }
 
+#[must_use]
 pub fn bar_bounds(
     min: f32,
     max: f32,

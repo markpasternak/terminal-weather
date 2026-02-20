@@ -1,3 +1,11 @@
+#![allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names,
+    clippy::match_same_arms
+)]
+
 use ratatui::{buffer::Buffer, layout::Rect, style::Color, widgets::Widget};
 
 use crate::ui::particles::Particle;
@@ -13,7 +21,7 @@ pub struct GradientBackground<'a> {
     pub flash_fg: Color,
 }
 
-impl<'a> Widget for GradientBackground<'a> {
+impl Widget for GradientBackground<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         if self.flash {
             for y in area.top()..area.bottom() {

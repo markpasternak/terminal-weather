@@ -1,3 +1,5 @@
+#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+
 #[must_use]
 pub fn canvas_to_lines(canvas: Vec<Vec<char>>, width: usize) -> Vec<String> {
     canvas

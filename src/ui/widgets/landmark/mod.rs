@@ -1,3 +1,5 @@
+#![allow(clippy::match_same_arms)]
+
 pub mod atmos;
 pub mod compact;
 pub mod gauge;

@@ -1,3 +1,10 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss
+)]
+
 use chrono::{Datelike, Timelike};
 
 use crate::domain::weather::{ForecastBundle, WeatherCategory, weather_code_to_category};
@@ -228,48 +235,39 @@ fn draw_celestial_icon(
 ) {
     let large = width >= 44 && height >= 11;
     let huge = width >= 70 && height >= 14;
-    let center = if is_day {
+    let center = center_symbol(is_day, large, moon_symbol);
+    paint_char(canvas, x as isize, y as isize, center, true);
+
+    if large {
+        let halo = if is_day { '✶' } else { '·' };
+        paint_halo(canvas, x, y, halo, huge);
+    }
+}
+
+fn center_symbol(is_day: bool, large: bool, moon_symbol: char) -> char {
+    if is_day {
         if large { '☀' } else { '◉' }
     } else {
         moon_symbol
-    };
-    paint_char(canvas, x as isize, y as isize, center, true);
+    }
+}
 
-    if is_day && large {
-        for (dx, dy) in [
-            (-1, -1),
-            (0, -1),
-            (1, -1),
-            (-1, 0),
-            (1, 0),
-            (-1, 1),
-            (0, 1),
-            (1, 1),
-        ] {
-            paint_char(canvas, x as isize + dx, y as isize + dy, '✶', false);
-        }
-        if huge {
-            for (dx, dy) in [(-2, 0), (2, 0), (0, -2), (0, 2)] {
-                paint_char(canvas, x as isize + dx, y as isize + dy, '✶', false);
-            }
-        }
-    } else if !is_day && large {
-        for (dx, dy) in [
-            (-1, -1),
-            (0, -1),
-            (1, -1),
-            (-1, 0),
-            (1, 0),
-            (-1, 1),
-            (0, 1),
-            (1, 1),
-        ] {
-            paint_char(canvas, x as isize + dx, y as isize + dy, '·', false);
-        }
-        if huge {
-            for (dx, dy) in [(-2, 0), (2, 0), (0, -2), (0, 2)] {
-                paint_char(canvas, x as isize + dx, y as isize + dy, '·', false);
-            }
+fn paint_halo(canvas: &mut [Vec<char>], x: usize, y: usize, halo: char, huge: bool) {
+    for (dx, dy) in [
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+        (-1, 0),
+        (1, 0),
+        (-1, 1),
+        (0, 1),
+        (1, 1),
+    ] {
+        paint_char(canvas, x as isize + dx, y as isize + dy, halo, false);
+    }
+    if huge {
+        for (dx, dy) in [(-2, 0), (2, 0), (0, -2), (0, 2)] {
+            paint_char(canvas, x as isize + dx, y as isize + dy, halo, false);
         }
     }
 }

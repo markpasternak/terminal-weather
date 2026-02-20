@@ -1,3 +1,12 @@
+#![allow(
+    clippy::comparison_chain,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::map_unwrap_or,
+    clippy::must_use_candidate
+)]
+
 use chrono::Local;
 use ratatui::{
     Frame,
