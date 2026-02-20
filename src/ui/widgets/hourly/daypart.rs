@@ -207,13 +207,15 @@ fn build_daypart_wind_row(parts: &[DaypartSummary], theme: Theme) -> Row<'static
         parts
             .iter()
             .map(|summary| {
-                let min_wind = summary
-                    .wind_min_kmh
-                    .map_or_else(|| "--".to_string(), |v| format!("{v:.0}"));
-                let max_wind = summary
-                    .wind_max_kmh
-                    .map_or_else(|| "--".to_string(), |v| format!("{v:.0}"));
-                Cell::from(format!("{min_wind}-{max_wind}km/h"))
+                let min_wind = summary.wind_min_kmh.map_or_else(
+                    || "--".to_string(),
+                    |v| crate::domain::weather::round_wind_speed(v).to_string(),
+                );
+                let max_wind = summary.wind_max_kmh.map_or_else(
+                    || "--".to_string(),
+                    |v| crate::domain::weather::round_wind_speed(v).to_string(),
+                );
+                Cell::from(format!("{min_wind}-{max_wind}m/s"))
                     .style(Style::default().fg(theme.warning))
             })
             .collect::<Vec<_>>(),

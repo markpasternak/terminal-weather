@@ -1,6 +1,8 @@
 #![allow(clippy::cast_possible_truncation)]
 
-use crate::domain::weather::{ForecastBundle, HourlyForecast, Units, convert_temp, round_temp};
+use crate::domain::weather::{
+    ForecastBundle, HourlyForecast, Units, convert_temp, round_temp, round_wind_speed,
+};
 
 #[derive(Debug, Clone)]
 pub struct WeatherAlert {
@@ -52,14 +54,14 @@ fn wind_gust_alert(next_24h: &[HourlyForecast]) -> Option<WeatherAlert> {
     if max_gust >= 80.0 {
         return Some(WeatherAlert {
             icon: "⚡",
-            message: format!("Wind gusts up to {} km/h", max_gust.round() as i32),
+            message: format!("Forecast gusts up to {} m/s", round_wind_speed(max_gust)),
             severity: AlertSeverity::Danger,
         });
     }
     if max_gust >= 50.0 {
         return Some(WeatherAlert {
             icon: "💨",
-            message: format!("Wind gusts up to {} km/h", max_gust.round() as i32),
+            message: format!("Forecast gusts up to {} m/s", round_wind_speed(max_gust)),
             severity: AlertSeverity::Warning,
         });
     }

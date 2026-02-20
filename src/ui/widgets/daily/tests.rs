@@ -111,7 +111,7 @@ fn assert_three_day_summary(summary: &WeekSummaryData, daily: &[DailyForecast]) 
     );
     assert_eq!(
         summary.breeziest_txt,
-        format!("{} 52km/h", daily[1].date.format("%a"))
+        format!("{} 14m/s", daily[1].date.format("%a"))
     );
     assert_eq!(
         summary.uv_peak,
@@ -120,7 +120,10 @@ fn assert_three_day_summary(summary: &WeekSummaryData, daily: &[DailyForecast]) 
     assert_eq!(summary.week_thermal, "-4°..9°");
     assert_eq!(summary.highs, vec![6.0, 9.0, 4.0]);
     assert_eq!(summary.precip, vec![3.0, 5.0, 2.0]);
-    assert_eq!(summary.gusts, vec![30.0, 52.0, 22.0]);
+    assert_eq!(summary.gusts.len(), 3);
+    assert!((summary.gusts[0] - 8.333_333).abs() < 0.001);
+    assert!((summary.gusts[1] - 14.444_445).abs() < 0.001);
+    assert!((summary.gusts[2] - 6.111_111).abs() < 0.001);
 }
 
 #[derive(Clone, Copy)]

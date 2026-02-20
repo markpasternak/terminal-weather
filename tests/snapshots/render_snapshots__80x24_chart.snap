@@ -7,7 +7,7 @@ expression: "render_with_hourly_mode_to_string(80, 24, 61, HourlyViewMode::Chart
 │ Slight rain                                                                  │
 │ H:9°  L:3°                                                                   │
 │ Stockholm, Stockholm, Sweden                                                 │
-│ Wind 12/21 km/h SW  Visibility 11.2km                                        │
+│ Wind 3/6 m/s SW  Visibility 11.2km                                           │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌Hourly · Chart · Thu 12 Feb───────────────────────────────────────────────────┐
 │Temp  ▁▁▁▁▁▁▁▂▂▂▂▂▂▂▂▂▂▂▂▂▃▃▃▃▃▃▄▄▄▄▄▄▄▄▄▄▄▄▄▅▅▅▅▅▅▅▅▅▅▅▅▆▆▆▆▆▆▆▇▇▇▇▇▇▇▇▇▇▇▇█ │
@@ -16,7 +16,7 @@ expression: "render_with_hourly_mode_to_string(80, 24, 61, HourlyViewMode::Chart
 │Hour              11111112                              11111118              │
 │                                                                              │
 │                                                                              │
-│Wind 14 km/h  P% max 35%  Cloud 51%                                           │
+│Wind 4 m/s  P% max 35%  Cloud 51%                                             │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌7-Day Forecast────────────────────────────────────────────────────────────────┐

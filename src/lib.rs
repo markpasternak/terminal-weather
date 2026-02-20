@@ -97,20 +97,20 @@ fn print_one_shot_current(
     units: crate::domain::weather::Units,
     unit_symbol: &str,
 ) {
-    use crate::domain::weather::{convert_temp, round_temp, weather_label};
+    use crate::domain::weather::{convert_temp, round_temp, round_wind_speed, weather_label};
 
     let temp = round_temp(convert_temp(bundle.current.temperature_2m_c, units));
     let feels = round_temp(convert_temp(bundle.current.apparent_temperature_c, units));
     let condition = weather_label(bundle.current.weather_code);
-    let wind = format!("{:.0}", bundle.current.wind_speed_10m);
-    let gust = format!("{:.0}", bundle.current.wind_gusts_10m);
+    let wind = round_wind_speed(bundle.current.wind_speed_10m);
+    let gust = round_wind_speed(bundle.current.wind_gusts_10m);
     let humidity = format!("{:.0}", bundle.current.relative_humidity_2m);
     let pressure = format!("{:.0}", bundle.current.pressure_msl_hpa);
     let vis_km = bundle.current.visibility_m / 1000.0;
 
     println!("  {display_name}");
     println!("  {temp}°{unit_symbol}  {condition}");
-    println!("  Feels {feels}°{unit_symbol}  Humidity {humidity}%  Wind {wind}/{gust} km/h");
+    println!("  Feels {feels}°{unit_symbol}  Humidity {humidity}%  Wind {wind}/{gust} m/s");
     println!("  Pressure {pressure}hPa  Visibility {vis_km:.1}km");
     println!();
 }

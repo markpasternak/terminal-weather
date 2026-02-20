@@ -190,8 +190,10 @@ fn format_precip_mm_metric(hour: &HourlyForecast) -> String {
 }
 
 fn format_gust_metric(hour: &HourlyForecast) -> String {
-    hour.wind_gusts_10m
-        .map_or_else(|| "-- ".to_string(), |g| format!("{:>3}", g.round() as i32))
+    hour.wind_gusts_10m.map_or_else(
+        || "-- ".to_string(),
+        |g| format!("{:>3}", crate::domain::weather::round_wind_speed(g)),
+    )
 }
 
 fn format_visibility_metric(hour: &HourlyForecast) -> String {
@@ -228,8 +230,10 @@ fn format_precip_probability_metric(hour: &HourlyForecast) -> String {
 }
 
 fn format_wind_metric(hour: &HourlyForecast) -> String {
-    hour.wind_speed_10m
-        .map_or_else(|| "-- ".to_string(), |w| format!("{:>3}", w.round() as i32))
+    hour.wind_speed_10m.map_or_else(
+        || "-- ".to_string(),
+        |w| format!("{:>3}", crate::domain::weather::round_wind_speed(w)),
+    )
 }
 
 pub(super) fn sanitize_precip_mm(value: f32) -> f32 {

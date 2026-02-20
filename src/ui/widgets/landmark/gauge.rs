@@ -67,11 +67,17 @@ fn gauge_context_line(data: &GaugeData) -> String {
     if data.uv > 7.0 {
         format!("⚠ UV {:.1} very high — limit sun exposure", data.uv)
     } else if data.gust > 50.0 {
-        format!("⚠ Gusts {:.0} km/h — secure loose objects", data.gust)
+        format!(
+            "⚠ Gusts {} m/s — secure loose objects",
+            crate::domain::weather::round_wind_speed(data.gust)
+        )
     } else if data.uv > 5.0 {
         format!("UV {:.1} high · sunscreen advised", data.uv)
     } else if data.gust > 30.0 {
-        format!("Gusty winds {:.0} km/h · dress for wind", data.gust)
+        format!(
+            "Gusty winds {} m/s · dress for wind",
+            crate::domain::weather::round_wind_speed(data.gust)
+        )
     } else if data.vis_km < 1.0 {
         format!("Visibility {:.1}km · drive carefully", data.vis_km)
     } else if data.precip_now > 0.5 {
@@ -199,10 +205,10 @@ fn build_left_lines(data: &GaugeData) -> Vec<String> {
             data.vis_km
         ),
         format!(
-            "Wind   {:>2} {:>4.0} km/h  gust {:>3.0}",
+            "Wind   {:>2} {:>4} m/s  gust {:>3}",
             compass_arrow(data.wind_direction_10m),
-            data.wind,
-            data.gust
+            crate::domain::weather::round_wind_speed(data.wind),
+            crate::domain::weather::round_wind_speed(data.gust)
         ),
     ]
 }
@@ -303,7 +309,7 @@ fn precip_range_label(values: &[f32]) -> String {
 fn gust_range_label(values: &[f32]) -> String {
     let max = values.iter().copied().fold(0.0_f32, f32::max);
     if max > 0.0 {
-        format!("{:.0}km/h", max)
+        format!("{}m/s", crate::domain::weather::round_wind_speed(max))
     } else {
         String::new()
     }

@@ -7,7 +7,7 @@ expression: "render_help_to_string(100, 30, 61)"
 │Slight r┌Help────────────────────────────────────────────────────────────────────────────┐C ☂     │
 │H:9°  L:│Global                                                                          │╱       │
 │Stockhol│q / Esc quit  |  Ctrl+C immediate quit                                          │        │
-│Wind 12/│r refresh now  |  Ctrl+L force redraw                                           │        │
+│Wind 3/6│r refresh now  |  Ctrl+L force redraw                                           │        │
 │Pressure│s settings  |  l city picker  |  f/c units  |  v hourly view                    │▒░      │
 │Dew 2°  │<-/-> scroll hourly  |  ? or F1 toggle help                                     │▁▁▁▁    │
 │Last upd│                                                                                │▃▃▃▃    │

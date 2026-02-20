@@ -19,7 +19,8 @@ use ratatui::{
 use crate::{
     app::state::{AppMode, AppState},
     domain::weather::{
-        ForecastBundle, convert_temp, round_temp, weather_code_to_category, weather_label_for_time,
+        ForecastBundle, convert_temp, round_temp, round_wind_speed, weather_code_to_category,
+        weather_label_for_time,
     },
     ui::theme::{Theme, condition_color},
 };
@@ -232,8 +233,8 @@ fn collect_weather_metrics(state: &AppState, weather: &ForecastBundle) -> Weathe
         humidity: weather.current.relative_humidity_2m.round() as i32,
         dew: round_temp(convert_temp(weather.current.dew_point_2m_c, state.units)),
         wind_dir: compass(weather.current.wind_direction_10m),
-        wind: weather.current.wind_speed_10m.round() as i32,
-        gust: weather.current.wind_gusts_10m.round() as i32,
+        wind: round_wind_speed(weather.current.wind_speed_10m),
+        gust: round_wind_speed(weather.current.wind_gusts_10m),
         visibility: format_visibility(weather.current.visibility_m),
         pressure: weather.current.pressure_msl_hpa.round() as i32,
         pressure_trend: pressure_trend_marker(&weather.hourly),
@@ -257,7 +258,7 @@ fn push_compact_metric_lines(
     lines.push(Line::from(vec![
         Span::styled("Wind ", Style::default().fg(theme.muted_text)),
         Span::styled(
-            format!("{}/{} km/h {}", data.wind, data.gust, data.wind_dir),
+            format!("{}/{} m/s {}", data.wind, data.gust, data.wind_dir),
             Style::default().fg(theme.success),
         ),
         Span::raw(metric_gap),
@@ -317,7 +318,7 @@ fn standard_metric_wind_line(
     Line::from(vec![
         Span::styled("Wind ", Style::default().fg(theme.muted_text)),
         Span::styled(
-            format!("{}/{} km/h {}", data.wind, data.gust, data.wind_dir),
+            format!("{}/{} m/s {}", data.wind, data.gust, data.wind_dir),
             Style::default().fg(theme.success),
         ),
         Span::raw(metric_gap),

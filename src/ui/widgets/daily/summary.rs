@@ -134,7 +134,7 @@ impl WeekAccumulator {
 
     fn finish(self, units: Units, daily: &[DailyForecast]) -> WeekSummaryData {
         let wettest_txt = format_day_value_mm(self.wettest);
-        let breeziest_txt = format_day_value_kmh(self.breeziest);
+        let breeziest_txt = format_day_value_mps(self.breeziest);
         let avg_daylight = average_duration(self.daylight_total, self.daylight_count);
         let avg_sun = average_duration(self.sunshine_total, self.sunshine_count);
         let precip_hours_avg = average_precip_hours(
@@ -169,10 +169,15 @@ fn format_day_value_mm(value: Option<(String, f32)>) -> String {
     value.map_or_else(|| "--".to_string(), |(day, mm)| format!("{day} {mm:.1}mm"))
 }
 
-fn format_day_value_kmh(value: Option<(String, f32)>) -> String {
+fn format_day_value_mps(value: Option<(String, f32)>) -> String {
     value.map_or_else(
         || "--".to_string(),
-        |(day, speed)| format!("{day} {}km/h", speed.round() as i32),
+        |(day, speed)| {
+            format!(
+                "{day} {}m/s",
+                crate::domain::weather::round_wind_speed(speed)
+            )
+        },
     )
 }
 
@@ -225,7 +230,7 @@ fn collect_precip(daily: &[DailyForecast]) -> Vec<f32> {
 fn collect_gusts(daily: &[DailyForecast]) -> Vec<f32> {
     daily
         .iter()
-        .map(|d| d.wind_gusts_10m_max.unwrap_or(0.0))
+        .map(|d| crate::domain::weather::convert_wind_speed(d.wind_gusts_10m_max.unwrap_or(0.0)))
         .collect::<Vec<_>>()
 }
 

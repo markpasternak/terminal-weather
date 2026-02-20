@@ -135,7 +135,7 @@ fn append_trend_summary_lines(
         append_temp_span_line(lines, &data.temp_values, theme);
     }
     if trend_height >= 8 {
-        append_next_rain_line(lines, weather, theme);
+        append_next_precip_line(lines, weather, theme);
     }
     if trend_height >= 9 {
         append_peak_gust_line(lines, weather, theme);
@@ -162,9 +162,9 @@ fn append_temp_span_line(lines: &mut Vec<Line<'static>>, values: &[f32], theme: 
     }
 }
 
-fn append_next_rain_line(lines: &mut Vec<Line<'static>>, weather: &ForecastBundle, theme: Theme) {
+fn append_next_precip_line(lines: &mut Vec<Line<'static>>, weather: &ForecastBundle, theme: Theme) {
     lines.push(Line::from(vec![
-        Span::styled("Next rain ", Style::default().fg(theme.muted_text)),
+        Span::styled("Next precip ", Style::default().fg(theme.muted_text)),
         Span::styled(
             next_precip_summary(&weather.hourly),
             Style::default().fg(theme.info),
@@ -245,7 +245,7 @@ pub(super) fn peak_gust_summary(hourly: &[HourlyForecast]) -> String {
         .take(24)
         .filter_map(|h| h.wind_gusts_10m.map(|g| (g, h.time)))
         .max_by(|(a, _), (b, _)| a.total_cmp(b))
-        .map(|(gust, time)| format!("{}km/h @ {}", gust.round() as i32, time.format("%H:%M")))
+        .map(|(gust, time)| format!("{}m/s @ {}", round_wind_speed(gust), time.format("%H:%M")))
         .unwrap_or_else(|| "--".to_string())
 }
 

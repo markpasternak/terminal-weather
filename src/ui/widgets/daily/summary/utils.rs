@@ -39,10 +39,16 @@ pub(super) fn precipitation_cue(day: &crate::domain::weather::DailyForecast) -> 
 
 pub(super) fn gust_cue(gust: f32) -> Option<String> {
     if gust >= 45.0 {
-        return Some(format!("gusty {}km/h", gust.round() as i32));
+        return Some(format!(
+            "gusty {}m/s",
+            crate::domain::weather::round_wind_speed(gust)
+        ));
     }
     if gust >= 30.0 {
-        return Some(format!("breezy {}km/h", gust.round() as i32));
+        return Some(format!(
+            "breezy {}m/s",
+            crate::domain::weather::round_wind_speed(gust)
+        ));
     }
     None
 }

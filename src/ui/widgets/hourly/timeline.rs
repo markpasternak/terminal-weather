@@ -52,7 +52,10 @@ pub(super) fn render_chart_metrics(
 }
 
 fn format_chart_wind(value: Option<f32>) -> String {
-    value.map_or_else(|| "--".to_string(), |v| format!("{v:.0} km/h"))
+    value.map_or_else(
+        || "--".to_string(),
+        |v| format!("{} m/s", crate::domain::weather::round_wind_speed(v)),
+    )
 }
 
 fn format_chart_percent(value: Option<f32>) -> String {

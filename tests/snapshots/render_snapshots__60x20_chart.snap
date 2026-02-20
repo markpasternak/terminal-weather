@@ -7,7 +7,7 @@ expression: "render_with_hourly_mode_to_string(60, 20, 61, HourlyViewMode::Chart
 │ Slight rain                                              │
 │ H:9°  L:3°                                               │
 │ Stockholm, Stockholm, Sweden                             │
-│ Wind 12/21 km/h SW  Visibility 11.2km                    │
+│ Wind 3/6 m/s SW  Visibility 11.2km                       │
 │ Pressure 1008↗                                           │
 └──────────────────────────────────────────────────────────┘
 ┌Hourly · Table · Thu 12 Feb───────────────────────────────┐

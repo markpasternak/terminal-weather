@@ -40,10 +40,7 @@ fn precip_context(bundle: &ForecastBundle, last_precip_idx: usize, total_precip_
         .first()
         .map_or(12, |hour| hour.time.hour() as usize);
     let clearing_hour = (now_hour + last_precip_idx + 1) % 24;
-    format!(
-        "Precip clearing by {:02}:00 · {:.0}mm expected",
-        clearing_hour, total_precip_mm
-    )
+    format!("Precip clearing by {clearing_hour:02}:00 · {total_precip_mm:.0}mm expected")
 }
 
 fn stable_weather_context(bundle: &ForecastBundle, category: WeatherCategory) -> String {

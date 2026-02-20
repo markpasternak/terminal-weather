@@ -521,6 +521,16 @@ pub fn convert_temp(celsius: f32, units: Units) -> f32 {
 }
 
 #[must_use]
+pub fn convert_wind_speed(kmh: f32) -> f32 {
+    kmh / 3.6
+}
+
+#[must_use]
+pub fn round_wind_speed(kmh: f32) -> i32 {
+    convert_wind_speed(kmh).round() as i32
+}
+
+#[must_use]
 pub fn round_temp(value: f32) -> i32 {
     value.round() as i32
 }

@@ -336,9 +336,10 @@ fn append_daily_gust_cell(
     if !show_gust_col {
         return;
     }
-    let gust = day
-        .wind_gusts_10m_max
-        .map_or_else(|| "-- ".to_string(), |v| format!("{:>3}", v.round() as i32));
+    let gust = day.wind_gusts_10m_max.map_or_else(
+        || "-- ".to_string(),
+        |v| format!("{:>3}", crate::domain::weather::round_wind_speed(v)),
+    );
     cells.push(Cell::from(gust).style(Style::default().fg(theme.warning)));
 }
 
