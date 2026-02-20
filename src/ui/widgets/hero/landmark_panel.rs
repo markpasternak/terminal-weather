@@ -27,8 +27,9 @@ pub fn render_landmark(
     }
 
     let scene = match state.settings.hero_visual {
-        HeroVisualArg::AtmosCanvas => {
-            if let Some(bundle) = state.weather.as_ref() {
+        HeroVisualArg::AtmosCanvas => state.weather.as_ref().map_or_else(
+            || loading_scene("Atmos Canvas", area.width, area.height, is_day),
+            |bundle| {
                 scene_for_weather(
                     bundle,
                     state.frame_tick,
@@ -36,23 +37,21 @@ pub fn render_landmark(
                     area.width.saturating_sub(2),
                     area.height.saturating_sub(2),
                 )
-            } else {
-                loading_scene("Atmos Canvas", area.width, area.height, is_day)
-            }
-        }
-        HeroVisualArg::GaugeCluster => {
-            if let Some(bundle) = state.weather.as_ref() {
+            },
+        ),
+        HeroVisualArg::GaugeCluster => state.weather.as_ref().map_or_else(
+            || loading_scene("Gauge Cluster", area.width, area.height, is_day),
+            |bundle| {
                 scene_for_gauge_cluster(
                     bundle,
                     area.width.saturating_sub(2),
                     area.height.saturating_sub(2),
                 )
-            } else {
-                loading_scene("Gauge Cluster", area.width, area.height, is_day)
-            }
-        }
-        HeroVisualArg::SkyObservatory => {
-            if let Some(bundle) = state.weather.as_ref() {
+            },
+        ),
+        HeroVisualArg::SkyObservatory => state.weather.as_ref().map_or_else(
+            || loading_scene("Sky Observatory", area.width, area.height, is_day),
+            |bundle| {
                 scene_for_sky_observatory(
                     bundle,
                     state.frame_tick,
@@ -60,10 +59,8 @@ pub fn render_landmark(
                     area.width.saturating_sub(2),
                     area.height.saturating_sub(2),
                 )
-            } else {
-                loading_scene("Sky Observatory", area.width, area.height, is_day)
-            }
-        }
+            },
+        ),
     };
 
     let tint = match scene.tint {
@@ -167,56 +164,44 @@ fn colorize_scene_line(
 
 fn scene_char_color(ch: char, theme: Theme, base_tint: Color, visual: HeroVisualArg) -> Color {
     match visual {
-        HeroVisualArg::AtmosCanvas => {
-            if matches!(ch, '█' | '▅' | '▃' | '▁') {
-                theme.accent
-            } else if matches!(ch, '◉' | '◐') {
-                theme.warning
-            } else if matches!(ch, '░' | '▒' | '▓') {
-                theme.landmark_neutral
-            } else if matches!(ch, '/' | '╱' | '╲' | '.' | ',') {
-                theme.info
-            } else if matches!(ch, 'o' | '•') {
-                theme.warning
-            } else if matches!(ch, '❆' | '*' | '✦' | '✧') {
-                theme.landmark_cool
-            } else if matches!(ch, '·' | '∴' | '─') {
-                theme.muted_text
-            } else {
-                base_tint
-            }
+        HeroVisualArg::AtmosCanvas => scene_char_color_atmos(ch, theme, base_tint),
+        HeroVisualArg::GaugeCluster => scene_char_color_gauge(ch, theme, base_tint),
+        HeroVisualArg::SkyObservatory => scene_char_color_sky(ch, theme, base_tint),
+    }
+}
+
+fn scene_char_color_atmos(ch: char, theme: Theme, base_tint: Color) -> Color {
+    match ch {
+        '█' | '▅' | '▃' | '▁' => theme.accent,
+        '◉' | '◐' | 'o' | '•' => theme.warning,
+        '░' | '▒' | '▓' => theme.landmark_neutral,
+        '/' | '╱' | '╲' | '.' | ',' => theme.info,
+        '❆' | '*' | '✦' | '✧' => theme.landmark_cool,
+        '·' | '∴' | '─' => theme.muted_text,
+        _ => base_tint,
+    }
+}
+
+fn scene_char_color_gauge(ch: char, theme: Theme, base_tint: Color) -> Color {
+    match ch {
+        '█' | '▓' | '▒' => theme.accent,
+        '[' | ']' | '|' | '+' | '◉' => theme.info,
+        '↑' | '→' | '↓' | '←' | '↗' | '↘' | '↙' | '↖' => theme.warning,
+        _ if ch.is_ascii_digit() || matches!(ch, '%' | '.') => theme.text,
+        _ if ch.is_ascii_alphabetic() => theme.muted_text,
+        _ => base_tint,
+    }
+}
+
+fn scene_char_color_sky(ch: char, theme: Theme, base_tint: Color) -> Color {
+    match ch {
+        '◉' | '☀' | '○' | '◑' | '◐' | '◔' | '◕' | '◖' | '◗' | '●' | '✶' => {
+            theme.warning
         }
-        HeroVisualArg::GaugeCluster => {
-            if matches!(ch, '█' | '▓' | '▒') {
-                theme.accent
-            } else if matches!(ch, '[' | ']' | '|' | '+' | '◉') {
-                theme.info
-            } else if matches!(ch, '↑' | '→' | '↓' | '←' | '↗' | '↘' | '↙' | '↖') {
-                theme.warning
-            } else if ch.is_ascii_digit() || matches!(ch, '%' | '.') {
-                theme.text
-            } else if ch.is_ascii_alphabetic() {
-                theme.muted_text
-            } else {
-                base_tint
-            }
-        }
-        HeroVisualArg::SkyObservatory => {
-            if matches!(
-                ch,
-                '◉' | '☀' | '○' | '◑' | '◐' | '◔' | '◕' | '◖' | '◗' | '●' | '✶'
-            ) {
-                theme.warning
-            } else if matches!(ch, '█' | '▓' | '▒' | '░') {
-                theme.info
-            } else if matches!(ch, '*' | '·' | 'E' | 'W' | '─' | '~' | '/') {
-                theme.landmark_cool
-            } else if ch.is_ascii_digit() || ch == ':' {
-                theme.text
-            } else {
-                base_tint
-            }
-        }
+        '█' | '▓' | '▒' | '░' => theme.info,
+        '*' | '·' | 'E' | 'W' | '─' | '~' | '/' => theme.landmark_cool,
+        _ if ch.is_ascii_digit() || ch == ':' => theme.text,
+        _ => base_tint,
     }
 }
 

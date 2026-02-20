@@ -64,8 +64,7 @@ pub fn scene_for_weather(
     let hour = bundle
         .hourly
         .first()
-        .map(|hour| hour.time.hour() as usize)
-        .unwrap_or(12)
+        .map_or(12, |hour| hour.time.hour() as usize)
         % 24;
     place_celestial_body(&mut canvas, bundle.current.is_day, hour, horizon_y, w);
 

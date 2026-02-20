@@ -403,8 +403,8 @@ fn render_chart_mode(
     }
 
     let chunks = Layout::vertical([Constraint::Min(6), Constraint::Length(2)]).split(area);
-    let stats = render_temp_precip_timeline(frame, chunks[0], slice, theme, state.units);
-    render_chart_metrics(frame, chunks[1], stats, theme);
+    let timeline_stats = render_temp_precip_timeline(frame, chunks[0], slice, theme, state.units);
+    render_chart_metrics(frame, chunks[1], timeline_stats, theme);
     true
 }
 
@@ -847,14 +847,14 @@ fn render_loading_placeholder(
         })
         .collect::<String>();
 
-    let rows = [
+    let placeholder_rows = [
         Row::new(vec![
             Cell::from("Loading timeline").style(Style::default().fg(accent)),
         ]),
         Row::new(vec![Cell::from(row1).style(Style::default().fg(muted))]),
         Row::new(vec![Cell::from(row2).style(Style::default().fg(accent))]),
     ];
-    let table = Table::new(rows, [Constraint::Min(1)])
+    let table = Table::new(placeholder_rows, [Constraint::Min(1)])
         .column_spacing(1)
         .style(panel_style);
     frame.render_widget(table, area);

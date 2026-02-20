@@ -34,26 +34,17 @@ pub fn scene_for_sky_observatory(
         canvas[y][x] = '·';
     }
 
-    let (sunrise_h, sunset_h) = bundle
-        .daily
-        .first()
-        .map(|day| {
-            (
-                day.sunrise
-                    .map(|t| t.hour() as f32 + t.minute() as f32 / 60.0)
-                    .unwrap_or(6.0),
-                day.sunset
-                    .map(|t| t.hour() as f32 + t.minute() as f32 / 60.0)
-                    .unwrap_or(18.0),
-            )
-        })
-        .unwrap_or((6.0, 18.0));
+    let (sunrise_h, sunset_h) = bundle.daily.first().map_or((6.0, 18.0), |day| {
+        (
+            day.sunrise.map_or(6.0, hm_to_hour_f32),
+            day.sunset.map_or(18.0, hm_to_hour_f32),
+        )
+    });
 
     let now_h = bundle
         .hourly
         .first()
-        .map(|h| h.time.hour() as f32 + h.time.minute() as f32 / 60.0)
-        .unwrap_or(12.0);
+        .map_or(12.0, |hour| hm_to_hour_f32(hour.time));
     let day_span = (sunset_h - sunrise_h).max(0.1);
     let progress = ((now_h - sunrise_h) / day_span).clamp(0.0, 1.0);
     let marker_x = (progress * (w.saturating_sub(1)) as f32).round() as usize;
@@ -240,4 +231,8 @@ fn format_time_hm(hour_f: f32) -> String {
     let h = (total / 60).rem_euclid(24);
     let m = total % 60;
     format!("{h:02}:{m:02}")
+}
+
+fn hm_to_hour_f32<T: Timelike>(value: T) -> f32 {
+    value.hour() as f32 + value.minute() as f32 / 60.0
 }

@@ -10,7 +10,8 @@ use crate::{
     app::state::AppState,
     cli::Cli,
     domain::weather::{
-        WeatherCategory, convert_temp, round_temp, weather_code_to_category, weather_icon,
+        DailyForecast, ForecastBundle, Units, WeatherCategory, convert_temp, round_temp,
+        weather_code_to_category, weather_icon,
     },
     ui::theme::{detect_color_capability, icon_color, temp_color, theme_for},
 };
@@ -277,14 +278,44 @@ fn render_loading_daily(
 fn render_week_summary(
     frame: &mut Frame,
     area: Rect,
-    bundle: &crate::domain::weather::ForecastBundle,
-    units: crate::domain::weather::Units,
+    bundle: &ForecastBundle,
+    units: Units,
     theme: crate::ui::theme::Theme,
 ) {
     if area.width < 20 || area.height == 0 || bundle.daily.is_empty() {
         return;
     }
 
+    let summary = summarize_week(bundle, units);
+    let mut lines = week_summary_header_lines(&summary, theme);
+    if area.width >= 64 {
+        append_week_meta_line(&mut lines, bundle, theme);
+    }
+    let mut remaining_rows = (area.height as usize).saturating_sub(lines.len());
+    append_week_profiles(&mut lines, &mut remaining_rows, area, &summary, theme);
+    append_day_cues(&mut lines, &mut remaining_rows, bundle, theme);
+    append_compact_profiles(&mut lines, remaining_rows, area, &summary, theme);
+    frame.render_widget(Paragraph::new(lines), area);
+}
+
+#[derive(Debug, Default)]
+struct WeekSummaryData {
+    precip_total: f32,
+    rain_total: f32,
+    snow_total: f32,
+    avg_daylight: String,
+    avg_sun: String,
+    breeziest_txt: String,
+    wettest_txt: String,
+    precip_hours_avg: String,
+    uv_peak: String,
+    week_thermal: String,
+    highs: Vec<f32>,
+    precip: Vec<f32>,
+    gusts: Vec<f32>,
+}
+
+fn summarize_week(bundle: &ForecastBundle, units: Units) -> WeekSummaryData {
     let mut precip_total = 0.0f32;
     let mut rain_total = 0.0f32;
     let mut snow_total = 0.0f32;
@@ -381,106 +412,6 @@ fn render_week_summary(
         }
         _ => "--".to_string(),
     };
-
-    let mut lines = vec![
-        Line::from(vec![
-            Span::styled("Totals ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                format!("P {precip_total:.1}mm"),
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::raw("  "),
-            Span::styled("Rain ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                format!("{rain_total:.1}mm"),
-                Style::default().fg(theme.info),
-            ),
-            Span::raw("  "),
-            Span::styled("Snow ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                format!("{snow_total:.1}cm"),
-                Style::default().fg(theme.temp_cold),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("Avg daylight ", Style::default().fg(theme.muted_text)),
-            Span::styled(avg_daylight, Style::default().fg(theme.warning)),
-            Span::raw("  "),
-            Span::styled("Avg sun ", Style::default().fg(theme.muted_text)),
-            Span::styled(avg_sun, Style::default().fg(theme.accent)),
-        ]),
-        Line::from(vec![
-            Span::styled("Breeziest ", Style::default().fg(theme.muted_text)),
-            Span::styled(breeziest_txt.clone(), Style::default().fg(theme.warning)),
-            Span::raw("  "),
-            Span::styled("Wettest ", Style::default().fg(theme.muted_text)),
-            Span::styled(wettest_txt, Style::default().fg(theme.info)),
-        ]),
-        Line::from(vec![
-            Span::styled("Avg precip hrs ", Style::default().fg(theme.muted_text)),
-            Span::styled(precip_hours_avg, Style::default().fg(theme.info)),
-            Span::raw("  "),
-            Span::styled("Peak UV ", Style::default().fg(theme.muted_text)),
-            Span::styled(uv_peak, Style::default().fg(theme.warning)),
-            Span::raw("  "),
-            Span::styled("Week span ", Style::default().fg(theme.muted_text)),
-            Span::styled(week_thermal.clone(), Style::default().fg(theme.accent)),
-        ]),
-    ];
-
-    if area.width >= 64 {
-        let tz = bundle
-            .location
-            .timezone
-            .as_deref()
-            .unwrap_or("--")
-            .to_string();
-        let sunrise = bundle
-            .daily
-            .first()
-            .and_then(|d| d.sunrise)
-            .map(|v| v.format("%H:%M").to_string())
-            .unwrap_or_else(|| "--:--".to_string());
-        let sunset = bundle
-            .daily
-            .first()
-            .and_then(|d| d.sunset)
-            .map(|v| v.format("%H:%M").to_string())
-            .unwrap_or_else(|| "--:--".to_string());
-        let dawn = bundle
-            .daily
-            .first()
-            .and_then(|d| d.sunrise)
-            .map(|v| {
-                (v - chrono::Duration::minutes(30))
-                    .format("%H:%M")
-                    .to_string()
-            })
-            .unwrap_or_else(|| "--:--".to_string());
-        let dusk = bundle
-            .daily
-            .first()
-            .and_then(|d| d.sunset)
-            .map(|v| {
-                (v + chrono::Duration::minutes(30))
-                    .format("%H:%M")
-                    .to_string()
-            })
-            .unwrap_or_else(|| "--:--".to_string());
-        let location_short = bundle.location.name.clone();
-        lines.push(Line::from(vec![
-            Span::styled("Meta ", Style::default().fg(theme.muted_text)),
-            Span::styled(format!("TZ {tz}"), Style::default().fg(theme.text)),
-            Span::raw("  "),
-            Span::styled(
-                format!("Dawn {dawn} Sun {sunrise} Set {sunset} Dusk {dusk}"),
-                Style::default().fg(theme.info),
-            ),
-            Span::raw("  "),
-            Span::styled(location_short, Style::default().fg(theme.accent)),
-        ]));
-    }
-
     let highs = bundle
         .daily
         .iter()
@@ -498,117 +429,289 @@ fn render_week_summary(
         .map(|d| d.wind_gusts_10m_max.unwrap_or(0.0))
         .collect::<Vec<_>>();
 
-    let mut remaining_rows = (area.height as usize).saturating_sub(lines.len());
-    if area.width >= 72 && remaining_rows >= 4 {
-        lines.push(Line::from(Span::styled(
-            "Week profiles",
-            Style::default()
-                .fg(theme.muted_text)
-                .add_modifier(Modifier::BOLD),
-        )));
-        remaining_rows = remaining_rows.saturating_sub(1);
-
-        let profile_width = area.width.saturating_sub(28).clamp(10, 56) as usize;
-        if remaining_rows > 0 && !highs.is_empty() {
-            lines.push(Line::from(vec![
-                Span::styled("Temp arc    ", Style::default().fg(theme.muted_text)),
-                Span::styled(
-                    profile_bar(&highs, profile_width),
-                    Style::default().fg(theme.accent),
-                ),
-                Span::raw(" "),
-                Span::styled(week_thermal.clone(), Style::default().fg(theme.accent)),
-            ]));
-            remaining_rows = remaining_rows.saturating_sub(1);
-        }
-        if remaining_rows > 0 && !precip.is_empty() {
-            lines.push(Line::from(vec![
-                Span::styled("Precip lane ", Style::default().fg(theme.muted_text)),
-                Span::styled(
-                    profile_bar(&precip, profile_width),
-                    Style::default().fg(theme.info),
-                ),
-                Span::raw(" "),
-                Span::styled(
-                    format!("{precip_total:.1}mm"),
-                    Style::default().fg(theme.info),
-                ),
-            ]));
-            remaining_rows = remaining_rows.saturating_sub(1);
-        }
-        if remaining_rows > 0 && !gusts.is_empty() {
-            lines.push(Line::from(vec![
-                Span::styled("Wind lane   ", Style::default().fg(theme.muted_text)),
-                Span::styled(
-                    profile_bar(&gusts, profile_width),
-                    Style::default().fg(theme.warning),
-                ),
-                Span::raw(" "),
-                Span::styled(breeziest_txt.clone(), Style::default().fg(theme.warning)),
-            ]));
-            remaining_rows = remaining_rows.saturating_sub(1);
-        }
+    WeekSummaryData {
+        precip_total,
+        rain_total,
+        snow_total,
+        avg_daylight,
+        avg_sun,
+        breeziest_txt,
+        wettest_txt,
+        precip_hours_avg,
+        uv_peak,
+        week_thermal,
+        highs,
+        precip,
+        gusts,
     }
-
-    if remaining_rows >= 2 {
-        lines.push(Line::from(Span::styled(
-            "Day cues",
-            Style::default()
-                .fg(theme.muted_text)
-                .add_modifier(Modifier::BOLD),
-        )));
-        remaining_rows = remaining_rows.saturating_sub(1);
-
-        let cue_rows = remaining_rows.min(bundle.daily.len());
-        for day in bundle.daily.iter().take(cue_rows) {
-            lines.push(Line::from(vec![
-                Span::styled(
-                    format!("{:>3} ", day.date.format("%a")),
-                    Style::default().fg(theme.muted_text),
-                ),
-                Span::styled(day_cue(day), Style::default().fg(theme.text)),
-            ]));
-        }
-        remaining_rows = remaining_rows.saturating_sub(cue_rows);
-    }
-
-    if remaining_rows > 0 && area.width >= 32 {
-        let profile_width = area.width.saturating_sub(18).clamp(8, 40) as usize;
-        if remaining_rows > 0 && !highs.is_empty() {
-            lines.push(Line::from(vec![
-                Span::styled("Temp profile ", Style::default().fg(theme.muted_text)),
-                Span::styled(
-                    profile_bar(&highs, profile_width),
-                    Style::default().fg(theme.accent),
-                ),
-            ]));
-            remaining_rows = remaining_rows.saturating_sub(1);
-        }
-        if remaining_rows > 0 && !precip.is_empty() {
-            lines.push(Line::from(vec![
-                Span::styled("Precip lane  ", Style::default().fg(theme.muted_text)),
-                Span::styled(
-                    profile_bar(&precip, profile_width),
-                    Style::default().fg(theme.info),
-                ),
-            ]));
-            remaining_rows = remaining_rows.saturating_sub(1);
-        }
-        if remaining_rows > 0 && !gusts.is_empty() {
-            lines.push(Line::from(vec![
-                Span::styled("Wind lane    ", Style::default().fg(theme.muted_text)),
-                Span::styled(
-                    profile_bar(&gusts, profile_width),
-                    Style::default().fg(theme.warning),
-                ),
-            ]));
-        }
-    }
-
-    frame.render_widget(Paragraph::new(lines), area);
 }
 
-fn day_cue(day: &crate::domain::weather::DailyForecast) -> String {
+fn week_summary_header_lines(
+    summary: &WeekSummaryData,
+    theme: crate::ui::theme::Theme,
+) -> Vec<Line<'static>> {
+    vec![
+        Line::from(vec![
+            Span::styled("Totals ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                format!("P {:.1}mm", summary.precip_total),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  "),
+            Span::styled("Rain ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                format!("{:.1}mm", summary.rain_total),
+                Style::default().fg(theme.info),
+            ),
+            Span::raw("  "),
+            Span::styled("Snow ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                format!("{:.1}cm", summary.snow_total),
+                Style::default().fg(theme.temp_cold),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("Avg daylight ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                summary.avg_daylight.clone(),
+                Style::default().fg(theme.warning),
+            ),
+            Span::raw("  "),
+            Span::styled("Avg sun ", Style::default().fg(theme.muted_text)),
+            Span::styled(summary.avg_sun.clone(), Style::default().fg(theme.accent)),
+        ]),
+        Line::from(vec![
+            Span::styled("Breeziest ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                summary.breeziest_txt.clone(),
+                Style::default().fg(theme.warning),
+            ),
+            Span::raw("  "),
+            Span::styled("Wettest ", Style::default().fg(theme.muted_text)),
+            Span::styled(summary.wettest_txt.clone(), Style::default().fg(theme.info)),
+        ]),
+        Line::from(vec![
+            Span::styled("Avg precip hrs ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                summary.precip_hours_avg.clone(),
+                Style::default().fg(theme.info),
+            ),
+            Span::raw("  "),
+            Span::styled("Peak UV ", Style::default().fg(theme.muted_text)),
+            Span::styled(summary.uv_peak.clone(), Style::default().fg(theme.warning)),
+            Span::raw("  "),
+            Span::styled("Week span ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                summary.week_thermal.clone(),
+                Style::default().fg(theme.accent),
+            ),
+        ]),
+    ]
+}
+
+fn append_week_meta_line(
+    lines: &mut Vec<Line<'static>>,
+    bundle: &ForecastBundle,
+    theme: crate::ui::theme::Theme,
+) {
+    let tz = bundle
+        .location
+        .timezone
+        .as_deref()
+        .unwrap_or("--")
+        .to_string();
+    let sunrise = bundle
+        .daily
+        .first()
+        .and_then(|d| d.sunrise)
+        .map(|v| v.format("%H:%M").to_string())
+        .unwrap_or_else(|| "--:--".to_string());
+    let sunset = bundle
+        .daily
+        .first()
+        .and_then(|d| d.sunset)
+        .map(|v| v.format("%H:%M").to_string())
+        .unwrap_or_else(|| "--:--".to_string());
+    let dawn = bundle
+        .daily
+        .first()
+        .and_then(|d| d.sunrise)
+        .map(|v| {
+            (v - chrono::Duration::minutes(30))
+                .format("%H:%M")
+                .to_string()
+        })
+        .unwrap_or_else(|| "--:--".to_string());
+    let dusk = bundle
+        .daily
+        .first()
+        .and_then(|d| d.sunset)
+        .map(|v| {
+            (v + chrono::Duration::minutes(30))
+                .format("%H:%M")
+                .to_string()
+        })
+        .unwrap_or_else(|| "--:--".to_string());
+
+    lines.push(Line::from(vec![
+        Span::styled("Meta ", Style::default().fg(theme.muted_text)),
+        Span::styled(format!("TZ {tz}"), Style::default().fg(theme.text)),
+        Span::raw("  "),
+        Span::styled(
+            format!("Dawn {dawn} Sun {sunrise} Set {sunset} Dusk {dusk}"),
+            Style::default().fg(theme.info),
+        ),
+        Span::raw("  "),
+        Span::styled(
+            bundle.location.name.clone(),
+            Style::default().fg(theme.accent),
+        ),
+    ]));
+}
+
+fn append_week_profiles(
+    lines: &mut Vec<Line<'static>>,
+    remaining_rows: &mut usize,
+    area: Rect,
+    summary: &WeekSummaryData,
+    theme: crate::ui::theme::Theme,
+) {
+    if area.width < 72 || *remaining_rows < 4 {
+        return;
+    }
+
+    lines.push(Line::from(Span::styled(
+        "Week profiles",
+        Style::default()
+            .fg(theme.muted_text)
+            .add_modifier(Modifier::BOLD),
+    )));
+    *remaining_rows = remaining_rows.saturating_sub(1);
+
+    let profile_width = area.width.saturating_sub(28).clamp(10, 56) as usize;
+    if *remaining_rows > 0 && !summary.highs.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("Temp arc    ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                profile_bar(&summary.highs, profile_width),
+                Style::default().fg(theme.accent),
+            ),
+            Span::raw(" "),
+            Span::styled(
+                summary.week_thermal.clone(),
+                Style::default().fg(theme.accent),
+            ),
+        ]));
+        *remaining_rows = remaining_rows.saturating_sub(1);
+    }
+    if *remaining_rows > 0 && !summary.precip.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("Precip lane ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                profile_bar(&summary.precip, profile_width),
+                Style::default().fg(theme.info),
+            ),
+            Span::raw(" "),
+            Span::styled(
+                format!("{:.1}mm", summary.precip_total),
+                Style::default().fg(theme.info),
+            ),
+        ]));
+        *remaining_rows = remaining_rows.saturating_sub(1);
+    }
+    if *remaining_rows > 0 && !summary.gusts.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("Wind lane   ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                profile_bar(&summary.gusts, profile_width),
+                Style::default().fg(theme.warning),
+            ),
+            Span::raw(" "),
+            Span::styled(
+                summary.breeziest_txt.clone(),
+                Style::default().fg(theme.warning),
+            ),
+        ]));
+        *remaining_rows = remaining_rows.saturating_sub(1);
+    }
+}
+
+fn append_day_cues(
+    lines: &mut Vec<Line<'static>>,
+    remaining_rows: &mut usize,
+    bundle: &ForecastBundle,
+    theme: crate::ui::theme::Theme,
+) {
+    if *remaining_rows < 2 {
+        return;
+    }
+
+    lines.push(Line::from(Span::styled(
+        "Day cues",
+        Style::default()
+            .fg(theme.muted_text)
+            .add_modifier(Modifier::BOLD),
+    )));
+    *remaining_rows = remaining_rows.saturating_sub(1);
+
+    let cue_rows = (*remaining_rows).min(bundle.daily.len());
+    for day in bundle.daily.iter().take(cue_rows) {
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("{:>3} ", day.date.format("%a")),
+                Style::default().fg(theme.muted_text),
+            ),
+            Span::styled(day_cue(day), Style::default().fg(theme.text)),
+        ]));
+    }
+    *remaining_rows = remaining_rows.saturating_sub(cue_rows);
+}
+
+fn append_compact_profiles(
+    lines: &mut Vec<Line<'static>>,
+    remaining_rows: usize,
+    area: Rect,
+    summary: &WeekSummaryData,
+    theme: crate::ui::theme::Theme,
+) {
+    if remaining_rows == 0 || area.width < 32 {
+        return;
+    }
+
+    let mut slots_left = remaining_rows;
+    let profile_width = area.width.saturating_sub(18).clamp(8, 40) as usize;
+    if slots_left > 0 && !summary.highs.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("Temp profile ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                profile_bar(&summary.highs, profile_width),
+                Style::default().fg(theme.accent),
+            ),
+        ]));
+        slots_left = slots_left.saturating_sub(1);
+    }
+    if slots_left > 0 && !summary.precip.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("Precip lane  ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                profile_bar(&summary.precip, profile_width),
+                Style::default().fg(theme.info),
+            ),
+        ]));
+        slots_left = slots_left.saturating_sub(1);
+    }
+    if slots_left > 0 && !summary.gusts.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("Wind lane    ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                profile_bar(&summary.gusts, profile_width),
+                Style::default().fg(theme.warning),
+            ),
+        ]));
+    }
+}
+
+fn day_cue(day: &DailyForecast) -> String {
     let precip = day.precipitation_sum_mm.unwrap_or(0.0);
     let snow = day.snowfall_sum_cm.unwrap_or(0.0);
     let gust = day.wind_gusts_10m_max.unwrap_or(0.0);
