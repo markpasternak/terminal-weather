@@ -246,9 +246,8 @@ fn settings_path() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     use crate::domain::weather::HourlyViewMode;
+    use tempfile::NamedTempFile;
 
     use super::{RecentLocation, RuntimeSettings, save_runtime_settings};
 
@@ -280,15 +279,11 @@ mod tests {
             ..RuntimeSettings::default()
         };
 
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("tw-settings-{unique}.json"));
-        save_runtime_settings(&path, &settings).expect("save settings");
-        let content = std::fs::read_to_string(&path).expect("read settings");
+        let file = NamedTempFile::new().expect("create temp settings file");
+        let path = file.path();
+        save_runtime_settings(path, &settings).expect("save settings");
+        let content = std::fs::read_to_string(path).expect("read settings");
         let restored: RuntimeSettings = serde_json::from_str(&content).expect("parse settings");
-        let _ = std::fs::remove_file(&path);
 
         assert_eq!(restored.hourly_view, HourlyViewMode::Chart);
     }
