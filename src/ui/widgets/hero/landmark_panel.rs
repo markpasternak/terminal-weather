@@ -29,77 +29,108 @@ pub fn render_landmark(
     }
 
     let scene = select_scene(state, area, is_day);
-
     let tint = tint_color(scene.tint, theme);
-    let scene_lines = scene.lines;
-    let label = &scene.label;
-    let context = &scene.context_line;
-
-    // Reserve rows for title bar and optional context line
     let has_title = area.height >= 6;
-    let has_context = context.is_some() && area.height >= 8;
-    let title_rows: u16 = u16::from(has_title);
-    let context_rows: u16 = u16::from(has_context);
+    let has_context = scene.context_line.is_some() && area.height >= 8;
+    render_title_bar(frame, area, has_title, &scene.label, theme);
+    render_scene_content(
+        frame,
+        area,
+        &scene.lines,
+        SceneRenderContext {
+            has_title,
+            has_context,
+            theme,
+            tint,
+            visual: state.settings.hero_visual,
+        },
+    );
+    render_context_bar(
+        frame,
+        area,
+        has_context,
+        scene.context_line.as_deref(),
+        theme,
+    );
+}
 
-    // Render title bar
-    if has_title {
-        let title_area = Rect {
-            x: area.x,
-            y: area.y,
-            width: area.width,
-            height: 1,
-        };
-        let hint = "‹V›";
-        let label_max = area.width as usize - hint.len() - 2;
-        let truncated_label: String = label.chars().take(label_max).collect();
-        let pad = area
-            .width
-            .saturating_sub((truncated_label.chars().count() + hint.len()) as u16);
-        let title_line = Line::from(vec![
-            Span::styled(truncated_label, Style::default().fg(theme.muted_text)),
-            Span::raw(" ".repeat(pad.saturating_sub(1) as usize)),
-            Span::styled(hint.to_string(), Style::default().fg(theme.muted_text)),
-        ]);
-        frame.render_widget(Paragraph::new(Text::from(title_line)), title_area);
+#[derive(Clone, Copy)]
+struct SceneRenderContext {
+    has_title: bool,
+    has_context: bool,
+    theme: Theme,
+    tint: Color,
+    visual: HeroVisualArg,
+}
+
+fn render_title_bar(frame: &mut Frame, area: Rect, has_title: bool, label: &str, theme: Theme) {
+    if !has_title {
+        return;
     }
+    let title_area = Rect {
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: 1,
+    };
+    let hint = "‹V›";
+    let label_max = area.width as usize - hint.len() - 2;
+    let truncated_label: String = label.chars().take(label_max).collect();
+    let pad = area
+        .width
+        .saturating_sub((truncated_label.chars().count() + hint.len()) as u16);
+    let title_line = Line::from(vec![
+        Span::styled(truncated_label, Style::default().fg(theme.muted_text)),
+        Span::raw(" ".repeat(pad.saturating_sub(1) as usize)),
+        Span::styled(hint.to_string(), Style::default().fg(theme.muted_text)),
+    ]);
+    frame.render_widget(Paragraph::new(Text::from(title_line)), title_area);
+}
 
-    // Render scene content
+fn render_scene_content(
+    frame: &mut Frame,
+    area: Rect,
+    scene_lines: &[String],
+    ctx: SceneRenderContext,
+) {
+    let title_rows = u16::from(ctx.has_title);
+    let context_rows = u16::from(ctx.has_context);
     let scene_area = Rect {
         x: area.x,
         y: area.y + title_rows,
         width: area.width,
         height: area.height.saturating_sub(title_rows + context_rows),
     };
+    let lines = scene_lines
+        .iter()
+        .map(|line| colorize_scene_line(line, ctx.theme, ctx.tint, ctx.visual))
+        .collect::<Vec<_>>();
+    let text = Text::from(lines).patch_style(Style::default().fg(ctx.tint));
+    frame.render_widget(Paragraph::new(text), scene_area);
+}
 
-    let mut lines = Vec::new();
-    for line in scene_lines {
-        lines.push(colorize_scene_line(
-            &line,
-            theme,
-            tint,
-            state.settings.hero_visual,
-        ));
-    }
-
-    let text = Text::from(lines).patch_style(Style::default().fg(tint));
-    let paragraph = Paragraph::new(text);
-    frame.render_widget(paragraph, scene_area);
-
-    // Render context line
-    if has_context && let Some(ctx_text) = context {
-        let context_area = Rect {
-            x: area.x,
-            y: area.y + area.height - 1,
-            width: area.width,
-            height: 1,
-        };
-        let ctx_truncated: String = ctx_text.chars().take(area.width as usize).collect();
-        let context_line = Line::from(Span::styled(
-            ctx_truncated,
-            Style::default().fg(theme.muted_text),
-        ));
-        frame.render_widget(Paragraph::new(Text::from(context_line)), context_area);
-    }
+fn render_context_bar(
+    frame: &mut Frame,
+    area: Rect,
+    has_context: bool,
+    context: Option<&str>,
+    theme: Theme,
+) {
+    let Some(ctx_text) = context.filter(|_| has_context) else {
+        return;
+    };
+    let context_area = Rect {
+        x: area.x,
+        y: area.y + area.height - 1,
+        width: area.width,
+        height: 1,
+    };
+    let ctx_truncated: String = ctx_text.chars().take(area.width as usize).collect();
+    let context_line = Line::from(Span::styled(
+        ctx_truncated,
+        Style::default().fg(theme.muted_text),
+    ));
+    frame.render_widget(Paragraph::new(Text::from(context_line)), context_area);
 }
 
 fn select_scene(
@@ -256,15 +287,21 @@ fn char_in(ch: char, set: &[char]) -> bool {
 }
 
 fn scene_char_color_sky(ch: char, theme: Theme, base_tint: Color) -> Color {
-    match ch {
-        '◉' | '☀' | '○' | '◑' | '◐' | '◔' | '◕' | '◖' | '◗' | '●' | '✶' => {
-            theme.warning
-        }
-        '█' | '▓' | '▒' | '░' => theme.info,
-        '*' | '·' | '─' | '~' | '/' | '╭' | '╮' => theme.landmark_cool,
-        '↑' | '↓' => theme.warning,
-        _ if ch.is_ascii_digit() || ch == ':' => theme.text,
-        _ => base_tint,
+    if char_in(
+        ch,
+        &[
+            '◉', '☀', '○', '◑', '◐', '◔', '◕', '◖', '◗', '●', '✶', '↑', '↓',
+        ],
+    ) {
+        theme.warning
+    } else if char_in(ch, &['█', '▓', '▒', '░']) {
+        theme.info
+    } else if char_in(ch, &['*', '·', '─', '~', '/', '╭', '╮']) {
+        theme.landmark_cool
+    } else if ch.is_ascii_digit() || ch == ':' {
+        theme.text
+    } else {
+        base_tint
     }
 }
 

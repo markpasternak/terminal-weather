@@ -140,20 +140,25 @@ fn draw_arc(canvas: &mut [Vec<char>], width: usize, top: usize, bottom: usize) {
     let mid_x = width / 2;
     for x in 0..width {
         let y = locate_arc_y(x, width, top, bottom);
-        // Graduated arc characters for better curve definition
-        let ch = if y == top || (y == top + 1 && (mid_x.wrapping_sub(x)) <= 2) {
-            '─' // flat at the apex
-        } else if x <= width / 6 || x >= width * 5 / 6 {
-            '·' // sparse dots at the edges (near horizon)
-        } else if x <= width / 3 {
-            '╭' // rising curve on the left
-        } else if x >= width * 2 / 3 {
-            '╮' // descending curve on the right
-        } else {
-            '·' // middle arc body
-        };
+        let ch = arc_glyph(x, y, width, top, mid_x);
         canvas[y][x] = ch;
     }
+}
+
+fn arc_glyph(x: usize, y: usize, width: usize, top: usize, mid_x: usize) -> char {
+    if y == top || (y == top + 1 && (mid_x.wrapping_sub(x)) <= 2) {
+        return '─';
+    }
+    if x <= width / 6 || x >= width * 5 / 6 {
+        return '·';
+    }
+    if x <= width / 3 {
+        return '╭';
+    }
+    if x >= width * 2 / 3 {
+        return '╮';
+    }
+    '·'
 }
 
 fn paint_sun_event_markers(

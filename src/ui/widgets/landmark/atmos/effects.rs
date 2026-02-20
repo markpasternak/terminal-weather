@@ -12,6 +12,29 @@ pub(super) fn paint_ambient_sky_life(canvas: &mut [Vec<char>], ctx: AmbientSkyLi
     paint_ambient_plane(canvas, ctx);
 }
 
+pub(super) fn paint_star_reflections(
+    canvas: &mut [Vec<char>],
+    width: usize,
+    horizon_y: usize,
+    height: usize,
+) {
+    // Mirror a sparse subset of stars from above the horizon to below it.
+    let reflect_depth = (height - horizon_y).min(horizon_y.saturating_sub(1));
+    if reflect_depth == 0 || width == 0 {
+        return;
+    }
+    for dy in 1..=reflect_depth {
+        let Some((source_y, target_y)) = reflection_rows(dy, horizon_y, height) else {
+            continue;
+        };
+        for x in (0..width).step_by(3) {
+            if should_reflect_star(canvas, source_y, target_y, x) {
+                canvas[target_y][x] = '·';
+            }
+        }
+    }
+}
+
 fn ambient_sky_life_allowed(ctx: AmbientSkyLifeContext) -> bool {
     ctx.animate
         && ctx.is_day
@@ -23,6 +46,20 @@ fn ambient_sky_life_allowed(ctx: AmbientSkyLifeContext) -> bool {
         && ctx.cloud_pct <= 85.0
         && ctx.width >= 32
         && ctx.horizon_y >= 6
+}
+
+fn reflection_rows(dy: usize, horizon_y: usize, height: usize) -> Option<(usize, usize)> {
+    let source_y = horizon_y.saturating_sub(dy);
+    let target_y = horizon_y + dy;
+    if source_y == 0 || target_y >= height {
+        None
+    } else {
+        Some((source_y, target_y))
+    }
+}
+
+fn should_reflect_star(canvas: &[Vec<char>], source_y: usize, target_y: usize, x: usize) -> bool {
+    matches!(canvas[source_y][x], '*' | '✦' | '✧') && matches!(canvas[target_y][x], '█' | '▅')
 }
 
 fn paint_ambient_birds(canvas: &mut [Vec<char>], ctx: AmbientSkyLifeContext, sky_rows: usize) {
