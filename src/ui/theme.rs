@@ -90,7 +90,7 @@ pub fn theme_for(
     };
 
     if capability == ColorCapability::Basic16 {
-        return theme_for_basic16(mode, category, top, bottom, capability);
+        return theme_for_basic16(mode, category, is_day, top, bottom, capability);
     }
 
     theme_for_extended(top, bottom, accent_seed, capability)
@@ -122,12 +122,13 @@ fn preset_theme_seed(mode: ThemeArg) -> ThemeSeed {
 fn theme_for_basic16(
     mode: ThemeArg,
     category: WeatherCategory,
+    is_day: bool,
     top: (u8, u8, u8),
     bottom: (u8, u8, u8),
     capability: ColorCapability,
 ) -> Theme {
     if mode == ThemeArg::Auto {
-        return auto_basic16_theme(category, capability);
+        return auto_basic16_theme(category, is_day, capability);
     }
     explicit_basic16_theme(mode, top, bottom, capability)
 }
@@ -150,17 +151,8 @@ struct Basic16Semantics {
     landmark_cool: Color,
 }
 
-fn auto_basic16_gradient(category: WeatherCategory) -> ((u8, u8, u8), (u8, u8, u8)) {
-    let top = (0, 0, 0);
-    let bottom = match category {
-        WeatherCategory::Clear => (0, 32, 72),
-        WeatherCategory::Cloudy => (25, 30, 35),
-        WeatherCategory::Rain => (0, 22, 56),
-        WeatherCategory::Snow => (28, 38, 56),
-        WeatherCategory::Fog => (30, 30, 30),
-        WeatherCategory::Thunder => (24, 0, 44),
-        WeatherCategory::Unknown => (20, 24, 32),
-    };
+fn auto_basic16_gradient(category: WeatherCategory, is_day: bool) -> ((u8, u8, u8), (u8, u8, u8)) {
+    let (top, bottom, _) = auto_theme_seed(category, is_day);
     (top, bottom)
 }
 
@@ -210,15 +202,23 @@ fn basic16_semantics(is_light_theme: bool) -> Basic16Semantics {
     }
 }
 
-fn auto_basic16_theme(category: WeatherCategory, capability: ColorCapability) -> Theme {
-    let (top, bottom) = auto_basic16_gradient(category);
+fn auto_basic16_theme(
+    category: WeatherCategory,
+    is_day: bool,
+    capability: ColorCapability,
+) -> Theme {
+    let (top, bottom) = auto_basic16_gradient(category, is_day);
     Theme {
         top: quantize_rgb(top, capability),
         bottom: quantize_rgb(bottom, capability),
         surface: Color::Black,
         surface_alt: Color::DarkGray,
         popup_surface: Color::Blue,
-        accent: Color::Cyan,
+        accent: if is_day {
+            Color::Cyan
+        } else {
+            Color::LightBlue
+        },
         text: Color::White,
         muted_text: Color::Gray,
         popup_text: Color::White,

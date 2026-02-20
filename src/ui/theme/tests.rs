@@ -1,4 +1,4 @@
-use super::data::ALL_NON_AUTO_THEMES;
+use super::data::{ALL_NON_AUTO_THEMES, AUTO_THEME_SEEDS};
 use super::*;
 
 fn as_rgb(color: Color) -> (u8, u8, u8) {
@@ -33,17 +33,62 @@ fn basic16_explicit_themes_are_distinct() {
 #[test]
 fn auto_basic16_gradient_matches_category_map() {
     assert_eq!(
-        auto_basic16_gradient(WeatherCategory::Clear),
-        ((0, 0, 0), (0, 32, 72))
+        auto_basic16_gradient(WeatherCategory::Clear, true),
+        ((13, 53, 102), (30, 102, 158))
     );
     assert_eq!(
-        auto_basic16_gradient(WeatherCategory::Rain),
-        ((0, 0, 0), (0, 22, 56))
+        auto_basic16_gradient(WeatherCategory::Rain, true),
+        ((17, 47, 88), (32, 73, 126))
     );
     assert_eq!(
-        auto_basic16_gradient(WeatherCategory::Unknown),
-        ((0, 0, 0), (20, 24, 32))
+        auto_basic16_gradient(WeatherCategory::Unknown, false),
+        ((19, 24, 35), (31, 39, 53))
     );
+}
+
+#[test]
+fn auto_basic16_clear_day_and_night_are_distinct() {
+    let day = theme_for(
+        WeatherCategory::Clear,
+        true,
+        ColorCapability::Basic16,
+        ThemeArg::Auto,
+    );
+    let night = theme_for(
+        WeatherCategory::Clear,
+        false,
+        ColorCapability::Basic16,
+        ThemeArg::Auto,
+    );
+    assert_ne!(day.accent, night.accent);
+}
+
+#[test]
+fn auto_theme_seed_matrix_is_complete_and_unique() {
+    let categories = [
+        WeatherCategory::Clear,
+        WeatherCategory::Cloudy,
+        WeatherCategory::Rain,
+        WeatherCategory::Snow,
+        WeatherCategory::Fog,
+        WeatherCategory::Thunder,
+        WeatherCategory::Unknown,
+    ];
+
+    for category in categories {
+        for is_day in [true, false] {
+            let count = AUTO_THEME_SEEDS
+                .iter()
+                .filter(|((candidate_category, candidate_is_day), _)| {
+                    *candidate_category == category && *candidate_is_day == is_day
+                })
+                .count();
+            assert_eq!(
+                count, 1,
+                "expected one AUTO_THEME_SEEDS entry for {category:?}, is_day={is_day}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -210,6 +255,12 @@ fn always_mode_bypasses_no_color() {
         Some("24bit"),
         Some("1"),
     );
+    assert_eq!(capability, ColorCapability::TrueColor);
+}
+
+#[test]
+fn auto_mode_uses_term_direct_as_truecolor_hint() {
+    let capability = detect_color_capability_from(ColorArg::Auto, Some("xterm-direct"), None, None);
     assert_eq!(capability, ColorCapability::TrueColor);
 }
 
