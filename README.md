@@ -263,6 +263,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic
 ./scripts/static-analysis-gate.sh              # cyclomatic/cognitive/MI thresholds
+./scripts/codacy-complexity-gate.sh            # Codacy-style complexity thresholds
 cargo check --all-targets --all-features
 cargo test --all --all-features
 cargo build --release
@@ -278,6 +279,22 @@ Static-analysis gate policy (`./scripts/static-analysis-gate.sh`):
   - `TW_CYCLOMATIC_MAX`
   - `TW_COGNITIVE_MAX`
   - `TW_MI_MIN`
+
+Codacy complexity parity (`./scripts/codacy-complexity-gate.sh`):
+- analyzes `src/` + `tests/` with `rust-code-analysis-cli`
+- tracks these thresholds:
+  - file NLOC: medium `> 500`, critical `> 1000`
+  - function NLOC: medium `> 50`, critical `> 100`
+  - cyclomatic complexity: medium `> 8`, critical `> 12`
+  - function parameter count: medium `> 8`, critical `> 12`
+- default fail policy:
+  - fail on critical violations (`TW_FAIL_ON_CRITICAL=1`)
+  - report-only for medium violations (`TW_FAIL_ON_MEDIUM=0`)
+- override thresholds locally with:
+  - `TW_FILE_NLOC_MEDIUM_MAX`, `TW_FILE_NLOC_CRITICAL_MAX`
+  - `TW_FUNCTION_NLOC_MEDIUM_MAX`, `TW_FUNCTION_NLOC_CRITICAL_MAX`
+  - `TW_CYCLOMATIC_MEDIUM_MAX`, `TW_CYCLOMATIC_CRITICAL_MAX`
+  - `TW_PARAM_MEDIUM_MAX`, `TW_PARAM_CRITICAL_MAX`
 
 ## Release Automation (Maintainers)
 This repository uses `cargo-dist` to build release artifacts and update Homebrew formulae.

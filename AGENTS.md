@@ -28,6 +28,7 @@ cargo fmt --all -- --check                       # verify formatting (CI gate)
 cargo clippy --all-targets --all-features -- -D warnings   # lint, zero warnings
 cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic  # pedantic lint gate
 ./scripts/static-analysis-gate.sh                # complexity/MI static gate
+./scripts/codacy-complexity-gate.sh              # Codacy-style complexity parity (critical fail by default)
 cargo check --all-targets --all-features         # type-check
 cargo test --all --all-features                  # full test suite
 cargo build --release                            # release build
@@ -44,6 +45,13 @@ Static gate thresholds (enforced by CI and local script):
 - cognitive complexity: `< 30`
 - maintainability index (MI): `>= 30`
 - scope: all functions in `src/` + `tests/`
+
+Codacy complexity parity thresholds (`scripts/codacy-complexity-gate.sh`):
+- file NLOC: medium `> 500`, critical `> 1000`
+- function NLOC: medium `> 50`, critical `> 100`
+- cyclomatic complexity: medium `> 8`, critical `> 12`
+- function parameter count: medium `> 8`, critical `> 12`
+- default fail policy: fail critical (`TW_FAIL_ON_CRITICAL=1`), report medium (`TW_FAIL_ON_MEDIUM=0`)
 
 For fast iteration during development:
 ```bash
