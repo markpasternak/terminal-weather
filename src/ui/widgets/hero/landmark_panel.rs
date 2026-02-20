@@ -68,10 +68,7 @@ pub fn render_landmark(
         LandmarkTint::Cool => theme.landmark_cool,
         LandmarkTint::Neutral => theme.landmark_neutral,
     };
-    let mut scene_lines = scene.lines;
-    if should_show_scene_logo(state.settings.hero_visual, area) {
-        overlay_scene_logo(&mut scene_lines);
-    }
+    let scene_lines = scene.lines;
 
     let mut lines = Vec::new();
     for line in scene_lines {
@@ -86,46 +83,6 @@ pub fn render_landmark(
     let text = Text::from(lines).patch_style(Style::default().fg(tint));
     let paragraph = Paragraph::new(text);
     frame.render_widget(paragraph, area);
-}
-
-fn overlay_scene_logo(scene_lines: &mut [String]) {
-    let height = scene_lines.len();
-    if height < 4 {
-        return;
-    }
-    let width = scene_lines.first().map_or(0, |s| s.chars().count());
-    if width < 30 {
-        return;
-    }
-
-    let logo_y = height.saturating_sub(4);
-    let right_margin = 2;
-    let logo_width = 14;
-
-    if logo_y == 0 {
-        return;
-    }
-
-    let start_x = width.saturating_sub(logo_width + right_margin);
-
-    let logo = [" ┌───────┐ ", " │ ⌂ ⌂ ⌂ │ ", " └───────┘ "];
-
-    for (i, row) in logo.iter().enumerate() {
-        let line_y = logo_y + i;
-        if line_y < scene_lines.len() {
-            let mut chars: Vec<char> = scene_lines[line_y].chars().collect();
-            for (j, ch) in row.chars().enumerate() {
-                if start_x + j < chars.len() && ch != ' ' {
-                    chars[start_x + j] = ch;
-                }
-            }
-            scene_lines[line_y] = chars.into_iter().collect();
-        }
-    }
-}
-
-fn should_show_scene_logo(visual: HeroVisualArg, area: Rect) -> bool {
-    matches!(visual, HeroVisualArg::AtmosCanvas) && area.width >= 56 && area.height >= 12
 }
 
 fn colorize_scene_line(
