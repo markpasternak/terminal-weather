@@ -13,6 +13,7 @@ use crate::ui::widgets::landmark::compact::compact_condition_scene;
 use crate::ui::widgets::landmark::shared::{canvas_to_lines, paint_char};
 use crate::ui::widgets::landmark::{LandmarkScene, scene_name, tint_for_category};
 
+#[must_use]
 pub fn scene_for_weather(
     bundle: &ForecastBundle,
     frame_tick: u64,
@@ -28,79 +29,9 @@ pub fn scene_for_weather(
         return compact_condition_scene(category, bundle.current.is_day, width, height);
     }
 
-    let temps = bundle
-        .hourly
-        .iter()
-        .take(24)
-        .filter_map(|hour| hour.temperature_2m_c)
-        .collect::<Vec<_>>();
-    if temps.len() < 2 {
+    let Some(canvas) = build_atmos_canvas(bundle, frame_tick, animate, category, w, h) else {
         return compact_condition_scene(category, bundle.current.is_day, width, height);
-    }
-
-    let cloud_pct = bundle.current.cloud_cover.clamp(0.0, 100.0);
-    let precip_mm = bundle.current.precipitation_mm.max(0.0);
-    let wind_speed = bundle.current.wind_speed_10m.max(0.0);
-    let phase = animation_phase(animate, frame_tick);
-
-    let mut canvas = vec![vec![' '; w]; h];
-
-    // --- Layer 1: Horizon line and terrain ---
-    let horizon_y = (h.saturating_mul(72) / 100).clamp(4, h.saturating_sub(2));
-    let terrain_amp = (horizon_y / 4).clamp(1, 6);
-    let min_temp = temps.iter().copied().fold(f32::INFINITY, f32::min);
-    let max_temp = temps.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-    let span = (max_temp - min_temp).max(0.2);
-
-    let terrain_top = compute_terrain(w, &temps, min_temp, span, horizon_y, terrain_amp);
-    paint_terrain(&mut canvas, &terrain_top, horizon_y, w, h);
-
-    // --- Layer 2: Atmospheric haze near horizon ---
-    paint_horizon_haze(&mut canvas, horizon_y, w);
-
-    // --- Layer 3: Sky content ---
-    if is_night(bundle) {
-        paint_starfield(&mut canvas, w, horizon_y, phase);
-    }
-
-    // Celestial body
-    let hour = bundle
-        .hourly
-        .first()
-        .map_or(12, |hour| hour.time.hour() as usize)
-        % 24;
-    place_celestial_body(&mut canvas, bundle.current.is_day, hour, horizon_y, w);
-
-    // --- Layer 4: Clouds ---
-    paint_cloud_layer(&mut canvas, cloud_pct, wind_speed, phase, horizon_y, w);
-    paint_ambient_sky_life(
-        &mut canvas,
-        AmbientSkyLifeContext {
-            category,
-            is_day: bundle.current.is_day,
-            cloud_pct,
-            wind_speed,
-            phase,
-            animate,
-            horizon_y,
-            width: w,
-        },
-    );
-
-    // --- Layer 5: Weather phenomena ---
-    paint_weather_effects(
-        &mut canvas,
-        WeatherEffectsContext {
-            category,
-            is_day: bundle.current.is_day,
-            weather_code: bundle.current.weather_code,
-            precip_mm,
-            phase,
-            horizon_y,
-            width: w,
-            height: h,
-        },
-    );
+    };
 
     LandmarkScene {
         label: format!(
@@ -110,6 +41,126 @@ pub fn scene_for_weather(
         lines: canvas_to_lines(canvas, w),
         tint: tint_for_category(category),
     }
+}
+
+fn build_atmos_canvas(
+    bundle: &ForecastBundle,
+    frame_tick: u64,
+    animate: bool,
+    category: WeatherCategory,
+    width: usize,
+    height: usize,
+) -> Option<Vec<Vec<char>>> {
+    let temps = bundle
+        .hourly
+        .iter()
+        .take(24)
+        .filter_map(|hour| hour.temperature_2m_c)
+        .collect::<Vec<_>>();
+    if temps.len() < 2 {
+        return None;
+    }
+
+    let mut canvas = vec![vec![' '; width]; height];
+    let phase = animation_phase(animate, frame_tick);
+    let horizon_y = paint_base_atmos_layers(&mut canvas, bundle, &temps, phase, width, height);
+    paint_effect_atmos_layers(
+        &mut canvas,
+        bundle,
+        AtmosLayerContext {
+            category,
+            animate,
+            phase,
+            horizon_y,
+            width,
+            height,
+        },
+    );
+    Some(canvas)
+}
+
+fn paint_base_atmos_layers(
+    canvas: &mut [Vec<char>],
+    bundle: &ForecastBundle,
+    temps: &[f32],
+    phase: usize,
+    width: usize,
+    height: usize,
+) -> usize {
+    let horizon_y = (height.saturating_mul(72) / 100).clamp(4, height.saturating_sub(2));
+    let terrain_amp = (horizon_y / 4).clamp(1, 6);
+    let min_temp = temps.iter().copied().fold(f32::INFINITY, f32::min);
+    let max_temp = temps.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let span = (max_temp - min_temp).max(0.2);
+
+    let terrain_top = compute_terrain(width, temps, min_temp, span, horizon_y, terrain_amp);
+    paint_terrain(canvas, &terrain_top, horizon_y, width, height);
+    paint_horizon_haze(canvas, horizon_y, width);
+    if is_night(bundle) {
+        paint_starfield(canvas, width, horizon_y, phase);
+    }
+
+    let hour = bundle
+        .hourly
+        .first()
+        .map_or(12, |hour| hour.time.hour() as usize)
+        % 24;
+    place_celestial_body(canvas, bundle.current.is_day, hour, horizon_y, width);
+    horizon_y
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AtmosLayerContext {
+    category: WeatherCategory,
+    animate: bool,
+    phase: usize,
+    horizon_y: usize,
+    width: usize,
+    height: usize,
+}
+
+fn paint_effect_atmos_layers(
+    canvas: &mut [Vec<char>],
+    bundle: &ForecastBundle,
+    ctx: AtmosLayerContext,
+) {
+    let cloud_pct = bundle.current.cloud_cover.clamp(0.0, 100.0);
+    let wind_speed = bundle.current.wind_speed_10m.max(0.0);
+    paint_cloud_layer(
+        canvas,
+        cloud_pct,
+        wind_speed,
+        ctx.phase,
+        ctx.horizon_y,
+        ctx.width,
+    );
+    paint_ambient_sky_life(
+        canvas,
+        AmbientSkyLifeContext {
+            category: ctx.category,
+            is_day: bundle.current.is_day,
+            cloud_pct,
+            wind_speed,
+            phase: ctx.phase,
+            animate: ctx.animate,
+            horizon_y: ctx.horizon_y,
+            width: ctx.width,
+        },
+    );
+
+    paint_weather_effects(
+        canvas,
+        WeatherEffectsContext {
+            category: ctx.category,
+            is_day: bundle.current.is_day,
+            weather_code: bundle.current.weather_code,
+            precip_mm: bundle.current.precipitation_mm.max(0.0),
+            phase: ctx.phase,
+            horizon_y: ctx.horizon_y,
+            width: ctx.width,
+            height: ctx.height,
+        },
+    );
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -26,6 +26,25 @@ const MIN_RENDER_HEIGHT: u16 = 10;
 
 pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     let area = frame.area();
+    let theme = theme_for_state(state);
+
+    if area.width < MIN_RENDER_WIDTH || area.height < MIN_RENDER_HEIGHT {
+        render_small_terminal_hint(frame, area, theme);
+        return;
+    }
+
+    let content_area = content_area_with_footer(frame, area, state);
+    let alerts = state
+        .weather
+        .as_ref()
+        .map(|bundle| crate::domain::alerts::scan_alerts(bundle, state.units))
+        .unwrap_or_default();
+    render_main_panels(frame, content_area, state, cli, &alerts);
+    render_status_badge(frame, content_area, state);
+    render_modal_overlay(frame, area, state, cli);
+}
+
+fn theme_for_state(state: &AppState) -> crate::ui::theme::Theme {
     let capability = detect_color_capability(state.color_mode);
     let (category, is_day) =
         state
@@ -37,60 +56,61 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
                     w.current.is_day,
                 )
             });
-    let theme = theme_for(category, is_day, capability, state.settings.theme);
+    theme_for(category, is_day, capability, state.settings.theme)
+}
 
-    if area.width < MIN_RENDER_WIDTH || area.height < MIN_RENDER_HEIGHT {
-        let mut lines: Vec<Line> = compact_logo_lines(area.width.saturating_sub(2))
-            .into_iter()
-            .map(|line| {
-                Line::from(line).style(
-                    Style::default()
-                        .fg(theme.accent)
-                        .add_modifier(Modifier::BOLD),
-                )
-            })
-            .collect();
-        lines.push(Line::from(""));
-        lines.push(Line::from("Too small for full render"));
-        lines.push(Line::from(format!(
-            "Need {MIN_RENDER_WIDTH}x{MIN_RENDER_HEIGHT}+"
-        )));
+fn render_small_terminal_hint(frame: &mut Frame, area: Rect, theme: crate::ui::theme::Theme) {
+    let mut lines: Vec<Line> = compact_logo_lines(area.width.saturating_sub(2))
+        .into_iter()
+        .map(|line| {
+            Line::from(line).style(
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            )
+        })
+        .collect();
+    lines.push(Line::from(""));
+    lines.push(Line::from("Too small for full render"));
+    lines.push(Line::from(format!(
+        "Need {MIN_RENDER_WIDTH}x{MIN_RENDER_HEIGHT}+"
+    )));
 
-        let warning = Paragraph::new(lines)
-            .style(Style::default().fg(theme.text).bg(theme.surface))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("terminal weather")
-                    .style(Style::default().fg(theme.text).bg(theme.surface))
-                    .border_style(Style::default().fg(theme.border).bg(theme.surface)),
-            );
-        frame.render_widget(warning, area);
-        return;
-    }
+    let warning = Paragraph::new(lines)
+        .style(Style::default().fg(theme.text).bg(theme.surface))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("terminal weather")
+                .style(Style::default().fg(theme.text).bg(theme.surface))
+                .border_style(Style::default().fg(theme.border).bg(theme.surface)),
+        );
+    frame.render_widget(warning, area);
+}
 
+fn content_area_with_footer(frame: &mut Frame, area: Rect, state: &AppState) -> Rect {
     let overlays_open = has_modal_overlay(state);
     let show_footer = !overlays_open && area.height > MIN_RENDER_HEIGHT;
-    let content_area = if show_footer {
-        let sections = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(1), Constraint::Length(1)])
-            .split(area);
-        render_footer(frame, sections[1], state);
-        sections[0]
-    } else {
-        area
-    };
+    if !show_footer {
+        return area;
+    }
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(area);
+    render_footer(frame, sections[1], state);
+    sections[0]
+}
 
+fn render_main_panels(
+    frame: &mut Frame,
+    content_area: Rect,
+    state: &AppState,
+    cli: &Cli,
+    alerts: &[crate::domain::alerts::WeatherAlert],
+) {
     let constraints = panel_constraints(content_area, state.hourly_view_mode);
-
-    // Scan for alerts
-    let alerts = state
-        .weather
-        .as_ref()
-        .map(|bundle| crate::domain::alerts::scan_alerts(bundle, state.units))
-        .unwrap_or_default();
-    let alert_height = crate::ui::widgets::alerts::alert_row_height(&alerts);
+    let alert_height = crate::ui::widgets::alerts::alert_row_height(alerts);
 
     if alert_height > 0 {
         let chunks = Layout::default()
@@ -104,22 +124,22 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
             .split(content_area);
 
         widgets::hero::render(frame, chunks[0], state, cli);
-        widgets::alerts::render(frame, chunks[1], &alerts, state);
+        widgets::alerts::render(frame, chunks[1], alerts, state);
         widgets::hourly::render(frame, chunks[2], state, cli);
         widgets::daily::render(frame, chunks[3], state, cli);
-    } else {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(constraints)
-            .split(content_area);
-
-        widgets::hero::render(frame, chunks[0], state, cli);
-        widgets::hourly::render(frame, chunks[1], state, cli);
-        widgets::daily::render(frame, chunks[2], state, cli);
+        return;
     }
 
-    render_status_badge(frame, content_area, state);
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(content_area);
+    widgets::hero::render(frame, chunks[0], state, cli);
+    widgets::hourly::render(frame, chunks[1], state, cli);
+    widgets::daily::render(frame, chunks[2], state, cli);
+}
 
+fn render_modal_overlay(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
     if state.mode == AppMode::SelectingLocation {
         widgets::selector::render(frame, centered_rect(70, 60, area), state);
     } else if state.settings_open {
@@ -228,70 +248,85 @@ fn panel_constraints(content_area: Rect, requested_hourly_mode: HourlyViewMode) 
         requested_hourly_mode == HourlyViewMode::Table || content_area.width < 70;
 
     if use_table_layout {
-        if content_area.height >= 60 {
-            [
-                Constraint::Percentage(52),
-                Constraint::Percentage(18),
-                Constraint::Percentage(30),
-            ]
-        } else if content_area.height >= 52 {
-            [
-                Constraint::Percentage(54),
-                Constraint::Percentage(18),
-                Constraint::Percentage(28),
-            ]
-        } else if content_area.height >= 40 {
-            [
-                Constraint::Percentage(50),
-                Constraint::Percentage(18),
-                Constraint::Percentage(32),
-            ]
-        } else if content_area.height >= 32 {
-            [
-                Constraint::Percentage(46),
-                Constraint::Percentage(20),
-                Constraint::Percentage(34),
-            ]
+        return table_constraints(content_area.height);
+    }
+
+    if let Some(hourly_len) = adaptive_hourly_length(content_area.height, requested_hourly_mode) {
+        let hero_min = if requested_hourly_mode == HourlyViewMode::Hybrid {
+            7
         } else {
-            [
-                Constraint::Percentage(42),
-                Constraint::Percentage(22),
-                Constraint::Percentage(36),
-            ]
-        }
-    } else if requested_hourly_mode == HourlyViewMode::Hybrid && content_area.height >= 22 {
-        let hourly_len = if content_area.height >= 36 {
+            6
+        };
+        return [
+            Constraint::Min(hero_min),
+            Constraint::Length(hourly_len),
+            Constraint::Min(6),
+        ];
+    }
+
+    default_constraints()
+}
+
+fn table_constraints(height: u16) -> [Constraint; 3] {
+    if height >= 60 {
+        [
+            Constraint::Percentage(52),
+            Constraint::Percentage(18),
+            Constraint::Percentage(30),
+        ]
+    } else if height >= 52 {
+        [
+            Constraint::Percentage(54),
+            Constraint::Percentage(18),
+            Constraint::Percentage(28),
+        ]
+    } else if height >= 40 {
+        [
+            Constraint::Percentage(50),
+            Constraint::Percentage(18),
+            Constraint::Percentage(32),
+        ]
+    } else if height >= 32 {
+        [
+            Constraint::Percentage(46),
+            Constraint::Percentage(20),
+            Constraint::Percentage(34),
+        ]
+    } else {
+        default_constraints()
+    }
+}
+
+fn adaptive_hourly_length(height: u16, mode: HourlyViewMode) -> Option<u16> {
+    if height < 22 {
+        return None;
+    }
+
+    match mode {
+        HourlyViewMode::Hybrid => Some(if height >= 36 {
             11
-        } else if content_area.height >= 28 {
+        } else if height >= 28 {
             10
         } else {
             9
-        };
-        [
-            Constraint::Min(7),
-            Constraint::Length(hourly_len),
-            Constraint::Min(6),
-        ]
-    } else if requested_hourly_mode == HourlyViewMode::Chart && content_area.height >= 22 {
-        let hourly_len = if content_area.height >= 36 {
+        }),
+        HourlyViewMode::Chart => Some(if height >= 36 {
             13
-        } else if content_area.height >= 28 {
+        } else if height >= 28 {
             11
         } else {
             10
-        };
-        [
-            Constraint::Min(6),
-            Constraint::Length(hourly_len),
-            Constraint::Min(6),
-        ]
-    } else {
-        [
-            Constraint::Percentage(42),
-            Constraint::Percentage(22),
-            Constraint::Percentage(36),
-        ]
+        }),
+        HourlyViewMode::Table => None,
     }
+}
+
+fn default_constraints() -> [Constraint; 3] {
+    [
+        Constraint::Percentage(42),
+        Constraint::Percentage(22),
+        Constraint::Percentage(36),
+    ]
 }
 
 fn has_modal_overlay(state: &AppState) -> bool {

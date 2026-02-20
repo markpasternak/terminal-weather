@@ -37,7 +37,19 @@ fn cli() -> Cli {
 }
 
 fn fixture_bundle(code: u8) -> ForecastBundle {
-    let location = Location {
+    let base_time = NaiveDateTime::parse_from_str("2026-02-12T10:00", "%Y-%m-%dT%H:%M").unwrap();
+    let base_date = NaiveDate::from_ymd_opt(2026, 2, 12).unwrap();
+    ForecastBundle {
+        location: fixture_location(),
+        current: fixture_current(code),
+        hourly: fixture_hourly(base_time, code),
+        daily: fixture_daily(base_date, code),
+        fetched_at: Utc::now(),
+    }
+}
+
+fn fixture_location() -> Location {
+    Location {
         name: "Stockholm".to_string(),
         latitude: 59.3293,
         longitude: 18.0686,
@@ -45,9 +57,11 @@ fn fixture_bundle(code: u8) -> ForecastBundle {
         admin1: Some("Stockholm".to_string()),
         timezone: Some("Europe/Stockholm".to_string()),
         population: Some(975_000),
-    };
+    }
+}
 
-    let current = CurrentConditions {
+fn fixture_current(code: u8) -> CurrentConditions {
+    CurrentConditions {
         temperature_2m_c: 7.2,
         relative_humidity_2m: 73.0,
         apparent_temperature_c: 5.8,
@@ -63,10 +77,11 @@ fn fixture_bundle(code: u8) -> ForecastBundle {
         is_day: true,
         high_today_c: Some(9.0),
         low_today_c: Some(3.0),
-    };
+    }
+}
 
-    let base_time = NaiveDateTime::parse_from_str("2026-02-12T10:00", "%Y-%m-%dT%H:%M").unwrap();
-    let hourly = (0..12)
+fn fixture_hourly(base_time: NaiveDateTime, code: u8) -> Vec<HourlyForecast> {
+    (0..12)
         .map(|idx| HourlyForecast {
             time: base_time + chrono::Duration::hours(i64::from(idx)),
             temperature_2m_c: Some(5.0 + (idx as f32 * 0.5)),
@@ -86,10 +101,11 @@ fn fixture_bundle(code: u8) -> ForecastBundle {
             cloud_cover_mid: Some(24.0 + idx as f32 * 1.3),
             cloud_cover_high: Some(36.0 + idx as f32 * 1.5),
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>()
+}
 
-    let base_date = NaiveDate::from_ymd_opt(2026, 2, 12).unwrap();
-    let daily = (0..7)
+fn fixture_daily(base_date: NaiveDate, code: u8) -> Vec<DailyForecast> {
+    (0..7)
         .map(|idx| DailyForecast {
             date: base_date + chrono::Duration::days(i64::from(idx)),
             weather_code: Some(code),
@@ -111,15 +127,7 @@ fn fixture_bundle(code: u8) -> ForecastBundle {
             daylight_duration_s: Some(9.2 * 3600.0 + idx as f32 * 140.0),
             sunshine_duration_s: Some(4.1 * 3600.0 + idx as f32 * 190.0),
         })
-        .collect::<Vec<_>>();
-
-    ForecastBundle {
-        location,
-        current,
-        hourly,
-        daily,
-        fetched_at: Utc::now(),
-    }
+        .collect::<Vec<_>>()
 }
 
 fn render_to_string(width: u16, height: u16, weather_code: u8) -> String {

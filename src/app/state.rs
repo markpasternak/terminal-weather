@@ -173,83 +173,21 @@ impl AppState {
     #[must_use]
     pub fn settings_entries(&self) -> Vec<SettingsEntry> {
         vec![
-            SettingsEntry {
-                label: "Units",
-                value: match self.settings.units {
-                    Units::Celsius => "Celsius".to_string(),
-                    Units::Fahrenheit => "Fahrenheit".to_string(),
-                },
-                editable: true,
-            },
-            SettingsEntry {
-                label: "Theme",
-                value: match self.settings.theme {
-                    ThemeArg::Auto => "Auto".to_string(),
-                    ThemeArg::Aurora => "Aurora".to_string(),
-                    ThemeArg::MidnightCyan => "Midnight Cyan".to_string(),
-                    ThemeArg::Aubergine => "Aubergine".to_string(),
-                    ThemeArg::Hoth => "Hoth".to_string(),
-                    ThemeArg::Monument => "Monument".to_string(),
-                    ThemeArg::Nord => "Nord".to_string(),
-                    ThemeArg::CatppuccinMocha => "Catppuccin Mocha".to_string(),
-                    ThemeArg::Mono => "Mono".to_string(),
-                    ThemeArg::HighContrast => "High contrast".to_string(),
-                    ThemeArg::Dracula => "Dracula".to_string(),
-                    ThemeArg::GruvboxMaterialDark => "Gruvbox Material".to_string(),
-                    ThemeArg::KanagawaWave => "Kanagawa Wave".to_string(),
-                    ThemeArg::AyuMirage => "Ayu Mirage".to_string(),
-                    ThemeArg::AyuLight => "Ayu Light".to_string(),
-                    ThemeArg::PoimandresStorm => "Poimandres Storm".to_string(),
-                    ThemeArg::SelenizedDark => "Selenized Dark".to_string(),
-                    ThemeArg::NoClownFiesta => "No Clown Fiesta".to_string(),
-                },
-                editable: true,
-            },
-            SettingsEntry {
-                label: "Motion",
-                value: match self.settings.motion {
-                    MotionSetting::Full => "Full".to_string(),
-                    MotionSetting::Reduced => "Reduced".to_string(),
-                    MotionSetting::Off => "Off".to_string(),
-                },
-                editable: true,
-            },
-            SettingsEntry {
-                label: "Thunder Flash",
-                value: if self.settings.no_flash {
-                    "Off".to_string()
-                } else {
-                    "On".to_string()
-                },
-                editable: true,
-            },
-            SettingsEntry {
-                label: "Icons",
-                value: match self.settings.icon_mode {
-                    IconMode::Unicode => "Unicode".to_string(),
-                    IconMode::Ascii => "ASCII".to_string(),
-                    IconMode::Emoji => "Emoji".to_string(),
-                },
-                editable: true,
-            },
-            SettingsEntry {
-                label: "Hourly View",
-                value: match self.hourly_view_mode {
-                    HourlyViewMode::Table => "Table".to_string(),
-                    HourlyViewMode::Hybrid => "Hybrid".to_string(),
-                    HourlyViewMode::Chart => "Chart".to_string(),
-                },
-                editable: true,
-            },
-            SettingsEntry {
-                label: "Hero Visual",
-                value: match self.settings.hero_visual {
-                    HeroVisualArg::AtmosCanvas => "Atmos Canvas".to_string(),
-                    HeroVisualArg::GaugeCluster => "Gauge Cluster".to_string(),
-                    HeroVisualArg::SkyObservatory => "Sky Observatory".to_string(),
-                },
-                editable: true,
-            },
+            settings_entry("Units", units_name(self.settings.units), true),
+            settings_entry("Theme", theme_name(self.settings.theme), true),
+            settings_entry("Motion", motion_name(self.settings.motion), true),
+            settings_entry(
+                "Thunder Flash",
+                if self.settings.no_flash { "Off" } else { "On" },
+                true,
+            ),
+            settings_entry("Icons", icon_mode_name(self.settings.icon_mode), true),
+            settings_entry("Hourly View", hourly_view_name(self.hourly_view_mode), true),
+            settings_entry(
+                "Hero Visual",
+                hero_visual_name(self.settings.hero_visual),
+                true,
+            ),
             SettingsEntry {
                 label: "Auto Refresh",
                 value: format!(
@@ -258,16 +196,8 @@ impl AppState {
                 ),
                 editable: true,
             },
-            SettingsEntry {
-                label: "Action",
-                value: "Refresh now".to_string(),
-                editable: false,
-            },
-            SettingsEntry {
-                label: "Panel",
-                value: "Close".to_string(),
-                editable: false,
-            },
+            settings_entry("Action", "Refresh now", false),
+            settings_entry("Panel", "Close", false),
         ]
     }
 
@@ -1138,6 +1068,76 @@ fn event_is_async(event: &AppEvent) -> bool {
         event,
         AppEvent::Bootstrap | AppEvent::TickRefresh | AppEvent::Input(_) | AppEvent::Demo(_)
     )
+}
+
+fn settings_entry(label: &'static str, value: &'static str, editable: bool) -> SettingsEntry {
+    SettingsEntry {
+        label,
+        value: value.to_string(),
+        editable,
+    }
+}
+
+fn units_name(units: Units) -> &'static str {
+    match units {
+        Units::Celsius => "Celsius",
+        Units::Fahrenheit => "Fahrenheit",
+    }
+}
+
+fn theme_name(theme: ThemeArg) -> &'static str {
+    match theme {
+        ThemeArg::Auto => "Auto",
+        ThemeArg::Aurora => "Aurora",
+        ThemeArg::MidnightCyan => "Midnight Cyan",
+        ThemeArg::Aubergine => "Aubergine",
+        ThemeArg::Hoth => "Hoth",
+        ThemeArg::Monument => "Monument",
+        ThemeArg::Nord => "Nord",
+        ThemeArg::CatppuccinMocha => "Catppuccin Mocha",
+        ThemeArg::Mono => "Mono",
+        ThemeArg::HighContrast => "High contrast",
+        ThemeArg::Dracula => "Dracula",
+        ThemeArg::GruvboxMaterialDark => "Gruvbox Material",
+        ThemeArg::KanagawaWave => "Kanagawa Wave",
+        ThemeArg::AyuMirage => "Ayu Mirage",
+        ThemeArg::AyuLight => "Ayu Light",
+        ThemeArg::PoimandresStorm => "Poimandres Storm",
+        ThemeArg::SelenizedDark => "Selenized Dark",
+        ThemeArg::NoClownFiesta => "No Clown Fiesta",
+    }
+}
+
+fn motion_name(motion: MotionSetting) -> &'static str {
+    match motion {
+        MotionSetting::Full => "Full",
+        MotionSetting::Reduced => "Reduced",
+        MotionSetting::Off => "Off",
+    }
+}
+
+fn icon_mode_name(mode: IconMode) -> &'static str {
+    match mode {
+        IconMode::Unicode => "Unicode",
+        IconMode::Ascii => "ASCII",
+        IconMode::Emoji => "Emoji",
+    }
+}
+
+fn hourly_view_name(mode: HourlyViewMode) -> &'static str {
+    match mode {
+        HourlyViewMode::Table => "Table",
+        HourlyViewMode::Hybrid => "Hybrid",
+        HourlyViewMode::Chart => "Chart",
+    }
+}
+
+fn hero_visual_name(mode: HeroVisualArg) -> &'static str {
+    match mode {
+        HeroVisualArg::AtmosCanvas => "Atmos Canvas",
+        HeroVisualArg::GaugeCluster => "Gauge Cluster",
+        HeroVisualArg::SkyObservatory => "Sky Observatory",
+    }
 }
 
 fn is_city_char(ch: char) -> bool {

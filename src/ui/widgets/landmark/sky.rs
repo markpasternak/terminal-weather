@@ -40,48 +40,59 @@ pub fn scene_for_sky_observatory(
         return compact_condition_scene(category, bundle.current.is_day, width, height);
     }
 
-    let mut canvas = vec![vec![' '; w]; h];
-    let (arc_top, arc_bottom) = arc_bounds(h);
-    draw_arc(&mut canvas, w, arc_top, arc_bottom);
+    let canvas = build_sky_observatory_canvas(bundle, frame_tick, animate, w, h);
+    LandmarkScene {
+        label: "Sky Observatory · Sun/Moon Arc".to_string(),
+        lines: canvas_to_lines(canvas, w),
+        tint: tint_for_category(category),
+    }
+}
+
+#[allow(clippy::needless_range_loop)]
+fn build_sky_observatory_canvas(
+    bundle: &ForecastBundle,
+    frame_tick: u64,
+    animate: bool,
+    width: usize,
+    height: usize,
+) -> Vec<Vec<char>> {
+    let mut canvas = vec![vec![' '; width]; height];
+    let (arc_top, arc_bottom) = arc_bounds(height);
+    draw_arc(&mut canvas, width, arc_top, arc_bottom);
 
     let (sunrise_h, sunset_h) = sun_window(bundle);
     let now_h = current_hour(bundle);
     let day_span = (sunset_h - sunrise_h).max(0.1);
     let progress = ((now_h - sunrise_h) / day_span).clamp(0.0, 1.0);
-    let marker_x = (progress * (w.saturating_sub(1)) as f32).round() as usize;
-
-    let marker_y = locate_arc_y(marker_x, w, arc_top, arc_bottom);
+    let marker_x = (progress * (width.saturating_sub(1)) as f32).round() as usize;
+    let marker_y = locate_arc_y(marker_x, width, arc_top, arc_bottom);
     draw_celestial_icon(
         &mut canvas,
         marker_x,
         marker_y,
         bundle.current.is_day,
         moon_phase(bundle),
-        w,
-        h,
+        width,
+        height,
     );
-    paint_cardinal_markers(&mut canvas, w, arc_top, arc_bottom, marker_x);
+    paint_cardinal_markers(&mut canvas, width, arc_top, arc_bottom, marker_x);
     paint_night_stars(
         &mut canvas,
-        w,
+        width,
         arc_bottom,
         bundle.current.is_day,
         animate,
         frame_tick,
     );
 
-    let strip_y = h.saturating_sub(3);
-    let precip_y = h.saturating_sub(2);
-    let summary_y = h.saturating_sub(1);
-    paint_horizon_strip(&mut canvas, strip_y, w);
-    plot_hourly_strip(bundle, &mut canvas, strip_y, precip_y, w);
-    write_summary_line(&mut canvas, summary_y, w, sunrise_h, sunset_h, now_h);
+    let strip_y = height.saturating_sub(3);
+    let precip_y = height.saturating_sub(2);
+    let summary_y = height.saturating_sub(1);
+    paint_horizon_strip(&mut canvas, strip_y, width);
+    plot_hourly_strip(bundle, &mut canvas, strip_y, precip_y, width);
+    write_summary_line(&mut canvas, summary_y, width, sunrise_h, sunset_h, now_h);
 
-    LandmarkScene {
-        label: "Sky Observatory · Sun/Moon Arc".to_string(),
-        lines: canvas_to_lines(canvas, w),
-        tint: tint_for_category(category),
-    }
+    canvas
 }
 
 fn arc_bounds(height: usize) -> (usize, usize) {

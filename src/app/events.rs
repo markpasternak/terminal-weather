@@ -92,72 +92,91 @@ pub fn start_demo_task(tx: tokio::sync::mpsc::Sender<AppEvent>) {
 
 fn demo_script() -> Vec<(Duration, DemoAction)> {
     let mut steps = Vec::new();
-    push_city_demo_step(
-        &mut steps,
-        1,
-        "New York",
-        demo_city(
-            "New York",
-            40.7128,
-            -74.0060,
-            "United States",
-            "New York",
-            "America/New_York",
-        ),
-    );
-    push_city_demo_step(
-        &mut steps,
-        3,
-        "Miami",
-        demo_city(
-            "Miami",
-            25.7617,
-            -80.1918,
-            "United States",
-            "Florida",
-            "America/New_York",
-        ),
-    );
-    push_city_demo_step(
-        &mut steps,
-        3,
-        "Sydney",
-        demo_city(
-            "Sydney",
-            -33.8688,
-            151.2093,
-            "Australia",
-            "New South Wales",
-            "Australia/Sydney",
-        ),
-    );
-    push_city_demo_step(
-        &mut steps,
-        3,
-        "Peking",
-        demo_city(
-            "Peking",
-            39.9042,
-            116.4074,
-            "China",
-            "Beijing",
-            "Asia/Shanghai",
-        ),
-    );
-    steps.push((Duration::from_secs(3), DemoAction::OpenSettings));
-    steps.push((
-        Duration::from_secs(1),
-        DemoAction::SetHeroVisual(HeroVisualArg::GaugeCluster),
-    ));
-    steps.push((Duration::from_secs(1), DemoAction::CloseSettings));
-    steps.push((Duration::from_secs(5), DemoAction::OpenSettings));
-    steps.push((
-        Duration::from_secs(1),
-        DemoAction::SetHeroVisual(HeroVisualArg::SkyObservatory),
-    ));
-    steps.push((Duration::from_secs(1), DemoAction::CloseSettings));
-    steps.push((Duration::from_secs(5), DemoAction::OpenSettings));
+    append_demo_city_steps(&mut steps);
+    append_demo_visual_steps(&mut steps);
+    append_demo_theme_steps(&mut steps);
+    append_demo_finish_steps(&mut steps);
 
+    steps
+}
+
+fn append_demo_city_steps(steps: &mut Vec<(Duration, DemoAction)>) {
+    for (delay_secs, query, location) in demo_city_stops() {
+        push_city_demo_step(steps, delay_secs, query, location);
+    }
+}
+
+fn demo_city_stops() -> [(u64, &'static str, Location); 4] {
+    [
+        (1, "New York", new_york_city()),
+        (3, "Miami", miami_city()),
+        (3, "Sydney", sydney_city()),
+        (3, "Peking", peking_city()),
+    ]
+}
+
+fn new_york_city() -> Location {
+    demo_city(
+        "New York",
+        40.7128,
+        -74.0060,
+        "United States",
+        "New York",
+        "America/New_York",
+    )
+}
+
+fn miami_city() -> Location {
+    demo_city(
+        "Miami",
+        25.7617,
+        -80.1918,
+        "United States",
+        "Florida",
+        "America/New_York",
+    )
+}
+
+fn sydney_city() -> Location {
+    demo_city(
+        "Sydney",
+        -33.8688,
+        151.2093,
+        "Australia",
+        "New South Wales",
+        "Australia/Sydney",
+    )
+}
+
+fn peking_city() -> Location {
+    demo_city(
+        "Peking",
+        39.9042,
+        116.4074,
+        "China",
+        "Beijing",
+        "Asia/Shanghai",
+    )
+}
+
+fn append_demo_visual_steps(steps: &mut Vec<(Duration, DemoAction)>) {
+    let visual_steps = [
+        (3, DemoAction::OpenSettings),
+        (1, DemoAction::SetHeroVisual(HeroVisualArg::GaugeCluster)),
+        (1, DemoAction::CloseSettings),
+        (5, DemoAction::OpenSettings),
+        (1, DemoAction::SetHeroVisual(HeroVisualArg::SkyObservatory)),
+        (1, DemoAction::CloseSettings),
+        (5, DemoAction::OpenSettings),
+    ];
+    steps.extend(
+        visual_steps
+            .into_iter()
+            .map(|(secs, action)| (Duration::from_secs(secs), action)),
+    );
+}
+
+fn append_demo_theme_steps(steps: &mut Vec<(Duration, DemoAction)>) {
     let themes = [
         ThemeArg::Auto,
         ThemeArg::Aurora,
@@ -178,13 +197,16 @@ fn demo_script() -> Vec<(Duration, DemoAction)> {
         ThemeArg::SelenizedDark,
         ThemeArg::NoClownFiesta,
     ];
-    for theme in themes {
-        steps.push((Duration::from_secs(1), DemoAction::SetTheme(theme)));
-    }
+    steps.extend(
+        themes
+            .into_iter()
+            .map(|theme| (Duration::from_secs(1), DemoAction::SetTheme(theme))),
+    );
+}
+
+fn append_demo_finish_steps(steps: &mut Vec<(Duration, DemoAction)>) {
     steps.push((Duration::from_secs(1), DemoAction::CloseSettings));
     steps.push((Duration::from_secs(1), DemoAction::Quit));
-
-    steps
 }
 
 fn push_city_demo_step(
