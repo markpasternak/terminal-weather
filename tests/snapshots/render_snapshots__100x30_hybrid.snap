@@ -4,13 +4,13 @@ expression: "render_with_hourly_mode_to_string(100, 30, 61, HourlyViewMode::Hybr
 ---
 ┌Current · L cities · S settings · ? help──────────────────────────────────────────────────────────┐
 │7°C                                            │      .--.                                        │
-│Slight rain                                    │   .-(____)-.                terminal-weather     │
+│Slight rain                                    │   .-(____)-.                                     │
 │H:9°  L:3°                                     │     / / / /                                      │
 │Stockholm, Stockholm, Sweden                   │                      RAIN                        │
-│Wind 12/21 km/h SW  P 1008↗                    │                                                  │
-│Dew 2°  Vis 11.2km                             │                                                  │
+│Wind 12/21 km/h SW  Visibility 11.2km          │                                                  │
+│Pressure 1008↗                                 │                                                  │
+│Dew 2°  Humidity 73%                           │                                                  │
 │Last updated: --:--                            │                                                  │
-│                                               │                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌Hourly · Hybrid · Thu 12 Feb──────────────────────────────────────────────────────────────────────┐
 │Temp  ▁▁▁▁▁▁▁▁▁▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▃▃▃▃▃▃▃▃▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▆▆▆▆▆▆▆▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇█ │

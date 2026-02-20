@@ -7,8 +7,8 @@ expression: "render_to_string(60, 20, 71)"
 │ Slight snowfall                                          │
 │ H:9°  L:3°                                               │
 │ Stockholm, Stockholm, Sweden                             │
-│ Wind 12/21 km/h SW  P 1008↗                              │
-│ Dew 2°  Vis 11.2km                                       │
+│ Wind 12/21 km/h SW  Visibility 11.2km                    │
+│ Pressure 1008↗                                           │
 └──────────────────────────────────────────────────────────┘
 ┌Hourly · Table · Thu 12 Feb───────────────────────────────┐
 │Time  Now    11:00 12:00  13:00 14:00  15:00 16:00  17:00 │

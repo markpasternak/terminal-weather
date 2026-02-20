@@ -7,9 +7,9 @@ expression: "render_to_string(80, 24, 95)"
 │ Thunderstorm                                                                 │
 │ H:9°  L:3°                                                                   │
 │ Stockholm, Stockholm, Sweden                                                 │
-│ Wind 12/21 km/h SW  P 1008↗                                                  │
-│ Dew 2°  Vis 11.2km                                                           │
-│ Last updated: --:--                                                          │
+│ Wind 12/21 km/h SW  Visibility 11.2km                                        │
+│ Pressure 1008↗                                                               │
+│ Dew 2°  Humidity 73%                                                         │
 └──────────────────────────────────────────────────────────────────────────────┘
  ⚡  Thunderstorms expected
 ┌Hourly · Table · Thu 12 Feb───────────────────────────────────────────────────┐
