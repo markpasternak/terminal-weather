@@ -26,48 +26,9 @@ pub fn render_landmark(
         return;
     }
 
-    let scene = match state.settings.hero_visual {
-        HeroVisualArg::AtmosCanvas => state.weather.as_ref().map_or_else(
-            || loading_scene("Atmos Canvas", area.width, area.height, is_day),
-            |bundle| {
-                scene_for_weather(
-                    bundle,
-                    state.frame_tick,
-                    state.animate_ui,
-                    area.width.saturating_sub(2),
-                    area.height.saturating_sub(2),
-                )
-            },
-        ),
-        HeroVisualArg::GaugeCluster => state.weather.as_ref().map_or_else(
-            || loading_scene("Gauge Cluster", area.width, area.height, is_day),
-            |bundle| {
-                scene_for_gauge_cluster(
-                    bundle,
-                    area.width.saturating_sub(2),
-                    area.height.saturating_sub(2),
-                )
-            },
-        ),
-        HeroVisualArg::SkyObservatory => state.weather.as_ref().map_or_else(
-            || loading_scene("Sky Observatory", area.width, area.height, is_day),
-            |bundle| {
-                scene_for_sky_observatory(
-                    bundle,
-                    state.frame_tick,
-                    state.animate_ui,
-                    area.width.saturating_sub(2),
-                    area.height.saturating_sub(2),
-                )
-            },
-        ),
-    };
+    let scene = select_scene(state, area, is_day);
 
-    let tint = match scene.tint {
-        LandmarkTint::Warm => theme.landmark_warm,
-        LandmarkTint::Cool => theme.landmark_cool,
-        LandmarkTint::Neutral => theme.landmark_neutral,
-    };
+    let tint = tint_color(scene.tint, theme);
     let scene_lines = scene.lines;
 
     let mut lines = Vec::new();
@@ -83,6 +44,79 @@ pub fn render_landmark(
     let text = Text::from(lines).patch_style(Style::default().fg(tint));
     let paragraph = Paragraph::new(text);
     frame.render_widget(paragraph, area);
+}
+
+fn select_scene(
+    state: &AppState,
+    area: Rect,
+    is_day: bool,
+) -> crate::ui::widgets::landmark::LandmarkScene {
+    let scene_area = (area.width.saturating_sub(2), area.height.saturating_sub(2));
+    match state.settings.hero_visual {
+        HeroVisualArg::AtmosCanvas => select_atmos_scene(state, area, is_day, scene_area),
+        HeroVisualArg::GaugeCluster => select_gauge_scene(state, area, is_day, scene_area),
+        HeroVisualArg::SkyObservatory => select_sky_scene(state, area, is_day, scene_area),
+    }
+}
+
+fn select_atmos_scene(
+    state: &AppState,
+    area: Rect,
+    is_day: bool,
+    scene_area: (u16, u16),
+) -> crate::ui::widgets::landmark::LandmarkScene {
+    state.weather.as_ref().map_or_else(
+        || loading_scene("Atmos Canvas", area.width, area.height, is_day),
+        |bundle| {
+            scene_for_weather(
+                bundle,
+                state.frame_tick,
+                state.animate_ui,
+                scene_area.0,
+                scene_area.1,
+            )
+        },
+    )
+}
+
+fn select_gauge_scene(
+    state: &AppState,
+    area: Rect,
+    is_day: bool,
+    scene_area: (u16, u16),
+) -> crate::ui::widgets::landmark::LandmarkScene {
+    state.weather.as_ref().map_or_else(
+        || loading_scene("Gauge Cluster", area.width, area.height, is_day),
+        |bundle| scene_for_gauge_cluster(bundle, scene_area.0, scene_area.1),
+    )
+}
+
+fn select_sky_scene(
+    state: &AppState,
+    area: Rect,
+    is_day: bool,
+    scene_area: (u16, u16),
+) -> crate::ui::widgets::landmark::LandmarkScene {
+    state.weather.as_ref().map_or_else(
+        || loading_scene("Sky Observatory", area.width, area.height, is_day),
+        |bundle| {
+            scene_for_sky_observatory(
+                bundle,
+                state.frame_tick,
+                state.animate_ui,
+                scene_area.0,
+                scene_area.1,
+            )
+        },
+    )
+}
+
+fn tint_color(tint: LandmarkTint, theme: Theme) -> Color {
+    match tint {
+        LandmarkTint::Warm => theme.landmark_warm,
+        LandmarkTint::Cool => theme.landmark_cool,
+        LandmarkTint::Neutral => theme.landmark_neutral,
+    }
 }
 
 fn colorize_scene_line(

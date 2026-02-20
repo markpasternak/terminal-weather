@@ -469,55 +469,19 @@ impl WeekAccumulator {
     }
 
     fn finish(self, units: Units, daily: &[DailyForecast]) -> WeekSummaryData {
-        let wettest_txt = self
-            .wettest
-            .map_or_else(|| "--".to_string(), |(day, mm)| format!("{day} {mm:.1}mm"));
-        let breeziest_txt = self.breeziest.map_or_else(
-            || "--".to_string(),
-            |(day, gust)| format!("{day} {}km/h", gust.round() as i32),
+        let wettest_txt = format_day_value_mm(self.wettest);
+        let breeziest_txt = format_day_value_kmh(self.breeziest);
+        let avg_daylight = average_duration(self.daylight_total, self.daylight_count);
+        let avg_sun = average_duration(self.sunshine_total, self.sunshine_count);
+        let precip_hours_avg = average_precip_hours(
+            self.precipitation_hours_total,
+            self.precipitation_hours_count,
         );
-        let avg_daylight = if self.daylight_count > 0 {
-            format_duration_hm(self.daylight_total / self.daylight_count as f32)
-        } else {
-            "--:--".to_string()
-        };
-        let avg_sun = if self.sunshine_count > 0 {
-            format_duration_hm(self.sunshine_total / self.sunshine_count as f32)
-        } else {
-            "--:--".to_string()
-        };
-        let precip_hours_avg = if self.precipitation_hours_count > 0 {
-            format!(
-                "{:.1}h/day",
-                self.precipitation_hours_total / self.precipitation_hours_count as f32
-            )
-        } else {
-            "--".to_string()
-        };
-        let uv_peak = self
-            .strongest_uv
-            .map_or_else(|| "--".to_string(), |(day, uv)| format!("{day} {uv:.1}"));
-        let week_thermal = match (self.week_min_temp_c, self.week_max_temp_c) {
-            (Some(low), Some(high)) => {
-                let low = round_temp(convert_temp(low, units));
-                let high = round_temp(convert_temp(high, units));
-                format!("{low}°..{high}°")
-            }
-            _ => "--".to_string(),
-        };
-        let highs = daily
-            .iter()
-            .filter_map(|d| d.temperature_max_c)
-            .map(|t| convert_temp(t, units))
-            .collect::<Vec<_>>();
-        let precip = daily
-            .iter()
-            .map(|d| d.precipitation_sum_mm.unwrap_or(0.0))
-            .collect::<Vec<_>>();
-        let gusts = daily
-            .iter()
-            .map(|d| d.wind_gusts_10m_max.unwrap_or(0.0))
-            .collect::<Vec<_>>();
+        let uv_peak = format_uv_peak(self.strongest_uv);
+        let week_thermal = week_thermal_span(self.week_min_temp_c, self.week_max_temp_c, units);
+        let highs = collect_highs(daily, units);
+        let precip = collect_precip(daily);
+        let gusts = collect_gusts(daily);
 
         WeekSummaryData {
             precip_total: self.precip_total,
@@ -535,6 +499,70 @@ impl WeekAccumulator {
             gusts,
         }
     }
+}
+
+fn format_day_value_mm(value: Option<(String, f32)>) -> String {
+    value.map_or_else(|| "--".to_string(), |(day, mm)| format!("{day} {mm:.1}mm"))
+}
+
+fn format_day_value_kmh(value: Option<(String, f32)>) -> String {
+    value.map_or_else(
+        || "--".to_string(),
+        |(day, speed)| format!("{day} {}km/h", speed.round() as i32),
+    )
+}
+
+fn average_duration(total_seconds: f32, count: usize) -> String {
+    if count > 0 {
+        format_duration_hm(total_seconds / count as f32)
+    } else {
+        "--:--".to_string()
+    }
+}
+
+fn average_precip_hours(total_hours: f32, count: usize) -> String {
+    if count > 0 {
+        format!("{:.1}h/day", total_hours / count as f32)
+    } else {
+        "--".to_string()
+    }
+}
+
+fn format_uv_peak(value: Option<(String, f32)>) -> String {
+    value.map_or_else(|| "--".to_string(), |(day, uv)| format!("{day} {uv:.1}"))
+}
+
+fn week_thermal_span(min_c: Option<f32>, max_c: Option<f32>, units: Units) -> String {
+    match (min_c, max_c) {
+        (Some(low), Some(high)) => {
+            let low = round_temp(convert_temp(low, units));
+            let high = round_temp(convert_temp(high, units));
+            format!("{low}°..{high}°")
+        }
+        _ => "--".to_string(),
+    }
+}
+
+fn collect_highs(daily: &[DailyForecast], units: Units) -> Vec<f32> {
+    daily
+        .iter()
+        .filter_map(|d| d.temperature_max_c)
+        .map(|t| convert_temp(t, units))
+        .collect::<Vec<_>>()
+}
+
+fn collect_precip(daily: &[DailyForecast]) -> Vec<f32> {
+    daily
+        .iter()
+        .map(|d| d.precipitation_sum_mm.unwrap_or(0.0))
+        .collect::<Vec<_>>()
+}
+
+fn collect_gusts(daily: &[DailyForecast]) -> Vec<f32> {
+    daily
+        .iter()
+        .map(|d| d.wind_gusts_10m_max.unwrap_or(0.0))
+        .collect::<Vec<_>>()
 }
 
 fn summarize_week(bundle: &ForecastBundle, units: Units) -> WeekSummaryData {

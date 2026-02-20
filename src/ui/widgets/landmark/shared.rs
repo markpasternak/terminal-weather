@@ -1,3 +1,4 @@
+#[must_use]
 pub fn canvas_to_lines(canvas: Vec<Vec<char>>, width: usize) -> Vec<String> {
     canvas
         .into_iter()
@@ -6,6 +7,7 @@ pub fn canvas_to_lines(canvas: Vec<Vec<char>>, width: usize) -> Vec<String> {
         .collect()
 }
 
+#[must_use]
 pub fn fit_lines(mut lines: Vec<String>, width: usize, height: usize) -> Vec<String> {
     lines = lines
         .into_iter()
@@ -18,6 +20,7 @@ pub fn fit_lines(mut lines: Vec<String>, width: usize, height: usize) -> Vec<Str
     lines
 }
 
+#[must_use]
 pub fn fit_line(line: &str, width: usize) -> String {
     let mut out = line.chars().take(width).collect::<String>();
     let len = out.chars().count();
@@ -27,6 +30,7 @@ pub fn fit_line(line: &str, width: usize) -> String {
     out
 }
 
+#[must_use]
 pub fn fit_lines_centered(lines: Vec<String>, width: usize, height: usize) -> Vec<String> {
     let trimmed = lines
         .into_iter()
@@ -68,6 +72,7 @@ pub fn paint_char(canvas: &mut [Vec<char>], x: isize, y: isize, ch: char, force:
     }
 }
 
+#[must_use]
 pub fn compass_arrow(deg: f32) -> char {
     let d = deg.rem_euclid(360.0);
     match d as i32 {
@@ -82,6 +87,7 @@ pub fn compass_arrow(deg: f32) -> char {
     }
 }
 
+#[must_use]
 pub fn compass_short(deg: f32) -> &'static str {
     let d = deg.rem_euclid(360.0);
     match d as i32 {

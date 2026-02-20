@@ -1,3 +1,5 @@
+#![allow(clippy::cast_precision_loss)]
+
 use chrono::{NaiveDate, NaiveDateTime, Utc};
 use ratatui::{Terminal, backend::TestBackend};
 use terminal_weather::{

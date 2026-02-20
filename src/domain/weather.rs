@@ -29,10 +29,12 @@ pub enum Daypart {
 }
 
 impl Daypart {
+    #[must_use]
     pub const fn all() -> [Self; 4] {
         [Self::Morning, Self::Noon, Self::Evening, Self::Night]
     }
 
+    #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
             Self::Morning => "Morning",
@@ -58,6 +60,7 @@ pub struct DaypartSummary {
     pub sample_count: usize,
 }
 
+#[must_use]
 pub fn daypart_for_time(time: NaiveDateTime) -> Daypart {
     match time.hour() {
         6..=11 => Daypart::Morning,
@@ -67,6 +70,7 @@ pub fn daypart_for_time(time: NaiveDateTime) -> Daypart {
     }
 }
 
+#[must_use]
 pub fn summarize_dayparts(
     hourly: &[HourlyForecast],
     fallback_weather_code: u8,
@@ -131,10 +135,10 @@ fn summarize_date_daypart(
         date,
         daypart: part,
         weather_code: dominant_weather_code(&samples, fallback_weather_code),
-        temp_min_c: temp_values.iter().copied().min_by(|a, b| a.total_cmp(b)),
-        temp_max_c: temp_values.iter().copied().max_by(|a, b| a.total_cmp(b)),
-        wind_min_kmh: wind_values.iter().copied().min_by(|a, b| a.total_cmp(b)),
-        wind_max_kmh: wind_values.iter().copied().max_by(|a, b| a.total_cmp(b)),
+        temp_min_c: temp_values.iter().copied().min_by(f32::total_cmp),
+        temp_max_c: temp_values.iter().copied().max_by(f32::total_cmp),
+        wind_min_kmh: wind_values.iter().copied().min_by(f32::total_cmp),
+        wind_max_kmh: wind_values.iter().copied().max_by(f32::total_cmp),
         precip_sum_mm: samples
             .iter()
             .filter_map(|h| h.precipitation_mm)
@@ -143,7 +147,7 @@ fn summarize_date_daypart(
         precip_probability_max: samples
             .iter()
             .filter_map(|h| h.precipitation_probability)
-            .max_by(|a, b| a.total_cmp(b)),
+            .max_by(f32::total_cmp),
         visibility_median_m: median(samples.iter().filter_map(|h| h.visibility_m)),
         sample_count: samples.len(),
     }
@@ -162,8 +166,7 @@ fn dominant_weather_code(samples: &[&HourlyForecast], fallback: u8) -> u8 {
         .max_by(|(code_a, count_a), (code_b, count_b)| {
             count_a.cmp(count_b).then_with(|| code_b.cmp(code_a))
         })
-        .map(|(code, _)| code)
-        .unwrap_or(fallback)
+        .map_or(fallback, |(code, _)| code)
 }
 
 fn median(values: impl Iterator<Item = f32>) -> Option<f32> {
@@ -171,10 +174,10 @@ fn median(values: impl Iterator<Item = f32>) -> Option<f32> {
     if items.is_empty() {
         return None;
     }
-    items.sort_by(|a, b| a.total_cmp(b));
+    items.sort_by(f32::total_cmp);
     let mid = items.len() / 2;
     if items.len().is_multiple_of(2) {
-        Some((items[mid - 1] + items[mid]) / 2.0)
+        Some(f32::midpoint(items[mid - 1], items[mid]))
     } else {
         Some(items[mid])
     }
@@ -192,6 +195,7 @@ pub struct Location {
 }
 
 impl Location {
+    #[must_use]
     pub fn from_coords(lat: f64, lon: f64) -> Self {
         Self {
             name: format!("{lat:.4}, {lon:.4}"),
@@ -204,6 +208,7 @@ impl Location {
         }
     }
 
+    #[must_use]
     pub fn display_name(&self) -> String {
         match (&self.admin1, &self.country) {
             (Some(admin), Some(country)) => format!("{}, {}, {}", self.name, admin, country),
@@ -282,14 +287,17 @@ pub struct ForecastBundle {
 }
 
 impl ForecastBundle {
+    #[must_use]
     pub fn current_weather_code(&self) -> u8 {
         self.current.weather_code
     }
 
+    #[must_use]
     pub fn current_temp(&self, units: Units) -> i32 {
         round_temp(convert_temp(self.current.temperature_2m_c, units))
     }
 
+    #[must_use]
     pub fn high_low(&self, units: Units) -> Option<(i32, i32)> {
         Some((
             round_temp(convert_temp(self.current.high_today_c?, units)),
@@ -318,6 +326,7 @@ pub enum ParticleKind {
     Thunder,
 }
 
+#[must_use]
 pub fn weather_code_to_category(code: u8) -> WeatherCategory {
     match code {
         0 | 1 => WeatherCategory::Clear,
@@ -330,6 +339,7 @@ pub fn weather_code_to_category(code: u8) -> WeatherCategory {
     }
 }
 
+#[must_use]
 pub fn weather_code_to_particle(code: u8) -> ParticleKind {
     match weather_code_to_category(code) {
         WeatherCategory::Rain => ParticleKind::Rain,
@@ -342,10 +352,12 @@ pub fn weather_code_to_particle(code: u8) -> ParticleKind {
     }
 }
 
+#[must_use]
 pub fn weather_label(code: u8) -> &'static str {
     weather_label_for_time(code, true)
 }
 
+#[must_use]
 pub fn weather_label_for_time(code: u8, is_day: bool) -> &'static str {
     match code {
         0 => {
@@ -366,6 +378,7 @@ pub fn weather_label_for_time(code: u8, is_day: bool) -> &'static str {
     }
 }
 
+#[must_use]
 pub fn weather_icon(code: u8, mode: IconMode, is_day: bool) -> &'static str {
     let (ascii, emoji, unicode) = icon_tokens(weather_code_to_category(code), is_day);
     match mode {
@@ -471,11 +484,13 @@ impl RefreshMetadata {
         self.consecutive_failures = self.consecutive_failures.saturating_add(1);
     }
 
+    #[must_use]
     pub fn age_minutes(&self) -> Option<i64> {
         self.last_success.map(|ts| (Utc::now() - ts).num_minutes())
     }
 }
 
+#[must_use]
 pub fn convert_temp(celsius: f32, units: Units) -> f32 {
     match units {
         Units::Celsius => celsius,
@@ -483,14 +498,17 @@ pub fn convert_temp(celsius: f32, units: Units) -> f32 {
     }
 }
 
+#[must_use]
 pub fn round_temp(value: f32) -> i32 {
     value.round() as i32
 }
 
+#[must_use]
 pub fn parse_datetime(value: &str) -> Option<NaiveDateTime> {
     NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M").ok()
 }
 
+#[must_use]
 pub fn parse_date(value: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()
 }

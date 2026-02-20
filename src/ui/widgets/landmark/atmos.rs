@@ -33,6 +33,7 @@ pub fn scene_for_weather(
     let cloud_pct = bundle.current.cloud_cover.clamp(0.0, 100.0);
     let precip_mm = bundle.current.precipitation_mm.max(0.0);
     let wind_speed = bundle.current.wind_speed_10m.max(0.0);
+    let phase = animation_phase(animate, frame_tick);
 
     let mut canvas = vec![vec![' '; w]; h];
 
@@ -50,13 +51,7 @@ pub fn scene_for_weather(
     paint_horizon_haze(&mut canvas, horizon_y, w);
 
     // --- Layer 3: Sky content ---
-    let phase = if animate {
-        (frame_tick % 512) as usize
-    } else {
-        0
-    };
-
-    if !bundle.current.is_day {
+    if is_night(bundle) {
         paint_starfield(&mut canvas, w, horizon_y, phase);
     }
 
@@ -85,33 +80,19 @@ pub fn scene_for_weather(
     );
 
     // --- Layer 5: Weather phenomena ---
-    let code = bundle.current.weather_code;
-    let is_freezing = matches!(code, 56 | 57 | 66 | 67);
-    let has_hail = matches!(code, 96 | 99);
-    match category {
-        WeatherCategory::Clear => {
-            // Subtle atmospheric shimmer on clear days
-            if bundle.current.is_day {
-                paint_heat_shimmer(&mut canvas, phase, horizon_y, w);
-            }
-        }
-        WeatherCategory::Rain => {
-            paint_rain(&mut canvas, precip_mm, phase, horizon_y, w);
-            if is_freezing {
-                paint_ice_glaze(&mut canvas, horizon_y, w);
-            }
-        }
-        WeatherCategory::Snow => paint_snowfall(&mut canvas, phase, horizon_y, w),
-        WeatherCategory::Fog => paint_fog_banks(&mut canvas, phase, horizon_y, w, h),
-        WeatherCategory::Thunder => {
-            paint_rain(&mut canvas, precip_mm.max(1.0), phase, horizon_y, w);
-            paint_lightning_bolts(&mut canvas, phase, horizon_y, w);
-            if has_hail {
-                paint_hail(&mut canvas, phase, horizon_y, w);
-            }
-        }
-        _ => {}
-    }
+    paint_weather_effects(
+        &mut canvas,
+        WeatherEffectsContext {
+            category,
+            is_day: bundle.current.is_day,
+            weather_code: bundle.current.weather_code,
+            precip_mm,
+            phase,
+            horizon_y,
+            width: w,
+            height: h,
+        },
+    );
 
     LandmarkScene {
         label: format!(
@@ -120,6 +101,72 @@ pub fn scene_for_weather(
         ),
         lines: canvas_to_lines(canvas, w),
         tint: tint_for_category(category),
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct WeatherEffectsContext {
+    category: WeatherCategory,
+    is_day: bool,
+    weather_code: u8,
+    precip_mm: f32,
+    phase: usize,
+    horizon_y: usize,
+    width: usize,
+    height: usize,
+}
+
+fn animation_phase(animate: bool, frame_tick: u64) -> usize {
+    if animate {
+        (frame_tick % 512) as usize
+    } else {
+        0
+    }
+}
+
+fn is_night(bundle: &ForecastBundle) -> bool {
+    !bundle.current.is_day
+}
+
+fn paint_weather_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext) {
+    let is_freezing = matches!(ctx.weather_code, 56 | 57 | 66 | 67);
+    let has_hail = matches!(ctx.weather_code, 96 | 99);
+    match ctx.category {
+        WeatherCategory::Clear => paint_clear_effects(canvas, ctx),
+        WeatherCategory::Rain => paint_rain_effects(canvas, ctx, is_freezing),
+        WeatherCategory::Snow => paint_snowfall(canvas, ctx.phase, ctx.horizon_y, ctx.width),
+        WeatherCategory::Fog => {
+            paint_fog_banks(canvas, ctx.phase, ctx.horizon_y, ctx.width, ctx.height)
+        }
+        WeatherCategory::Thunder => paint_thunder_effects(canvas, ctx, has_hail),
+        _ => {}
+    }
+}
+
+fn paint_clear_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext) {
+    if ctx.is_day {
+        paint_heat_shimmer(canvas, ctx.phase, ctx.horizon_y, ctx.width);
+    }
+}
+
+fn paint_rain_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext, is_freezing: bool) {
+    paint_rain(canvas, ctx.precip_mm, ctx.phase, ctx.horizon_y, ctx.width);
+    if is_freezing {
+        paint_ice_glaze(canvas, ctx.horizon_y, ctx.width);
+    }
+}
+
+fn paint_thunder_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext, has_hail: bool) {
+    paint_rain(
+        canvas,
+        ctx.precip_mm.max(1.0),
+        ctx.phase,
+        ctx.horizon_y,
+        ctx.width,
+    );
+    paint_lightning_bolts(canvas, ctx.phase, ctx.horizon_y, ctx.width);
+    if has_hail {
+        paint_hail(canvas, ctx.phase, ctx.horizon_y, ctx.width);
     }
 }
 

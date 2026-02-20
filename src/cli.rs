@@ -148,6 +148,7 @@ pub struct Cli {
 }
 
 impl Cli {
+    #[must_use]
     pub fn default_city(&self) -> String {
         self.city.clone().unwrap_or_else(|| "Stockholm".to_string())
     }
@@ -161,6 +162,7 @@ impl Cli {
         }
     }
 
+    #[must_use]
     pub fn effective_color_mode(&self) -> ColorArg {
         if self.no_color {
             ColorArg::Never

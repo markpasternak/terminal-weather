@@ -23,6 +23,7 @@ impl Default for ForecastClient {
 }
 
 impl ForecastClient {
+    #[must_use]
     pub fn new() -> Self {
         Self::with_base_url(FORECAST_URL)
     }

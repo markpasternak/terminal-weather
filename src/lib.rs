@@ -100,10 +100,10 @@ fn print_one_shot_current(
     let temp = round_temp(convert_temp(bundle.current.temperature_2m_c, units));
     let feels = round_temp(convert_temp(bundle.current.apparent_temperature_c, units));
     let condition = weather_label(bundle.current.weather_code);
-    let wind = bundle.current.wind_speed_10m.round() as i32;
-    let gust = bundle.current.wind_gusts_10m.round() as i32;
-    let humidity = bundle.current.relative_humidity_2m.round() as i32;
-    let pressure = bundle.current.pressure_msl_hpa.round() as i32;
+    let wind = format!("{:.0}", bundle.current.wind_speed_10m);
+    let gust = format!("{:.0}", bundle.current.wind_gusts_10m);
+    let humidity = format!("{:.0}", bundle.current.relative_humidity_2m);
+    let pressure = format!("{:.0}", bundle.current.pressure_msl_hpa);
     let vis_km = bundle.current.visibility_m / 1000.0;
 
     println!("  {display_name}");

@@ -35,6 +35,7 @@ pub struct RuntimeSettings {
 }
 
 impl RuntimeSettings {
+    #[must_use]
     pub fn from_cli_defaults(cli: &Cli) -> Self {
         let units = match cli.units {
             UnitsArg::Celsius => Units::Celsius,
@@ -96,6 +97,7 @@ pub struct RecentLocation {
 }
 
 impl RecentLocation {
+    #[must_use]
     pub fn from_location(location: &Location) -> Self {
         Self {
             name: location.name.clone(),
@@ -107,6 +109,7 @@ impl RecentLocation {
         }
     }
 
+    #[must_use]
     pub fn to_location(&self) -> Location {
         Location {
             name: self.name.clone(),
@@ -119,6 +122,7 @@ impl RecentLocation {
         }
     }
 
+    #[must_use]
     pub fn display_name(&self) -> String {
         match (&self.admin1, &self.country) {
             (Some(admin), Some(country)) => format!("{}, {}, {}", self.name, admin, country),
@@ -127,6 +131,7 @@ impl RecentLocation {
         }
     }
 
+    #[must_use]
     pub fn same_place(&self, other: &Self) -> bool {
         let same_name = unicode_case_eq(&self.name, &other.name);
         let same_country = self
@@ -148,6 +153,7 @@ fn fold_lower(value: &str) -> String {
     value.chars().flat_map(char::to_lowercase).collect()
 }
 
+#[must_use]
 pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, Option<PathBuf>) {
     let mut settings = RuntimeSettings::from_cli_defaults(cli);
     if !enable_disk {
@@ -193,6 +199,7 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
     (settings, Some(path))
 }
 
+#[must_use]
 pub fn hourly_view_from_cli(arg: HourlyViewArg) -> HourlyViewMode {
     match arg {
         HourlyViewArg::Table => HourlyViewMode::Table,

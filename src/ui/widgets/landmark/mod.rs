@@ -24,6 +24,7 @@ pub struct LandmarkScene {
     pub tint: LandmarkTint,
 }
 
+#[must_use]
 pub fn tint_for_category(category: WeatherCategory) -> LandmarkTint {
     match category {
         WeatherCategory::Clear => LandmarkTint::Warm,
@@ -35,6 +36,7 @@ pub fn tint_for_category(category: WeatherCategory) -> LandmarkTint {
     }
 }
 
+#[must_use]
 pub fn scene_name(category: WeatherCategory, is_day: bool) -> &'static str {
     match (category, is_day) {
         (WeatherCategory::Clear, true) => "Clear sky",

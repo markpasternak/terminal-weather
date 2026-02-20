@@ -189,8 +189,8 @@ fn build_right_lines(data: &GaugeData, category: WeatherCategory, is_day: bool) 
 fn merge_columns(left: &[String], right: &[String], left_col_width: usize) -> Vec<String> {
     let mut merged = Vec::with_capacity(left.len().max(right.len()));
     for idx in 0..left.len().max(right.len()) {
-        let left_line = left.get(idx).map(String::as_str).unwrap_or("");
-        let right_line = right.get(idx).map(String::as_str).unwrap_or("");
+        let left_line = left.get(idx).map_or("", String::as_str);
+        let right_line = right.get(idx).map_or("", String::as_str);
         merged.push(format!(
             "{left_line:<left_col_width$}  {right_line}",
             left_col_width = left_col_width

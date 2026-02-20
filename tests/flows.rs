@@ -1,3 +1,5 @@
+#![allow(clippy::cast_precision_loss)]
+
 use chrono::{NaiveDate, NaiveDateTime, Utc};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use terminal_weather::{
@@ -172,16 +174,12 @@ async fn flow_hourly_scroll_clamps_bounds() {
             .unwrap();
     }
 
-    let expected_max = state
-        .weather
-        .as_ref()
-        .map(|bundle| {
-            bundle
-                .hourly
-                .len()
-                .saturating_sub(visible_hour_count(state.viewport_width))
-        })
-        .unwrap_or(0);
+    let expected_max = state.weather.as_ref().map_or(0, |bundle| {
+        bundle
+            .hourly
+            .len()
+            .saturating_sub(visible_hour_count(state.viewport_width))
+    });
     assert!(state.hourly_offset <= expected_max);
 
     for _ in 0..50 {

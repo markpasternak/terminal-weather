@@ -19,6 +19,7 @@ impl Default for GeocodeClient {
 }
 
 impl GeocodeClient {
+    #[must_use]
     pub fn new() -> Self {
         Self::with_base_url(GEOCODE_URL)
     }

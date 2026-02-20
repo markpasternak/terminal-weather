@@ -167,6 +167,7 @@ impl AppState {
         }
     }
 
+    #[must_use]
     pub fn settings_entries(&self) -> Vec<SettingsEntry> {
         vec![
             SettingsEntry {
@@ -267,6 +268,7 @@ impl AppState {
         ]
     }
 
+    #[must_use]
     pub fn settings_hint(&self) -> String {
         match self.settings_selected {
             SETTINGS_HERO_VISUAL => match self.settings.hero_visual {
@@ -311,22 +313,43 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> Result<()> {
+        if event_is_async(&event) {
+            self.handle_async_event(event, tx, cli).await?;
+        } else {
+            self.handle_sync_event(event, tx)?;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_async_event(
+        &mut self,
+        event: AppEvent,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> Result<()> {
         match event {
             AppEvent::Bootstrap => self.handle_bootstrap(tx, cli).await?,
-            AppEvent::TickFrame => self.handle_tick_frame(),
             AppEvent::TickRefresh => self.handle_tick_refresh(tx, cli).await?,
-            AppEvent::ForceRedraw => {}
             AppEvent::Input(event) => self.handle_input(event, tx, cli).await?,
+            AppEvent::Demo(action) => self.handle_demo_action(action, tx).await?,
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_sync_event(&mut self, event: AppEvent, tx: &mpsc::Sender<AppEvent>) -> Result<()> {
+        match event {
+            AppEvent::TickFrame => self.handle_tick_frame(),
             AppEvent::FetchStarted => self.handle_fetch_started(),
             AppEvent::GeocodeResolved(resolution) => {
-                self.handle_geocode_resolved(tx, resolution)?
+                self.handle_geocode_resolved(tx, resolution)?;
             }
             AppEvent::FetchSucceeded(bundle) => self.handle_fetch_succeeded(bundle),
             AppEvent::FetchFailed(err) => self.handle_fetch_failed(tx, err),
-            AppEvent::Demo(action) => self.handle_demo_action(action, tx).await?,
             AppEvent::Quit => self.mode = AppMode::Quit,
+            _ => {}
         }
-
         Ok(())
     }
 
@@ -393,7 +416,7 @@ impl AppState {
             GeocodeResolution::Selected(location) => {
                 self.selected_location = Some(location.clone());
                 self.pending_locations.clear();
-                self.fetch_forecast(tx, location)?;
+                self.fetch_forecast(tx, location);
             }
             GeocodeResolution::NeedsDisambiguation(locations) => {
                 self.pending_locations = locations;
@@ -595,7 +618,7 @@ impl AppState {
             self.selected_location = Some(selected.clone());
             self.pending_locations.clear();
             self.mode = AppMode::Loading;
-            self.fetch_forecast(tx, selected)?;
+            self.fetch_forecast(tx, selected);
         }
         Ok(())
     }
@@ -738,8 +761,7 @@ impl AppState {
                 self.clear_recent_locations();
             }
             KeyCode::Char(digit @ '1'..='9') => {
-                self.select_recent_city_by_index(tx, (digit as usize) - ('1' as usize))
-                    .await?;
+                self.select_recent_city_by_index(tx, (digit as usize) - ('1' as usize));
             }
             KeyCode::Enter => {
                 self.submit_city_picker(tx, cli).await?;
@@ -752,16 +774,11 @@ impl AppState {
         Ok(())
     }
 
-    async fn select_recent_city_by_index(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        index: usize,
-    ) -> Result<()> {
+    fn select_recent_city_by_index(&mut self, tx: &mpsc::Sender<AppEvent>, index: usize) {
         if let Some(saved) = self.settings.recent_locations.get(index).cloned() {
             self.city_picker_open = false;
-            self.switch_to_location(tx, saved.to_location()).await?;
+            self.switch_to_location(tx, saved.to_location());
         }
-        Ok(())
     }
 
     async fn submit_city_picker(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
@@ -769,15 +786,15 @@ impl AppState {
         if !query.is_empty() {
             self.city_picker_open = false;
             self.city_status = Some(format!("Searching {query}..."));
-            self.start_city_search(tx, query, cli.country_code.clone())?;
+            self.start_city_search(tx, query, cli.country_code.clone());
             return Ok(());
         }
         if Some(self.city_history_selected) == self.city_picker_action_index() {
             self.clear_recent_locations();
             return Ok(());
         }
-        self.select_recent_city_by_index(tx, self.city_history_selected)
-            .await
+        self.select_recent_city_by_index(tx, self.city_history_selected);
+        Ok(())
     }
 
     fn push_city_query_char(&mut self, key: KeyEvent, ch: char) {
@@ -925,16 +942,12 @@ impl AppState {
         self.city_picker_action_index().unwrap_or(0)
     }
 
-    async fn switch_to_location(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        location: Location,
-    ) -> Result<()> {
+    fn switch_to_location(&mut self, tx: &mpsc::Sender<AppEvent>, location: Location) {
         self.selected_location = Some(location.clone());
         self.pending_locations.clear();
         self.mode = AppMode::Loading;
         self.city_status = Some(format!("Switching to {}", location.display_name()));
-        self.fetch_forecast(tx, location)
+        self.fetch_forecast(tx, location);
     }
 
     fn start_city_search(
@@ -942,7 +955,7 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         city: String,
         country_code: Option<String>,
-    ) -> Result<()> {
+    ) {
         self.pending_locations.clear();
         self.mode = AppMode::Loading;
         self.fetch_in_flight = true;
@@ -961,8 +974,6 @@ impl AppState {
                 }
             }
         });
-
-        Ok(())
     }
 
     async fn start_fetch(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {
@@ -973,7 +984,7 @@ impl AppState {
         tx.send(AppEvent::FetchStarted).await?;
 
         if let Some(location) = self.selected_location.clone() {
-            self.fetch_forecast(tx, location)?;
+            self.fetch_forecast(tx, location);
             return Ok(());
         }
 
@@ -1034,7 +1045,7 @@ impl AppState {
         Ok(())
     }
 
-    fn fetch_forecast(&mut self, tx: &mpsc::Sender<AppEvent>, location: Location) -> Result<()> {
+    fn fetch_forecast(&self, tx: &mpsc::Sender<AppEvent>, location: Location) {
         let client = ForecastClient::new();
         let tx2 = tx.clone();
         tokio::spawn(async move {
@@ -1047,7 +1058,6 @@ impl AppState {
                 }
             }
         });
-        Ok(())
     }
 
     async fn handle_demo_action(
@@ -1069,7 +1079,7 @@ impl AppState {
                 self.city_status = Some(format!("Demo: selected {}", location.display_name()));
                 self.city_query.clear();
                 self.city_picker_open = false;
-                self.switch_to_location(tx, location).await?;
+                self.switch_to_location(tx, location);
             }
             DemoAction::OpenSettings => {
                 self.city_picker_open = false;
@@ -1119,6 +1129,13 @@ fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
         idx - 1
     };
     values[next]
+}
+
+fn event_is_async(event: &AppEvent) -> bool {
+    matches!(
+        event,
+        AppEvent::Bootstrap | AppEvent::TickRefresh | AppEvent::Input(_) | AppEvent::Demo(_)
+    )
 }
 
 fn is_city_char(ch: char) -> bool {

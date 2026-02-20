@@ -5,7 +5,20 @@ use crate::ui::widgets::landmark::compact::compact_condition_scene;
 use crate::ui::widgets::landmark::shared::{canvas_to_lines, paint_char};
 use crate::ui::widgets::landmark::{LandmarkScene, tint_for_category};
 
+const MOON_PHASE_THRESHOLDS: &[(f32, char)] = &[
+    (0.06, '●'),
+    (0.19, '◔'),
+    (0.31, '◑'),
+    (0.44, '◕'),
+    (0.56, '○'),
+    (0.69, '◖'),
+    (0.81, '◐'),
+    (0.94, '◗'),
+    (1.0, '●'),
+];
+
 #[allow(clippy::needless_range_loop)]
+#[must_use]
 pub fn scene_for_sky_observatory(
     bundle: &ForecastBundle,
     frame_tick: u64,
@@ -276,18 +289,7 @@ fn symbol_for_code(code: u8) -> char {
 fn moon_phase(bundle: &ForecastBundle) -> char {
     let day = bundle.daily.first().map_or(1, |d| d.date.ordinal()) as f32;
     let phase = (day % 29.53) / 29.53;
-    const PHASE_THRESHOLDS: &[(f32, char)] = &[
-        (0.06, '●'),
-        (0.19, '◔'),
-        (0.31, '◑'),
-        (0.44, '◕'),
-        (0.56, '○'),
-        (0.69, '◖'),
-        (0.81, '◐'),
-        (0.94, '◗'),
-        (1.0, '●'),
-    ];
-    for (threshold, symbol) in PHASE_THRESHOLDS {
+    for (threshold, symbol) in MOON_PHASE_THRESHOLDS {
         if phase < *threshold {
             return *symbol;
         }

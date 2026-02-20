@@ -14,6 +14,7 @@ pub enum AlertSeverity {
     Danger,
 }
 
+#[must_use]
 pub fn scan_alerts(bundle: &ForecastBundle, units: Units) -> Vec<WeatherAlert> {
     let mut alerts = Vec::new();
     let next_24h = next_24h_hours(bundle);
