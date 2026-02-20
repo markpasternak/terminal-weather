@@ -427,121 +427,7 @@ impl AppState {
     ) -> Result<()> {
         match event {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
-                if matches!(key.code, KeyCode::Char('c' | 'C'))
-                    && key.modifiers.contains(KeyModifiers::CONTROL)
-                {
-                    tx.send(AppEvent::Quit).await?;
-                    return Ok(());
-                }
-                if matches!(key.code, KeyCode::Char('l' | 'L'))
-                    && key.modifiers.contains(KeyModifiers::CONTROL)
-                {
-                    tx.send(AppEvent::ForceRedraw).await?;
-                    return Ok(());
-                }
-
-                if self.settings_open {
-                    self.handle_settings_key(key.code, tx, cli).await?;
-                    return Ok(());
-                }
-                if self.city_picker_open {
-                    self.handle_city_picker_key(key, tx, cli).await?;
-                    return Ok(());
-                }
-                if self.help_open {
-                    self.handle_help_key(key, tx).await?;
-                    return Ok(());
-                }
-
-                match key.code {
-                    KeyCode::F(1) | KeyCode::Char('?') => {
-                        self.help_open = true;
-                        self.settings_open = false;
-                        self.city_picker_open = false;
-                    }
-                    KeyCode::Esc => {
-                        tx.send(AppEvent::Quit).await?;
-                    }
-                    KeyCode::Char(_) if command_char_matches(key, 'q') => {
-                        tx.send(AppEvent::Quit).await?;
-                    }
-                    KeyCode::Char(_)
-                        if command_char_matches(key, 's')
-                            && self.mode != AppMode::SelectingLocation =>
-                    {
-                        self.city_picker_open = false;
-                        self.help_open = false;
-                        self.settings_open = true;
-                        self.settings_selected = 0;
-                    }
-                    KeyCode::Char(_)
-                        if command_char_matches(key, 'l')
-                            && self.mode != AppMode::SelectingLocation =>
-                    {
-                        self.settings_open = false;
-                        self.help_open = false;
-                        self.city_picker_open = true;
-                        self.city_query.clear();
-                        self.city_history_selected = 0;
-                        self.city_status =
-                            Some("Type a city and press Enter, or pick from history".to_string());
-                    }
-                    KeyCode::Char(_) if command_char_matches(key, 'r') => {
-                        self.start_fetch(tx, cli).await?;
-                    }
-                    KeyCode::Char(_) if command_char_matches(key, 'f') => {
-                        if self.settings.units != Units::Fahrenheit {
-                            self.settings.units = Units::Fahrenheit;
-                            self.apply_runtime_settings();
-                            self.persist_settings();
-                        }
-                    }
-                    KeyCode::Char(_) if command_char_matches(key, 'c') => {
-                        if self.settings.units != Units::Celsius {
-                            self.settings.units = Units::Celsius;
-                            self.apply_runtime_settings();
-                            self.persist_settings();
-                        }
-                    }
-                    KeyCode::Char(_) if command_char_matches(key, 'v') => {
-                        self.settings.hourly_view =
-                            cycle(&HOURLY_VIEW_OPTIONS, self.hourly_view_mode, 1);
-                        self.apply_runtime_settings();
-                        self.persist_settings();
-                    }
-                    KeyCode::Left => {
-                        if self.hourly_cursor > 0 {
-                            self.hourly_cursor -= 1;
-                            if self.hourly_cursor < self.hourly_offset {
-                                self.hourly_offset = self.hourly_cursor;
-                            }
-                        }
-                    }
-                    KeyCode::Right => {
-                        if let Some(bundle) = &self.weather {
-                            let max = bundle.hourly.len().saturating_sub(1);
-                            if self.hourly_cursor < max {
-                                self.hourly_cursor += 1;
-                                let visible = visible_hour_count(self.viewport_width);
-                                if self.hourly_cursor >= self.hourly_offset + visible {
-                                    self.hourly_offset = self
-                                        .hourly_cursor
-                                        .saturating_sub(visible.saturating_sub(1));
-                                }
-                            }
-                        }
-                    }
-                    KeyCode::Char(digit @ '1'..='5') if self.mode == AppMode::SelectingLocation => {
-                        let idx = (digit as usize) - ('1' as usize);
-                        if let Some(selected) = self.pending_locations.get(idx).cloned() {
-                            self.selected_location = Some(selected.clone());
-                            self.pending_locations.clear();
-                            self.mode = AppMode::Loading;
-                            self.fetch_forecast(tx, selected).await?;
-                        }
-                    }
-                    _ => {}
-                }
+                self.handle_key_press(key, tx, cli).await?;
             }
             Event::Resize(width, _) => {
                 self.viewport_width = width;
@@ -551,6 +437,175 @@ impl AppState {
         }
 
         Ok(())
+    }
+
+    async fn handle_key_press(
+        &mut self,
+        key: KeyEvent,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> Result<()> {
+        if self.handle_control_shortcuts(key, tx).await? {
+            return Ok(());
+        }
+        if self.handle_modal_key_press(key, tx, cli).await? {
+            return Ok(());
+        }
+        self.handle_main_key_press(key, tx, cli).await
+    }
+
+    async fn handle_control_shortcuts(
+        &self,
+        key: KeyEvent,
+        tx: &mpsc::Sender<AppEvent>,
+    ) -> Result<bool> {
+        if matches!(key.code, KeyCode::Char('c' | 'C'))
+            && key.modifiers.contains(KeyModifiers::CONTROL)
+        {
+            tx.send(AppEvent::Quit).await?;
+            return Ok(true);
+        }
+        if matches!(key.code, KeyCode::Char('l' | 'L'))
+            && key.modifiers.contains(KeyModifiers::CONTROL)
+        {
+            tx.send(AppEvent::ForceRedraw).await?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    async fn handle_modal_key_press(
+        &mut self,
+        key: KeyEvent,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> Result<bool> {
+        if self.settings_open {
+            self.handle_settings_key(key.code, tx, cli).await?;
+            return Ok(true);
+        }
+        if self.city_picker_open {
+            self.handle_city_picker_key(key, tx, cli).await?;
+            return Ok(true);
+        }
+        if self.help_open {
+            self.handle_help_key(key, tx).await?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    async fn handle_main_key_press(
+        &mut self,
+        key: KeyEvent,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> Result<()> {
+        match key.code {
+            KeyCode::F(1) | KeyCode::Char('?') => {
+                self.open_help_overlay();
+            }
+            KeyCode::Esc => {
+                tx.send(AppEvent::Quit).await?;
+            }
+            KeyCode::Char(_) if command_char_matches(key, 'q') => {
+                tx.send(AppEvent::Quit).await?;
+            }
+            KeyCode::Char(_) if command_char_matches(key, 's') => {
+                if self.mode != AppMode::SelectingLocation {
+                    self.open_settings_panel();
+                }
+            }
+            KeyCode::Char(_) if command_char_matches(key, 'l') => {
+                if self.mode != AppMode::SelectingLocation {
+                    self.open_city_picker();
+                }
+            }
+            KeyCode::Char(_) if command_char_matches(key, 'r') => {
+                self.start_fetch(tx, cli).await?;
+            }
+            KeyCode::Char(_) if command_char_matches(key, 'f') => {
+                self.set_units(Units::Fahrenheit);
+            }
+            KeyCode::Char(_) if command_char_matches(key, 'c') => {
+                self.set_units(Units::Celsius);
+            }
+            KeyCode::Char(_) if command_char_matches(key, 'v') => {
+                self.settings.hourly_view = cycle(&HOURLY_VIEW_OPTIONS, self.hourly_view_mode, 1);
+                self.apply_runtime_settings();
+                self.persist_settings();
+            }
+            KeyCode::Left => {
+                self.move_hourly_cursor_left();
+            }
+            KeyCode::Right => {
+                self.move_hourly_cursor_right();
+            }
+            KeyCode::Char(digit @ '1'..='5') if self.mode == AppMode::SelectingLocation => {
+                let idx = (digit as usize) - ('1' as usize);
+                if let Some(selected) = self.pending_locations.get(idx).cloned() {
+                    self.selected_location = Some(selected.clone());
+                    self.pending_locations.clear();
+                    self.mode = AppMode::Loading;
+                    self.fetch_forecast(tx, selected).await?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn open_help_overlay(&mut self) {
+        self.help_open = true;
+        self.settings_open = false;
+        self.city_picker_open = false;
+    }
+
+    fn open_settings_panel(&mut self) {
+        self.city_picker_open = false;
+        self.help_open = false;
+        self.settings_open = true;
+        self.settings_selected = 0;
+    }
+
+    fn open_city_picker(&mut self) {
+        self.settings_open = false;
+        self.help_open = false;
+        self.city_picker_open = true;
+        self.city_query.clear();
+        self.city_history_selected = 0;
+        self.city_status = Some("Type a city and press Enter, or pick from history".to_string());
+    }
+
+    fn set_units(&mut self, units: Units) {
+        if self.settings.units != units {
+            self.settings.units = units;
+            self.apply_runtime_settings();
+            self.persist_settings();
+        }
+    }
+
+    fn move_hourly_cursor_left(&mut self) {
+        if self.hourly_cursor > 0 {
+            self.hourly_cursor -= 1;
+            if self.hourly_cursor < self.hourly_offset {
+                self.hourly_offset = self.hourly_cursor;
+            }
+        }
+    }
+
+    fn move_hourly_cursor_right(&mut self) {
+        if let Some(bundle) = &self.weather {
+            let max = bundle.hourly.len().saturating_sub(1);
+            if self.hourly_cursor < max {
+                self.hourly_cursor += 1;
+                let visible = visible_hour_count(self.viewport_width);
+                if self.hourly_cursor >= self.hourly_offset + visible {
+                    self.hourly_offset =
+                        self.hourly_cursor.saturating_sub(visible.saturating_sub(1));
+                }
+            }
+        }
     }
 
     async fn handle_settings_key(
