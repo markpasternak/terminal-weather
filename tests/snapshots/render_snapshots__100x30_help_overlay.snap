@@ -10,8 +10,8 @@ expression: "render_help_to_string(100, 30, 61)"
 │Wind 3/6│r refresh now  |  Ctrl+L force redraw                                           │        │
 │Pressure│s settings  |  l city picker  |  f/c units  |  v hourly view                    │▒░      │
 │Dew 2°  │<-/-> scroll hourly  |  ? or F1 toggle help                                     │▁▁▁▁    │
-│Last upd│                                                                                │▃▃▃▃    │
-│        │Settings Panel                                                                  │████    │
+│Rain cha│                                                                                │▃▃▃▃    │
+│Last upd│Settings Panel                                                                  │████    │
 │        │Up/Down select  |  Left/Right or Enter change                                   │████    │
 │        │Enter on actions runs Refresh now / Close                                       │        │
 └────────│Esc or s closes settings                                                        │────────┘

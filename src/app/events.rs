@@ -1,10 +1,15 @@
 #![allow(clippy::cast_precision_loss)]
 
-use std::time::Duration;
-
 use crossterm::event::{Event, EventStream};
 use futures::StreamExt;
 use rand::Rng;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 use tokio::time::{interval, sleep};
 
 use crate::{
@@ -55,10 +60,10 @@ pub fn start_frame_task(tx: tokio::sync::mpsc::Sender<AppEvent>, fps: u8) {
     });
 }
 
-pub fn start_refresh_task(tx: tokio::sync::mpsc::Sender<AppEvent>, refresh_secs: u64) {
+pub fn start_refresh_task(tx: tokio::sync::mpsc::Sender<AppEvent>, refresh_secs: Arc<AtomicU64>) {
     tokio::spawn(async move {
-        let base = refresh_secs.max(10);
         loop {
+            let base = refresh_secs.load(Ordering::Relaxed).max(10);
             let wait_secs = {
                 let mut rng = rand::rng();
                 let jitter = rng.random_range(-0.1f32..0.1f32);

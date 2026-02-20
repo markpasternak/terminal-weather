@@ -98,7 +98,7 @@ impl AppState {
             MotionSetting::Off => 15,
         };
         start_frame_task(tx.clone(), frame_fps);
-        start_refresh_task(tx.clone(), self.settings.refresh_interval_secs);
+        start_refresh_task(tx.clone(), self.refresh_interval_secs_runtime.clone());
         if cli.demo {
             start_demo_task(tx.clone());
         }
@@ -146,6 +146,7 @@ impl AppState {
             self.mode = AppMode::Loading;
         }
         self.refresh_meta.last_attempt = Some(chrono::Utc::now());
+        self.refresh_meta.clear_retry();
     }
 
     pub(crate) fn handle_geocode_resolved(
@@ -200,6 +201,7 @@ impl AppState {
             self.refresh_meta.consecutive_failures,
         );
         let delay = self.backoff.next_delay();
+        self.refresh_meta.schedule_retry_in(delay);
         schedule_retry(tx.clone(), delay);
     }
 

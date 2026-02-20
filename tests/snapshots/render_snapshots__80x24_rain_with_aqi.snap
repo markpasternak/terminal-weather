@@ -1,6 +1,6 @@
 ---
 source: tests/render_snapshots.rs
-expression: "render_to_string(80, 24, 61)"
+expression: "render_state_to_string(80, 24, &state, &cli)"
 ---
 ┌Current · L cities · S settings · ? help──────────────────────────────────────┐
 │7°C                                          │Atmos Canvas · Rain     ‹V›     │
@@ -10,7 +10,7 @@ expression: "render_to_string(80, 24, 61)"
 │Wind 3/6 m/s SW  Visibility 11.2km           │             RAIN               │
 │Pressure 1008↗                               │                                │
 │Dew 2°  Humidity 73%                         │                                │
-│Rain chance 35%  AQI N/A                     │                                │
+│Rain chance 35%  AQI 42 Good                 │                                │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌Hourly · Table · Thu 12 Feb───────────────────────────────────────────────────┐
 │Time  Now   11:00 12:00 13:00 14:00 15:00 16:00 17:00 18:00 19:00 20:00 21:00 │

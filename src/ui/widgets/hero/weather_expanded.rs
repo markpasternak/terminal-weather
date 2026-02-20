@@ -14,12 +14,13 @@ use ratatui::{
     text::{Line, Span},
     widgets::Paragraph,
 };
+use std::fmt::Write as _;
 
 use crate::{
     app::state::AppState,
     domain::weather::{
-        ForecastBundle, HourlyForecast, convert_temp, round_temp, round_wind_speed,
-        weather_code_to_category, weather_label_for_time,
+        AirQualityCategory, ForecastBundle, HourlyForecast, convert_temp, round_temp,
+        round_wind_speed, weather_code_to_category, weather_label_for_time,
     },
     ui::theme::{Theme, condition_color},
 };
@@ -43,6 +44,7 @@ struct ExpandedTopData {
     freshness: &'static str,
     freshness_color: Color,
     updated: String,
+    fetch_context: Option<String>,
 }
 
 #[derive(Debug)]
@@ -59,8 +61,12 @@ struct ExpandedMetricsData {
     cloud_total: i32,
     cloud_split: String,
     uv_today: String,
+    precip_probability: String,
     sunrise: String,
     sunset: String,
+    aqi: String,
+    aqi_category: AirQualityCategory,
+    aqi_available: bool,
 }
 
 #[derive(Debug)]
@@ -161,7 +167,8 @@ fn build_expanded_top_data(
         high_low: weather.high_low(state.units),
         freshness,
         freshness_color,
-        updated: last_updated_label(state),
+        updated: last_updated_label(state, weather),
+        fetch_context: expanded_fetch_context(state),
     }
 }
 
@@ -173,7 +180,8 @@ fn freshness_status(state: &AppState, theme: Theme) -> (&'static str, Color) {
     }
 }
 
-fn last_updated_label(state: &AppState) -> String {
+fn last_updated_label(state: &AppState, weather: &ForecastBundle) -> String {
+    let timezone = weather.location.timezone.as_deref().unwrap_or("--");
     state
         .refresh_meta
         .last_success
@@ -181,17 +189,19 @@ fn last_updated_label(state: &AppState) -> String {
             let local = ts.with_timezone(&Local);
             let mins = state.refresh_meta.age_minutes().unwrap_or(0);
             format!(
-                "Last updated {} ({}m ago)",
+                "Last updated {} ({}m ago) · TZ {}",
                 local.format("%H:%M"),
-                mins.max(0)
+                mins.max(0),
+                timezone
             )
         })
-        .unwrap_or_else(|| "Last updated --:--".to_string())
+        .unwrap_or_else(|| format!("Last updated --:-- · TZ {timezone}"))
 }
 
 fn build_expanded_metrics_data(state: &AppState, weather: &ForecastBundle) -> ExpandedMetricsData {
     let (cloud_low, cloud_mid, cloud_high) =
         cloud_layers_from_hourly(&weather.hourly).unwrap_or((None, None, None));
+    let (aqi, aqi_category, aqi_available) = expanded_aqi_summary(weather);
     ExpandedMetricsData {
         feels: round_temp(convert_temp(
             weather.current.apparent_temperature_c,
@@ -208,8 +218,12 @@ fn build_expanded_metrics_data(state: &AppState, weather: &ForecastBundle) -> Ex
         cloud_total: weather.current.cloud_cover.round() as i32,
         cloud_split: format_cloud_layers(cloud_low, cloud_mid, cloud_high),
         uv_today: expanded_uv_today(weather),
+        precip_probability: expanded_precip_probability(&weather.hourly),
         sunrise: expanded_sun_time(weather, |day| day.sunrise),
         sunset: expanded_sun_time(weather, |day| day.sunset),
+        aqi,
+        aqi_category,
+        aqi_available,
     }
 }
 
@@ -274,6 +288,12 @@ fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'s
         data.updated.clone(),
         Style::default().fg(theme.muted_text),
     )));
+    if let Some(fetch_context) = &data.fetch_context {
+        top_lines.push(Line::from(Span::styled(
+            fetch_context.clone(),
+            Style::default().fg(theme.warning),
+        )));
+    }
     top_lines
 }
 
@@ -338,6 +358,12 @@ fn expanded_right_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<
             Span::raw("  "),
             Span::styled("UV ", Style::default().fg(theme.muted_text)),
             Span::styled(data.uv_today.clone(), Style::default().fg(theme.warning)),
+            Span::raw("  "),
+            Span::styled("P ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                data.precip_probability.clone(),
+                Style::default().fg(theme.info),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Sunrise ", Style::default().fg(theme.muted_text)),
@@ -345,8 +371,83 @@ fn expanded_right_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<
             Span::raw("  "),
             Span::styled("Sunset ", Style::default().fg(theme.muted_text)),
             Span::styled(data.sunset.clone(), Style::default().fg(theme.warning)),
+            Span::raw("  "),
+            Span::styled("AQI ", Style::default().fg(theme.muted_text)),
+            Span::styled(
+                data.aqi.clone(),
+                Style::default().fg(expanded_aqi_color(data, theme)),
+            ),
         ]),
     ]
+}
+
+fn expanded_precip_probability(hourly: &[HourlyForecast]) -> String {
+    hourly
+        .iter()
+        .take(12)
+        .find_map(|hour| hour.precipitation_probability)
+        .map_or_else(
+            || "--".to_string(),
+            |value| format!("{}%", value.round() as i32),
+        )
+}
+
+fn expanded_aqi_summary(weather: &ForecastBundle) -> (String, AirQualityCategory, bool) {
+    let Some(reading) = weather.air_quality.as_ref() else {
+        return ("N/A".to_string(), AirQualityCategory::Unknown, false);
+    };
+
+    (
+        format!("{} {}", reading.display_value(), reading.category.label()),
+        reading.category,
+        true,
+    )
+}
+
+fn expanded_aqi_color(data: &ExpandedMetricsData, theme: Theme) -> Color {
+    if !data.aqi_available {
+        return theme.muted_text;
+    }
+
+    match data.aqi_category {
+        AirQualityCategory::Good => theme.success,
+        AirQualityCategory::Moderate => theme.warning,
+        AirQualityCategory::UnhealthySensitive
+        | AirQualityCategory::Unhealthy
+        | AirQualityCategory::VeryUnhealthy
+        | AirQualityCategory::Hazardous => theme.danger,
+        AirQualityCategory::Unknown => theme.muted_text,
+    }
+}
+
+fn expanded_fetch_context(state: &AppState) -> Option<String> {
+    let error = state.last_error.as_ref()?;
+    if matches!(
+        state.refresh_meta.state,
+        crate::resilience::freshness::FreshnessState::Fresh
+    ) {
+        return None;
+    }
+    let mut context = format!("Last fetch failed: {}", expanded_summarize_error(error, 72));
+    if let Some(retry_secs) = state.refresh_meta.retry_in_seconds() {
+        let _ = write!(context, " · retry in {retry_secs}s");
+    }
+    Some(context)
+}
+
+fn expanded_summarize_error(error: &str, max_len: usize) -> String {
+    let first_line = error.lines().next().unwrap_or_default();
+    let text = first_line.trim();
+    if text.chars().count() <= max_len {
+        return text.to_string();
+    }
+
+    let mut out = String::new();
+    for ch in text.chars().take(max_len.saturating_sub(1)) {
+        out.push(ch);
+    }
+    out.push('…');
+    out
 }
 
 #[cfg(test)]

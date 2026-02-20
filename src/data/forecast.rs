@@ -6,16 +6,18 @@ use reqwest::Client;
 use serde::Deserialize;
 
 use crate::domain::weather::{
-    CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location, parse_date,
-    parse_datetime,
+    AirQualityReading, CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location,
+    parse_date, parse_datetime,
 };
 
 const FORECAST_URL: &str = "https://api.open-meteo.com/v1/forecast";
+const AIR_QUALITY_URL: &str = "https://air-quality-api.open-meteo.com/v1/air-quality";
 
 #[derive(Debug, Clone)]
 pub struct ForecastClient {
     client: Client,
     base_url: String,
+    air_quality_url: String,
 }
 
 impl Default for ForecastClient {
@@ -38,6 +40,7 @@ impl ForecastClient {
         Self {
             client,
             base_url: base_url.into(),
+            air_quality_url: AIR_QUALITY_URL.to_string(),
         }
     }
 
@@ -59,14 +62,30 @@ impl ForecastClient {
 
         let daily = parse_daily(&payload.daily);
         let current = current_from_payload(&payload, &daily);
+        let air_quality = self.fetch_air_quality(&location).await;
 
         Ok(ForecastBundle {
             location,
             current,
             hourly: parse_hourly(&payload.hourly),
             daily,
+            air_quality,
             fetched_at: Utc::now(),
         })
+    }
+
+    async fn fetch_air_quality(&self, location: &Location) -> Option<AirQualityReading> {
+        let response = self
+            .client
+            .get(&self.air_quality_url)
+            .query(&air_quality_query(location))
+            .send()
+            .await
+            .ok()?
+            .error_for_status()
+            .ok()?;
+        let payload: AirQualityResponse = response.json().await.ok()?;
+        parse_air_quality(payload.current.as_ref())
     }
 }
 
@@ -92,6 +111,15 @@ fn forecast_query(location: &Location) -> Vec<(&'static str, String)> {
         ("timezone", "auto".to_string()),
         ("forecast_days", "7".to_string()),
         ("forecast_hours", "48".to_string()),
+    ]
+}
+
+fn air_quality_query(location: &Location) -> Vec<(&'static str, String)> {
+    vec![
+        ("latitude", location.latitude.to_string()),
+        ("longitude", location.longitude.to_string()),
+        ("current", "us_aqi,european_aqi".to_string()),
+        ("timezone", "auto".to_string()),
     ]
 }
 
@@ -182,11 +210,29 @@ fn parse_daily(daily: &DailyBlock) -> Vec<DailyForecast> {
     out
 }
 
+fn parse_air_quality(current: Option<&AirQualityCurrentBlock>) -> Option<AirQualityReading> {
+    let current = current?;
+    AirQualityReading::from_indices(current.us_aqi, current.european_aqi)
+}
+
 #[derive(Debug, Deserialize)]
 struct ForecastResponse {
     current: CurrentBlock,
     hourly: HourlyBlock,
     daily: DailyBlock,
+}
+
+#[derive(Debug, Deserialize)]
+struct AirQualityResponse {
+    current: Option<AirQualityCurrentBlock>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AirQualityCurrentBlock {
+    #[serde(default)]
+    us_aqi: Option<f32>,
+    #[serde(default)]
+    european_aqi: Option<f32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -275,5 +321,22 @@ mod tests {
         let parsed = parse_hourly(&block);
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].is_day, Some(false));
+    }
+
+    #[test]
+    fn parse_air_quality_prefers_us_index() {
+        let current = AirQualityCurrentBlock {
+            us_aqi: Some(57.0),
+            european_aqi: Some(16.0),
+        };
+
+        let parsed = parse_air_quality(Some(&current)).expect("aqi reading");
+        assert_eq!(parsed.us_aqi, Some(57));
+        assert_eq!(parsed.european_aqi, Some(16));
+    }
+
+    #[test]
+    fn parse_air_quality_returns_none_when_missing() {
+        assert!(parse_air_quality(None).is_none());
     }
 }

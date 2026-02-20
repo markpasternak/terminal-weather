@@ -19,6 +19,8 @@ pub(super) fn render_week_summary(
     let mut lines = week_summary_header_lines(&summary, theme);
     if area.width >= 64 {
         append_week_meta_line(&mut lines, bundle, theme);
+    } else if area.width >= 38 {
+        append_sunrise_sunset_line(&mut lines, bundle, theme);
     }
     let mut remaining_rows = (area.height as usize).saturating_sub(lines.len());
     append_week_profiles(&mut lines, &mut remaining_rows, area, &summary, theme);
@@ -350,6 +352,22 @@ fn append_week_meta_line(
             bundle.location.name.clone(),
             Style::default().fg(theme.accent),
         ),
+    ]));
+}
+
+fn append_sunrise_sunset_line(
+    lines: &mut Vec<Line<'static>>,
+    bundle: &ForecastBundle,
+    theme: crate::ui::theme::Theme,
+) {
+    let sunrise = first_day_time(bundle, |day| day.sunrise);
+    let sunset = first_day_time(bundle, |day| day.sunset);
+    lines.push(Line::from(vec![
+        Span::styled("Sunrise ", Style::default().fg(theme.muted_text)),
+        Span::styled(sunrise, Style::default().fg(theme.warning)),
+        Span::raw("  "),
+        Span::styled("Sunset ", Style::default().fg(theme.muted_text)),
+        Span::styled(sunset, Style::default().fg(theme.warning)),
     ]));
 }
 

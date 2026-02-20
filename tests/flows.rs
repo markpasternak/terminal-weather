@@ -2,6 +2,7 @@
 
 use chrono::{NaiveDate, NaiveDateTime, Utc};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use std::sync::atomic::Ordering;
 use terminal_weather::{
     app::{events::AppEvent, state::AppState},
     cli::{Cli, ColorArg, HeroVisualArg, HourlyViewArg, ThemeArg, UnitsArg},
@@ -45,6 +46,7 @@ fn fixture_bundle() -> ForecastBundle {
         current: fixture_current(),
         hourly: fixture_hourly(base_time),
         daily: fixture_daily(base_date),
+        air_quality: None,
         fetched_at: Utc::now(),
     }
 }
@@ -270,6 +272,34 @@ async fn flow_question_mark_opens_help_overlay() {
         .unwrap();
 
     assert!(state.help_open);
+}
+
+#[tokio::test]
+async fn flow_refresh_interval_setting_updates_runtime_value_immediately() {
+    let cli = cli();
+    let mut state = AppState::new(&cli);
+    let (tx, _rx) = mpsc::channel(8);
+    state.settings_open = true;
+    state.settings_selected = 7;
+    let previous = state.settings.refresh_interval_secs;
+
+    state
+        .handle_event(
+            AppEvent::Input(Event::Key(KeyEvent::new(
+                KeyCode::Right,
+                KeyModifiers::NONE,
+            ))),
+            &tx,
+            &cli,
+        )
+        .await
+        .unwrap();
+
+    assert_ne!(state.settings.refresh_interval_secs, previous);
+    assert_eq!(
+        state.refresh_interval_secs_runtime.load(Ordering::Relaxed),
+        state.settings.refresh_interval_secs
+    );
 }
 
 #[tokio::test]

@@ -244,6 +244,7 @@ mod tests {
             current: sample_current_conditions(),
             hourly: sample_hourly_forecast(),
             daily: vec![sample_daily_forecast()],
+            air_quality: None,
             fetched_at: Utc::now(),
         }
     }

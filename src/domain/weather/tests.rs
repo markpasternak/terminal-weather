@@ -1,4 +1,5 @@
 use super::*;
+use chrono::{Duration, Utc};
 
 #[test]
 fn freezing_drizzle_codes_have_labels() {
@@ -91,6 +92,38 @@ fn daypart_summary_aggregates_expected_fields() {
     assert!((morning.precip_sum_mm - 0.7).abs() < 0.001);
     assert_eq!(morning.precip_probability_max, Some(40.0));
     assert_eq!(morning.visibility_median_m, Some(9_000.0));
+}
+
+#[test]
+fn us_aqi_categories_follow_epa_thresholds() {
+    assert_eq!(categorize_us_aqi(40), AirQualityCategory::Good);
+    assert_eq!(categorize_us_aqi(75), AirQualityCategory::Moderate);
+    assert_eq!(
+        categorize_us_aqi(125),
+        AirQualityCategory::UnhealthySensitive
+    );
+    assert_eq!(categorize_us_aqi(180), AirQualityCategory::Unhealthy);
+    assert_eq!(categorize_us_aqi(230), AirQualityCategory::VeryUnhealthy);
+    assert_eq!(categorize_us_aqi(350), AirQualityCategory::Hazardous);
+}
+
+#[test]
+fn air_quality_reading_prefers_us_index_when_available() {
+    let reading = AirQualityReading::from_indices(Some(57.0), Some(18.0)).expect("aqi reading");
+    assert_eq!(reading.us_aqi, Some(57));
+    assert_eq!(reading.european_aqi, Some(18));
+    assert_eq!(reading.category, AirQualityCategory::Moderate);
+}
+
+#[test]
+fn retry_countdown_is_clamped_at_zero() {
+    let now = Utc::now();
+    let metadata = RefreshMetadata {
+        next_retry_at: Some(now - Duration::seconds(5)),
+        ..RefreshMetadata::default()
+    };
+
+    assert_eq!(metadata.retry_in_seconds_at(now), Some(0));
 }
 
 fn sample_hour(

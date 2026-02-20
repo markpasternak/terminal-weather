@@ -181,8 +181,8 @@ fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
     let theme = theme_for(category, is_day, capability, state.settings.theme);
 
     let label = match state.refresh_meta.state {
-        FreshnessState::Offline => Some(("⚠ offline".to_string(), theme.danger)),
-        FreshnessState::Stale => Some(("⚠ stale".to_string(), theme.warning)),
+        FreshnessState::Offline => Some((freshness_badge_text("⚠ offline", state), theme.danger)),
+        FreshnessState::Stale => Some((freshness_badge_text("⚠ stale", state), theme.warning)),
         FreshnessState::Fresh if state.fetch_in_flight => {
             Some((format!("{} syncing", spinner(state.frame_tick)), theme.info))
         }
@@ -201,6 +201,13 @@ fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
             .style(Style::default().fg(color).add_modifier(Modifier::BOLD));
         frame.render_widget(badge, badge_area);
     }
+}
+
+fn freshness_badge_text(label: &str, state: &AppState) -> String {
+    state.refresh_meta.retry_in_seconds().map_or_else(
+        || label.to_string(),
+        |secs| format!("{label} · retry {secs}s"),
+    )
 }
 
 fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {

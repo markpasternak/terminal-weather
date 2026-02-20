@@ -182,6 +182,8 @@ impl AppState {
         self.units = self.settings.units;
         self.hourly_view_mode = self.settings.hourly_view;
         self.animate_ui = matches!(self.settings.motion, MotionSetting::Full);
+        self.refresh_interval_secs_runtime
+            .store(self.settings.refresh_interval_secs, Ordering::Relaxed);
         self.particles.set_options(
             matches!(self.settings.motion, MotionSetting::Off),
             matches!(self.settings.motion, MotionSetting::Reduced),

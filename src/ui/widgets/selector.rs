@@ -7,7 +7,7 @@ use ratatui::{
 
 use crate::{
     app::state::AppState,
-    domain::weather::WeatherCategory,
+    domain::weather::{Location, WeatherCategory},
     ui::theme::{detect_color_capability, theme_for},
 };
 
@@ -37,7 +37,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .pending_locations
         .iter()
         .enumerate()
-        .map(|(idx, loc)| ListItem::new(format!("{}. {}", idx + 1, loc.display_name())))
+        .map(|(idx, loc)| ListItem::new(format_selector_location(idx, loc)))
         .collect::<Vec<_>>();
 
     let list = List::new(items)
@@ -60,4 +60,39 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         );
 
     frame.render_widget(list, area);
+}
+
+fn format_selector_location(index: usize, location: &Location) -> String {
+    let timezone = location.timezone.as_deref().unwrap_or("--");
+    format!(
+        "{}. {} · {:.2}, {:.2} · TZ {}",
+        index + 1,
+        location.display_name(),
+        location.latitude,
+        location.longitude,
+        timezone
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_selector_location;
+    use crate::domain::weather::Location;
+
+    #[test]
+    fn selector_entry_includes_timezone_and_coordinates() {
+        let location = Location {
+            name: "Springfield".to_string(),
+            latitude: 39.7990,
+            longitude: -89.6440,
+            country: Some("United States".to_string()),
+            admin1: Some("Illinois".to_string()),
+            timezone: Some("America/Chicago".to_string()),
+            population: None,
+        };
+
+        let text = format_selector_location(0, &location);
+        assert!(text.contains("39.80, -89.64"));
+        assert!(text.contains("TZ America/Chicago"));
+    }
 }

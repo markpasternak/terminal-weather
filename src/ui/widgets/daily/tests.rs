@@ -184,6 +184,7 @@ fn sample_bundle(daily: Vec<DailyForecast>) -> ForecastBundle {
         },
         hourly: Vec::new(),
         daily,
+        air_quality: None,
         fetched_at: Utc::now(),
     }
 }

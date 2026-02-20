@@ -6,7 +6,8 @@ use terminal_weather::{
     app::state::{AppMode, AppState},
     cli::{Cli, ColorArg, HeroVisualArg, ThemeArg, UnitsArg},
     domain::weather::{
-        CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, HourlyViewMode, Location,
+        AirQualityCategory, AirQualityReading, CurrentConditions, DailyForecast, ForecastBundle,
+        HourlyForecast, HourlyViewMode, Location,
     },
     resilience::freshness::FreshnessState,
     ui,
@@ -44,8 +45,19 @@ fn fixture_bundle(code: u8) -> ForecastBundle {
         current: fixture_current(code),
         hourly: fixture_hourly(base_time, code),
         daily: fixture_daily(base_date, code),
+        air_quality: None,
         fetched_at: Utc::now(),
     }
+}
+
+fn fixture_bundle_with_aqi(code: u8) -> ForecastBundle {
+    let mut bundle = fixture_bundle(code);
+    bundle.air_quality = Some(AirQualityReading {
+        us_aqi: Some(42),
+        european_aqi: Some(18),
+        category: AirQualityCategory::Good,
+    });
+    bundle
 }
 
 fn fixture_location() -> Location {
@@ -111,8 +123,24 @@ fn fixture_daily(base_date: NaiveDate, code: u8) -> Vec<DailyForecast> {
             weather_code: Some(code),
             temperature_max_c: Some(8.0 + idx as f32),
             temperature_min_c: Some(1.0 + idx as f32 * 0.3),
-            sunrise: None,
-            sunset: None,
+            sunrise: NaiveDateTime::parse_from_str(
+                &format!(
+                    "{}T06:{:02}",
+                    (base_date + chrono::Duration::days(i64::from(idx))).format("%Y-%m-%d"),
+                    10 + idx
+                ),
+                "%Y-%m-%dT%H:%M",
+            )
+            .ok(),
+            sunset: NaiveDateTime::parse_from_str(
+                &format!(
+                    "{}T17:{:02}",
+                    (base_date + chrono::Duration::days(i64::from(idx))).format("%Y-%m-%d"),
+                    40 + idx
+                ),
+                "%Y-%m-%dT%H:%M",
+            )
+            .ok(),
             uv_index_max: Some(2.0),
             precipitation_probability_max: Some(40.0),
             precipitation_sum_mm: Some(2.5 + idx as f32 * 0.6),
@@ -142,6 +170,26 @@ fn render_to_string(width: u16, height: u16, weather_code: u8) -> String {
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
         .draw(|frame| ui::render(frame, &state, &cli))
+        .expect("draw");
+
+    let buffer = terminal.backend().buffer().clone();
+    let mut lines = Vec::new();
+    for y in 0..height {
+        let mut line = String::new();
+        for x in 0..width {
+            line.push_str(buffer[(x, y)].symbol());
+        }
+        lines.push(line.trim_end().to_string());
+    }
+
+    lines.join("\n")
+}
+
+fn render_state_to_string(width: u16, height: u16, state: &AppState, cli: &Cli) -> String {
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| ui::render(frame, state, cli))
         .expect("draw");
 
     let buffer = terminal.backend().buffer().clone();
@@ -230,6 +278,20 @@ fn snapshot_80x24_rain() {
 }
 
 #[test]
+fn snapshot_80x24_rain_with_aqi() {
+    let cli = cli();
+    let mut state = AppState::new(&cli);
+    state.mode = AppMode::Ready;
+    state.weather = Some(fixture_bundle_with_aqi(61));
+    state.refresh_meta.state = FreshnessState::Fresh;
+    state.refresh_meta.last_success = Some(Utc::now());
+    insta::assert_snapshot!(
+        "80x24_rain_with_aqi",
+        render_state_to_string(80, 24, &state, &cli)
+    );
+}
+
+#[test]
 fn snapshot_60x20_snow() {
     insta::assert_snapshot!("60x20_snow", render_to_string(60, 20, 71));
 }
@@ -266,6 +328,51 @@ fn below_minimum_terminal_shows_resize_guidance() {
 #[test]
 fn snapshot_100x30_help_overlay() {
     insta::assert_snapshot!("100x30_help_overlay", render_help_to_string(100, 30, 61));
+}
+
+#[test]
+fn snapshot_80x24_stale_retry_badge() {
+    let cli = cli();
+    let mut state = AppState::new(&cli);
+    state.mode = AppMode::Ready;
+    state.weather = Some(fixture_bundle(61));
+    state.refresh_meta.state = FreshnessState::Stale;
+    state.refresh_meta.last_success = Some(Utc::now() - chrono::Duration::minutes(12));
+    state.refresh_meta.schedule_retry_in(35);
+    state.last_error = Some("forecast request failed".to_string());
+    insta::assert_snapshot!(
+        "80x24_stale_retry_badge",
+        render_state_to_string(80, 24, &state, &cli)
+    );
+}
+
+#[test]
+fn snapshot_80x24_offline_badge() {
+    let cli = cli();
+    let mut state = AppState::new(&cli);
+    state.mode = AppMode::Ready;
+    state.weather = Some(fixture_bundle(61));
+    state.refresh_meta.state = FreshnessState::Offline;
+    state.refresh_meta.last_success = Some(Utc::now() - chrono::Duration::minutes(40));
+    state.last_error = Some("forecast request failed".to_string());
+    insta::assert_snapshot!(
+        "80x24_offline_badge",
+        render_state_to_string(80, 24, &state, &cli)
+    );
+}
+
+#[test]
+fn snapshot_80x24_syncing_badge() {
+    let cli = cli();
+    let mut state = AppState::new(&cli);
+    state.mode = AppMode::Ready;
+    state.weather = Some(fixture_bundle(61));
+    state.refresh_meta.state = FreshnessState::Fresh;
+    state.fetch_in_flight = true;
+    insta::assert_snapshot!(
+        "80x24_syncing_badge",
+        render_state_to_string(80, 24, &state, &cli)
+    );
 }
 
 #[test]

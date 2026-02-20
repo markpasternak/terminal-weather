@@ -6,10 +6,10 @@ expression: "render_to_string(120, 40, 0)"
 │ 7°C  Clear sky                                          │                                                            │
 │ H:9°  L:3°  Stockholm, Stockholm, Sweden                │  Atmos Canvas · Clear sky                        ‹V›       │
 │ Status Fresh                                            │                         ·                        7°C ☀     │
-│ Last updated --:--                                      │                        ···                                 │
+│ Last updated --:-- · TZ Europe/Stockholm                │                        ···                                 │
 │ Feels 6°  Dew 2°            Pressure 1008hPa↗  Humidity │                       ··◉··                                │
 │ Wind 3/6 m/s SW  Visibility Cloud 42% 16/29/41%  UV 2.0 │                        ···                                 │
-│                             Sunrise --:--  Sunset --:-- │                         ·                             ░    │
+│                             Sunrise 06:10  Sunset 17:40 │                         ·                             ░    │
 │                                                         │          ░▒▒▒▒░                                     ░░▒    │
 │ Temp   ▁▁▁▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇███      │    ,.,,░░▒▓▓▓▒░    .,,.    ░▒▒▒▒▒░ ,,.,           ▁▁▁▁▁    │
 │ Press  ▁▁▁▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇███      │  · ,·,,·  ·  · ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▃▃▃    │

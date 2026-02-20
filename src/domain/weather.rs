@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Timelike, Utc};
+use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::{cli::IconMode, resilience::freshness::FreshnessState};
@@ -297,6 +297,7 @@ pub struct ForecastBundle {
     pub current: CurrentConditions,
     pub hourly: Vec<HourlyForecast>,
     pub daily: Vec<DailyForecast>,
+    pub air_quality: Option<AirQualityReading>,
     pub fetched_at: DateTime<Utc>,
 }
 
@@ -317,6 +318,99 @@ impl ForecastBundle {
             round_temp(convert_temp(self.current.high_today_c?, units)),
             round_temp(convert_temp(self.current.low_today_c?, units)),
         ))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AirQualityCategory {
+    Good,
+    Moderate,
+    UnhealthySensitive,
+    Unhealthy,
+    VeryUnhealthy,
+    Hazardous,
+    Unknown,
+}
+
+impl AirQualityCategory {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Good => "Good",
+            Self::Moderate => "Moderate",
+            Self::UnhealthySensitive => "USG",
+            Self::Unhealthy => "Unhealthy",
+            Self::VeryUnhealthy => "Very Unhealthy",
+            Self::Hazardous => "Hazardous",
+            Self::Unknown => "Unknown",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AirQualityReading {
+    pub us_aqi: Option<u16>,
+    pub european_aqi: Option<u16>,
+    pub category: AirQualityCategory,
+}
+
+impl AirQualityReading {
+    #[must_use]
+    pub fn from_indices(us_aqi: Option<f32>, european_aqi: Option<f32>) -> Option<Self> {
+        let us_aqi = sanitize_aqi(us_aqi);
+        let european_aqi = sanitize_aqi(european_aqi);
+        if us_aqi.is_none() && european_aqi.is_none() {
+            return None;
+        }
+
+        let category = us_aqi
+            .map(categorize_us_aqi)
+            .or_else(|| european_aqi.map(categorize_european_aqi))
+            .unwrap_or(AirQualityCategory::Unknown);
+
+        Some(Self {
+            us_aqi,
+            european_aqi,
+            category,
+        })
+    }
+
+    #[must_use]
+    pub fn display_value(&self) -> String {
+        self.us_aqi
+            .or(self.european_aqi)
+            .map_or_else(|| "N/A".to_string(), |value| value.to_string())
+    }
+}
+
+fn sanitize_aqi(value: Option<f32>) -> Option<u16> {
+    value
+        .filter(|v| v.is_finite() && *v >= 0.0)
+        .and_then(|v| u16::try_from(v.round() as i64).ok())
+}
+
+#[must_use]
+pub fn categorize_us_aqi(aqi: u16) -> AirQualityCategory {
+    match aqi {
+        0..=50 => AirQualityCategory::Good,
+        51..=100 => AirQualityCategory::Moderate,
+        101..=150 => AirQualityCategory::UnhealthySensitive,
+        151..=200 => AirQualityCategory::Unhealthy,
+        201..=300 => AirQualityCategory::VeryUnhealthy,
+        301..=500 => AirQualityCategory::Hazardous,
+        _ => AirQualityCategory::Unknown,
+    }
+}
+
+#[must_use]
+pub fn categorize_european_aqi(aqi: u16) -> AirQualityCategory {
+    match aqi {
+        0..=20 => AirQualityCategory::Good,
+        21..=40 => AirQualityCategory::Moderate,
+        41..=60 => AirQualityCategory::UnhealthySensitive,
+        61..=80 => AirQualityCategory::Unhealthy,
+        81..=100 => AirQualityCategory::VeryUnhealthy,
+        101.. => AirQualityCategory::Hazardous,
     }
 }
 
@@ -477,6 +571,7 @@ pub enum GeocodeResolution {
 pub struct RefreshMetadata {
     pub last_success: Option<DateTime<Utc>>,
     pub last_attempt: Option<DateTime<Utc>>,
+    pub next_retry_at: Option<DateTime<Utc>>,
     pub state: FreshnessState,
     pub consecutive_failures: u32,
 }
@@ -486,6 +581,7 @@ impl Default for RefreshMetadata {
         Self {
             last_success: None,
             last_attempt: None,
+            next_retry_at: None,
             state: FreshnessState::Stale,
             consecutive_failures: 0,
         }
@@ -497,18 +593,40 @@ impl RefreshMetadata {
         let now = Utc::now();
         self.last_attempt = Some(now);
         self.last_success = Some(now);
+        self.next_retry_at = None;
         self.consecutive_failures = 0;
         self.state = FreshnessState::Fresh;
     }
 
     pub fn mark_failure(&mut self) {
         self.last_attempt = Some(Utc::now());
+        self.next_retry_at = None;
         self.consecutive_failures = self.consecutive_failures.saturating_add(1);
+    }
+
+    pub fn schedule_retry_in(&mut self, delay_secs: u64) {
+        let delay_secs = i64::try_from(delay_secs).unwrap_or(i64::MAX);
+        self.next_retry_at = Some(Utc::now() + Duration::seconds(delay_secs));
+    }
+
+    pub fn clear_retry(&mut self) {
+        self.next_retry_at = None;
     }
 
     #[must_use]
     pub fn age_minutes(&self) -> Option<i64> {
         self.last_success.map(|ts| (Utc::now() - ts).num_minutes())
+    }
+
+    #[must_use]
+    pub fn retry_in_seconds(&self) -> Option<i64> {
+        self.retry_in_seconds_at(Utc::now())
+    }
+
+    #[must_use]
+    pub fn retry_in_seconds_at(&self, now: DateTime<Utc>) -> Option<i64> {
+        self.next_retry_at
+            .map(|retry_at| (retry_at - now).num_seconds().max(0))
     }
 }
 

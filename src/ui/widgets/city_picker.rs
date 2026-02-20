@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::state::AppState,
+    app::{settings::RecentLocation, state::AppState},
     ui::theme::{Theme, detect_color_capability, theme_for},
 };
 
@@ -102,7 +102,7 @@ fn recent_city_items(state: &AppState, theme: Theme) -> Vec<ListItem<'static>> {
         .iter()
         .take(9)
         .enumerate()
-        .map(|(idx, saved)| ListItem::new(format!("{}. {}", idx + 1, saved.display_name())))
+        .map(|(idx, saved)| ListItem::new(format_recent_location(idx, saved, state)))
         .collect::<Vec<_>>();
     if !items.is_empty() {
         items.push(ListItem::new(Line::from(vec![Span::styled(
@@ -151,4 +151,29 @@ fn render_status_line(frame: &mut Frame, area: Rect, state: &AppState, theme: Th
     );
     let status = Paragraph::new(status_text).style(Style::default().fg(theme.popup_muted_text));
     frame.render_widget(status, area);
+}
+
+fn format_recent_location(index: usize, saved: &RecentLocation, state: &AppState) -> String {
+    let timezone = saved.timezone.as_deref().unwrap_or("--");
+    let marker = if is_selected_location(saved, state) {
+        "* "
+    } else {
+        ""
+    };
+    format!(
+        "{}. {}{} · {:.2}, {:.2} · TZ {}",
+        index + 1,
+        marker,
+        saved.display_name(),
+        saved.latitude,
+        saved.longitude,
+        timezone
+    )
+}
+
+fn is_selected_location(saved: &RecentLocation, state: &AppState) -> bool {
+    state.selected_location.as_ref().is_some_and(|selected| {
+        let selected_recent = RecentLocation::from_location(selected);
+        saved.same_place(&selected_recent)
+    })
 }
