@@ -16,6 +16,7 @@ pub fn compact_condition_scene(
         label: format!("Atmos Canvas · {}", scene_name(category, is_day)),
         lines: fit_lines(lines, width as usize, height as usize),
         tint: tint_for_category(category),
+        context_line: None,
     }
 }
 

@@ -4,11 +4,11 @@ expression: "render_with_hourly_mode_to_string(120, 40, 61, HourlyViewMode::Char
 ---
 ┌Current · L cities · S settings · ? help──────────────────────────────────────────────────────────────────────────────┐
 │ 7°C                                                     │                                                            │
-│ Slight rain                                             │      .--.                                                  │
-│ H:9°  L:3°                                              │   .-(____)-.                                               │
-│ Stockholm, Stockholm, Sweden                            │     / / / /                                                │
-│ Wind 12/21 km/h SW  Visibility 11.2km                   │                           RAIN                             │
-│ Pressure 1008↗                                          │                                                            │
+│ Slight rain                                             │  Atmos Canvas · Rain                             ‹V›       │
+│ H:9°  L:3°                                              │      .--.                                                  │
+│ Stockholm, Stockholm, Sweden                            │   .-(____)-.                                               │
+│ Wind 12/21 km/h SW  Visibility 11.2km                   │     / / / /                                                │
+│ Pressure 1008↗                                          │                           RAIN                             │
 │ Dew 2°  Humidity 73%                                    │                                                            │
 │ Last updated: --:--                                     │                                                            │
 │                                                         │                                                            │

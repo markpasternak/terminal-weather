@@ -58,6 +58,28 @@ pub fn scene_for_gauge_cluster(bundle: &ForecastBundle, width: u16, height: u16)
             fit_lines(lines, w, h)
         },
         tint: tint_for_category(category),
+        context_line: Some(gauge_context_line(&data)),
+    }
+}
+
+fn gauge_context_line(data: &GaugeData) -> String {
+    // Pick the most notable insight
+    if data.uv > 7.0 {
+        format!("⚠ UV {:.1} very high — limit sun exposure", data.uv)
+    } else if data.gust > 50.0 {
+        format!("⚠ Gusts {:.0} km/h — secure loose objects", data.gust)
+    } else if data.uv > 5.0 {
+        format!("UV {:.1} high · sunscreen advised", data.uv)
+    } else if data.gust > 30.0 {
+        format!("Gusty winds {:.0} km/h · dress for wind", data.gust)
+    } else if data.vis_km < 1.0 {
+        format!("Visibility {:.1}km · drive carefully", data.vis_km)
+    } else if data.precip_now > 0.5 {
+        format!("Active precipitation {:.1}mm/h", data.precip_now)
+    } else if data.humidity > 85.0 {
+        format!("Humidity {:.0}% · feels muggy", data.humidity)
+    } else {
+        format!("Pressure {:.0} hPa · conditions stable", data.pressure)
     }
 }
 
@@ -147,27 +169,33 @@ fn build_left_lines(data: &GaugeData) -> Vec<String> {
     let pressure_norm = ((data.pressure - 970.0) / 70.0).clamp(0.0, 1.0);
     let uv_norm = (data.uv / 12.0).clamp(0.0, 1.0);
     let vis_norm = (data.vis_km / 12.0).clamp(0.0, 1.0);
+    // Temperature comfort zone threshold at ~20°C = norm 0.67
+    let uv_warn = if data.uv > 5.0 { " ⚠" } else { "" };
     vec![
         "Current conditions".to_string(),
         format!(
-            "Temp   {} {:>4}C",
-            meter(temp_norm, data.meter_w),
+            "Temp   {} {:>4}°C",
+            meter_with_threshold(temp_norm, data.meter_w, Some(0.67)),
             data.temp_c
         ),
         format!(
             "Humid  {} {:>4.0}%",
-            meter(data.humidity / 100.0, data.meter_w),
+            meter_with_threshold(data.humidity / 100.0, data.meter_w, None),
             data.humidity
         ),
         format!(
             "Press  {} {:>4.0}hPa",
-            meter(pressure_norm, data.meter_w),
+            meter_with_threshold(pressure_norm, data.meter_w, None),
             data.pressure
         ),
-        format!("UV Idx {} {:>4.1}", meter(uv_norm, data.meter_w), data.uv),
+        format!(
+            "UV Idx {} {:>4.1}{uv_warn}",
+            meter_with_threshold(uv_norm, data.meter_w, Some(0.42)),
+            data.uv
+        ),
         format!(
             "Visib  {} {:>4.1}km",
-            meter(vis_norm, data.meter_w),
+            meter_with_threshold(vis_norm, data.meter_w, None),
             data.vis_km
         ),
         format!(
@@ -189,22 +217,22 @@ fn build_right_lines(data: &GaugeData, category: WeatherCategory, is_day: bool) 
         ),
         format!("Sun arc {} -> {}", data.sunrise, data.sunset),
         format!(
-            "24h Temp  {}",
-            sparkline_blocks(&data.temp_track, data.right_trend_width)
+            "24h Temp  {} {}",
+            sparkline_annotated(&data.temp_track, data.right_trend_width, "°"),
+            temp_range_label(&data.temp_track)
         ),
         format!(
-            "24h Rain  {}",
-            sparkline_blocks(&data.precip_track, data.right_trend_width)
+            "24h Rain  {} {}",
+            sparkline_annotated(&data.precip_track, data.right_trend_width, ""),
+            precip_range_label(&data.precip_track)
         ),
         format!(
-            "24h Gust  {}",
-            sparkline_blocks(&data.gust_track, data.right_trend_width)
+            "24h Gust  {} {}",
+            sparkline_annotated(&data.gust_track, data.right_trend_width, ""),
+            gust_range_label(&data.gust_track)
         ),
         format!("Visibility {:>4.1}km", data.vis_km),
-        "Wind direction".to_string(),
-        "    N".to_string(),
-        wind_direction_row(data.wind_direction_10m),
-        "    S".to_string(),
+        wind_compass_box(data.wind_direction_10m),
     ]
 }
 
@@ -220,31 +248,27 @@ fn merge_columns(left: &[String], right: &[String], left_col_width: usize) -> Ve
 
 fn append_wind_direction_block(lines: &mut Vec<String>, wind_direction_10m: f32) {
     lines.push(String::new());
-    lines.push("Wind direction".to_string());
-    lines.push("    N".to_string());
-    lines.push(wind_direction_row(wind_direction_10m));
-    lines.push("    S".to_string());
+    lines.push(wind_compass_box(wind_direction_10m));
 }
 
-fn wind_direction_row(wind_direction_10m: f32) -> String {
+fn wind_compass_box(wind_direction_10m: f32) -> String {
     format!(
-        "  W {} E   dir {}",
-        if compass_arrow(wind_direction_10m) == '←' {
-            '◉'
-        } else {
-            '+'
-        },
+        "Wind ┌───┐ {} {}",
+        compass_arrow(wind_direction_10m),
         compass_short(wind_direction_10m)
     )
 }
 
-fn meter(norm: f32, width: usize) -> String {
+fn meter_with_threshold(norm: f32, width: usize, threshold: Option<f32>) -> String {
     let width = width.max(4);
     let fill = (norm.clamp(0.0, 1.0) * width as f32).round() as usize;
+    let thresh_pos = threshold.map(|t| (t.clamp(0.0, 1.0) * width as f32).round() as usize);
     let mut bar = String::with_capacity(width + 2);
     bar.push('[');
     for idx in 0..width {
-        let ch = if idx < fill {
+        let ch = if thresh_pos == Some(idx) {
+            '|'
+        } else if idx < fill {
             '█'
         } else if idx == fill {
             '▓'
@@ -257,6 +281,41 @@ fn meter(norm: f32, width: usize) -> String {
     }
     bar.push(']');
     bar
+}
+
+fn sparkline_annotated(values: &[f32], width: usize, _suffix: &str) -> String {
+    sparkline_blocks(values, width)
+}
+
+fn temp_range_label(values: &[f32]) -> String {
+    range_label(values, "°")
+}
+
+fn precip_range_label(values: &[f32]) -> String {
+    let max = values.iter().copied().fold(0.0_f32, f32::max);
+    if max > 0.0 {
+        format!("{:.0}mm", max)
+    } else {
+        String::new()
+    }
+}
+
+fn gust_range_label(values: &[f32]) -> String {
+    let max = values.iter().copied().fold(0.0_f32, f32::max);
+    if max > 0.0 {
+        format!("{:.0}km/h", max)
+    } else {
+        String::new()
+    }
+}
+
+fn range_label(values: &[f32], suffix: &str) -> String {
+    if values.is_empty() {
+        return String::new();
+    }
+    let min = values.iter().copied().fold(f32::INFINITY, f32::min);
+    let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    format!("{:.0}{suffix}–{:.0}{suffix}", min, max)
 }
 
 fn sparkline_blocks(values: &[f32], width: usize) -> String {

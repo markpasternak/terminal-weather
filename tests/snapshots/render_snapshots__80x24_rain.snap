@@ -3,11 +3,11 @@ source: tests/render_snapshots.rs
 expression: "render_to_string(80, 24, 61)"
 ---
 ┌Current · L cities · S settings · ? help──────────────────────────────────────┐
-│7°C                                          │    .--.                        │
-│Slight rain                                  │ .-(____)-.                     │
-│H:9°  L:3°                                   │   / / / /                      │
-│Stockholm, Stockholm, Sweden                 │             RAIN               │
-│Wind 12/21 km/h SW  Visibility 11.2km        │                                │
+│7°C                                          │Atmos Canvas · Rain     ‹V›     │
+│Slight rain                                  │    .--.                        │
+│H:9°  L:3°                                   │ .-(____)-.                     │
+│Stockholm, Stockholm, Sweden                 │   / / / /                      │
+│Wind 12/21 km/h SW  Visibility 11.2km        │             RAIN               │
 │Pressure 1008↗                               │                                │
 │Dew 2°  Humidity 73%                         │                                │
 │Last updated: --:--                          │                                │

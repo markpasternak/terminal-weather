@@ -32,6 +32,44 @@ pub fn render_landmark(
 
     let tint = tint_color(scene.tint, theme);
     let scene_lines = scene.lines;
+    let label = &scene.label;
+    let context = &scene.context_line;
+
+    // Reserve rows for title bar and optional context line
+    let has_title = area.height >= 6;
+    let has_context = context.is_some() && area.height >= 8;
+    let title_rows: u16 = u16::from(has_title);
+    let context_rows: u16 = u16::from(has_context);
+
+    // Render title bar
+    if has_title {
+        let title_area = Rect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: 1,
+        };
+        let hint = "‹V›";
+        let label_max = area.width as usize - hint.len() - 2;
+        let truncated_label: String = label.chars().take(label_max).collect();
+        let pad = area
+            .width
+            .saturating_sub((truncated_label.chars().count() + hint.len()) as u16);
+        let title_line = Line::from(vec![
+            Span::styled(truncated_label, Style::default().fg(theme.muted_text)),
+            Span::raw(" ".repeat(pad.saturating_sub(1) as usize)),
+            Span::styled(hint.to_string(), Style::default().fg(theme.muted_text)),
+        ]);
+        frame.render_widget(Paragraph::new(Text::from(title_line)), title_area);
+    }
+
+    // Render scene content
+    let scene_area = Rect {
+        x: area.x,
+        y: area.y + title_rows,
+        width: area.width,
+        height: area.height.saturating_sub(title_rows + context_rows),
+    };
 
     let mut lines = Vec::new();
     for line in scene_lines {
@@ -45,7 +83,23 @@ pub fn render_landmark(
 
     let text = Text::from(lines).patch_style(Style::default().fg(tint));
     let paragraph = Paragraph::new(text);
-    frame.render_widget(paragraph, area);
+    frame.render_widget(paragraph, scene_area);
+
+    // Render context line
+    if has_context && let Some(ctx_text) = context {
+        let context_area = Rect {
+            x: area.x,
+            y: area.y + area.height - 1,
+            width: area.width,
+            height: 1,
+        };
+        let ctx_truncated: String = ctx_text.chars().take(area.width as usize).collect();
+        let context_line = Line::from(Span::styled(
+            ctx_truncated,
+            Style::default().fg(theme.muted_text),
+        ));
+        frame.render_widget(Paragraph::new(Text::from(context_line)), context_area);
+    }
 }
 
 fn select_scene(
@@ -207,7 +261,8 @@ fn scene_char_color_sky(ch: char, theme: Theme, base_tint: Color) -> Color {
             theme.warning
         }
         '█' | '▓' | '▒' | '░' => theme.info,
-        '*' | '·' | 'E' | 'W' | '─' | '~' | '/' => theme.landmark_cool,
+        '*' | '·' | '─' | '~' | '/' | '╭' | '╮' => theme.landmark_cool,
+        '↑' | '↓' => theme.warning,
         _ if ch.is_ascii_digit() || ch == ':' => theme.text,
         _ => base_tint,
     }
@@ -232,5 +287,6 @@ fn loading_scene(
         label: format!("Loading {name}"),
         lines,
         tint: crate::ui::widgets::landmark::LandmarkTint::Neutral,
+        context_line: None,
     }
 }

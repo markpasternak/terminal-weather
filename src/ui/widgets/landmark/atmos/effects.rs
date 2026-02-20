@@ -213,7 +213,7 @@ fn paint_rain_column(
         if y < h
             && y < horizon_y
             && let Some(cell) = canvas.get_mut(y).and_then(|row| row.get_mut(x))
-            && matches!(*cell, ' ' | '·')
+            && matches!(*cell, ' ' | '·' | '░' | '▒' | '▓')
         {
             *cell = ch;
         }
@@ -390,7 +390,7 @@ fn paint_snow_layer(
         }
         let y_off = (phase * speed / 2 + x * 5 + layer * 11) % horizon_y.max(2);
         let y = 1 + y_off;
-        if y < height && y < horizon_y && canvas[y][x] == ' ' {
+        if y < height && y < horizon_y && matches!(canvas[y][x], ' ' | '░' | '▒' | '▓') {
             let flake = flakes[(x + layer + phase) % flakes.len()];
             canvas[y][x] = flake;
         }

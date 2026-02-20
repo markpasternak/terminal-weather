@@ -24,6 +24,7 @@ pub struct LandmarkScene {
     pub label: String,
     pub lines: Vec<String>,
     pub tint: LandmarkTint,
+    pub context_line: Option<String>,
 }
 
 #[must_use]

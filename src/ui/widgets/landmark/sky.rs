@@ -41,10 +41,42 @@ pub fn scene_for_sky_observatory(
     }
 
     let canvas = build_sky_observatory_canvas(bundle, frame_tick, animate, w, h);
+    let (sunrise_h, sunset_h) = sun_window(bundle);
+    let now_h = current_hour(bundle);
     LandmarkScene {
         label: "Sky Observatory · Sun/Moon Arc".to_string(),
         lines: canvas_to_lines(canvas, w),
         tint: tint_for_category(category),
+        context_line: Some(sky_context_line(
+            sunrise_h,
+            sunset_h,
+            now_h,
+            bundle.current.is_day,
+        )),
+    }
+}
+
+fn sky_context_line(sunrise_h: f32, sunset_h: f32, now_h: f32, is_day: bool) -> String {
+    if is_day {
+        let remaining_mins = ((sunset_h - now_h) * 60.0).max(0.0).round() as i32;
+        let hours = remaining_mins / 60;
+        let mins = remaining_mins % 60;
+        if remaining_mins <= 0 {
+            "Sunset imminent · golden hour".to_string()
+        } else {
+            format!("{hours}h {mins:02}m of daylight remaining")
+        }
+    } else {
+        let remaining_mins = if now_h > sunset_h {
+            // After sunset, time until next sunrise (assume ~24h cycle)
+            ((24.0 - now_h + sunrise_h) * 60.0).round() as i32
+        } else {
+            // Before sunrise
+            ((sunrise_h - now_h) * 60.0).round() as i32
+        };
+        let hours = remaining_mins.max(0) / 60;
+        let mins = remaining_mins.max(0) % 60;
+        format!("{hours}h {mins:02}m until sunrise")
     }
 }
 
@@ -76,6 +108,7 @@ fn build_sky_observatory_canvas(
         height,
     );
     paint_cardinal_markers(&mut canvas, width, arc_top, arc_bottom, marker_x);
+    paint_sun_event_markers(&mut canvas, width, arc_top, arc_bottom, sunrise_h, sunset_h);
     paint_night_stars(
         &mut canvas,
         width,
@@ -104,9 +137,58 @@ fn arc_bounds(height: usize) -> (usize, usize) {
 
 #[allow(clippy::needless_range_loop)]
 fn draw_arc(canvas: &mut [Vec<char>], width: usize, top: usize, bottom: usize) {
+    let mid_x = width / 2;
     for x in 0..width {
         let y = locate_arc_y(x, width, top, bottom);
-        canvas[y][x] = '·';
+        // Graduated arc characters for better curve definition
+        let ch = if y == top || (y == top + 1 && (mid_x.wrapping_sub(x)) <= 2) {
+            '─' // flat at the apex
+        } else if x <= width / 6 || x >= width * 5 / 6 {
+            '·' // sparse dots at the edges (near horizon)
+        } else if x <= width / 3 {
+            '╭' // rising curve on the left
+        } else if x >= width * 2 / 3 {
+            '╮' // descending curve on the right
+        } else {
+            '·' // middle arc body
+        };
+        canvas[y][x] = ch;
+    }
+}
+
+fn paint_sun_event_markers(
+    canvas: &mut [Vec<char>],
+    width: usize,
+    arc_top: usize,
+    arc_bottom: usize,
+    _sunrise_h: f32,
+    _sunset_h: f32,
+) {
+    // Plot sunrise ↑ and sunset ↓ on the arc at their X positions
+    // Sunrise is at progress 0.0, sunset at progress 1.0 of the day span
+    let sunrise_x = 0usize;
+    let sunset_x = width.saturating_sub(1);
+    let sunrise_y = locate_arc_y(sunrise_x, width, arc_top, arc_bottom);
+    let sunset_y = locate_arc_y(sunset_x, width, arc_top, arc_bottom);
+
+    // Place markers just above the arc position
+    if sunrise_y > 0 {
+        paint_char(
+            canvas,
+            sunrise_x as isize,
+            (sunrise_y - 1) as isize,
+            '↑',
+            true,
+        );
+    }
+    if sunset_y > 0 {
+        paint_char(
+            canvas,
+            sunset_x as isize,
+            (sunset_y - 1) as isize,
+            '↓',
+            true,
+        );
     }
 }
 

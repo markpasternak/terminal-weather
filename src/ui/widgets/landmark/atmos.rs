@@ -36,9 +36,11 @@ pub fn scene_for_weather(
         return compact_condition_scene(category, bundle.current.is_day, width, height);
     }
 
-    let Some(canvas) = build_atmos_canvas(bundle, frame_tick, animate, category, w, h) else {
+    let Some(mut canvas) = build_atmos_canvas(bundle, frame_tick, animate, category, w, h) else {
         return compact_condition_scene(category, bundle.current.is_day, width, height);
     };
+
+    paint_hud_badge(&mut canvas, bundle, w);
 
     LandmarkScene {
         label: format!(
@@ -47,6 +49,75 @@ pub fn scene_for_weather(
         ),
         lines: canvas_to_lines(canvas, w),
         tint: tint_for_category(category),
+        context_line: Some(atmos_context_line(bundle, category)),
+    }
+}
+
+fn atmos_context_line(bundle: &ForecastBundle, category: WeatherCategory) -> String {
+    let precip_hours: Vec<(usize, f32)> = bundle
+        .hourly
+        .iter()
+        .take(24)
+        .enumerate()
+        .filter_map(|(i, h)| h.precipitation_mm.filter(|&mm| mm > 0.1).map(|mm| (i, mm)))
+        .collect();
+
+    let total_precip: f32 = precip_hours.iter().map(|(_, mm)| mm).sum();
+
+    if !precip_hours.is_empty() {
+        let last_rain_hour = precip_hours.last().map_or(0, |(i, _)| *i);
+        let now_hour = bundle.hourly.first().map_or(12, |h| h.time.hour() as usize);
+        let clearing = (now_hour + last_rain_hour + 1) % 24;
+        format!(
+            "Rain clearing by {:02}:00 · {:.0}mm expected",
+            clearing, total_precip
+        )
+    } else {
+        match category {
+            WeatherCategory::Snow => "Snowfall active · dress warm".to_string(),
+            WeatherCategory::Fog => "Low visibility · fog advisory".to_string(),
+            WeatherCategory::Thunder => "Thunderstorm active · stay indoors".to_string(),
+            WeatherCategory::Clear if bundle.current.is_day => {
+                let uv = bundle
+                    .daily
+                    .first()
+                    .and_then(|d| d.uv_index_max)
+                    .unwrap_or(0.0);
+                if uv > 5.0 {
+                    format!("Clear skies · UV {uv:.1} high — sunscreen advised")
+                } else {
+                    "Clear skies · enjoy the day".to_string()
+                }
+            }
+            WeatherCategory::Clear => "Clear night · great for stargazing".to_string(),
+            _ => {
+                let temp = bundle.current.temperature_2m_c.round() as i32;
+                format!("Currently {temp}°C · conditions stable")
+            }
+        }
+    }
+}
+
+fn paint_hud_badge(canvas: &mut [Vec<char>], bundle: &ForecastBundle, w: usize) {
+    if w < 30 || canvas.len() < 4 {
+        return;
+    }
+    let temp = bundle.current.temperature_2m_c.round() as i32;
+    let icon = match weather_code_to_category(bundle.current.weather_code) {
+        WeatherCategory::Clear if bundle.current.is_day => '☀',
+        WeatherCategory::Clear => '☽',
+        WeatherCategory::Cloudy => '☁',
+        WeatherCategory::Rain => '☂',
+        WeatherCategory::Snow => '❄',
+        WeatherCategory::Fog => '≡',
+        WeatherCategory::Thunder => '⚡',
+        WeatherCategory::Unknown => '?',
+    };
+    let badge = format!("{temp}°C {icon}");
+    let badge_len = badge.chars().count();
+    let start_x = w.saturating_sub(badge_len + 1);
+    for (i, ch) in badge.chars().enumerate() {
+        paint_char(canvas, (start_x + i) as isize, 0, ch, true);
     }
 }
 
@@ -113,7 +184,40 @@ fn paint_base_atmos_layers(
         .map_or(12, |hour| hour.time.hour() as usize)
         % 24;
     place_celestial_body(canvas, bundle.current.is_day, hour, horizon_y, width);
+
+    // Nighttime star reflections below the horizon (water/ground reflection)
+    if is_night(bundle) {
+        paint_star_reflections(canvas, width, horizon_y, height);
+    }
+
     horizon_y
+}
+
+#[allow(clippy::needless_range_loop)]
+fn paint_star_reflections(canvas: &mut [Vec<char>], width: usize, horizon_y: usize, height: usize) {
+    // Mirror a sparse subset of stars from above the horizon to below it
+    let reflect_depth = (height - horizon_y).min(horizon_y.saturating_sub(1));
+    if reflect_depth == 0 || width == 0 {
+        return;
+    }
+    for dy in 1..=reflect_depth {
+        let source_y = horizon_y.saturating_sub(dy);
+        let target_y = horizon_y + dy;
+        if source_y == 0 || target_y >= height {
+            continue;
+        }
+        for x in 0..width {
+            // Only reflect every 3rd star for a subtle effect
+            if x % 3 != 0 {
+                continue;
+            }
+            if matches!(canvas[source_y][x], '*' | '✦' | '✧')
+                && matches!(canvas[target_y][x], '█' | '▅')
+            {
+                canvas[target_y][x] = '·';
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
