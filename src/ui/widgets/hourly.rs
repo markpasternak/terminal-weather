@@ -539,15 +539,39 @@ fn build_daypart_rows(
     show_wind: bool,
     show_vis: bool,
 ) -> Vec<Row<'static>> {
-    let row_part = Row::new(
+    let mut rows = vec![
+        build_daypart_header_row(theme),
+        build_daypart_primary_row(parts, state, theme),
+        build_daypart_precip_row(parts, theme),
+    ];
+    if show_secondary {
+        rows.push(build_daypart_secondary_row(parts, theme));
+    }
+    if show_wind {
+        rows.push(build_daypart_wind_row(parts, theme));
+    }
+    if show_vis {
+        rows.push(build_daypart_visibility_row(parts, theme));
+    }
+    rows
+}
+
+fn build_daypart_header_row(theme: Theme) -> Row<'static> {
+    Row::new(
         Daypart::all()
             .iter()
             .map(|part| Cell::from(part.label()).style(Style::default().fg(theme.muted_text)))
             .collect::<Vec<_>>(),
     )
-    .style(Style::default().add_modifier(Modifier::BOLD));
+    .style(Style::default().add_modifier(Modifier::BOLD))
+}
 
-    let row_primary = Row::new(
+fn build_daypart_primary_row(
+    parts: &[DaypartSummary],
+    state: &AppState,
+    theme: Theme,
+) -> Row<'static> {
+    Row::new(
         parts
             .iter()
             .map(|summary| {
@@ -563,9 +587,11 @@ fn build_daypart_rows(
                 .style(Style::default().fg(theme.text))
             })
             .collect::<Vec<_>>(),
-    );
+    )
+}
 
-    let row_precip = Row::new(
+fn build_daypart_precip_row(parts: &[DaypartSummary], theme: Theme) -> Row<'static> {
+    Row::new(
         parts
             .iter()
             .map(|summary| {
@@ -579,9 +605,11 @@ fn build_daypart_rows(
                 .style(Style::default().fg(theme.info))
             })
             .collect::<Vec<_>>(),
-    );
+    )
+}
 
-    let row_secondary = Row::new(
+fn build_daypart_secondary_row(parts: &[DaypartSummary], theme: Theme) -> Row<'static> {
+    Row::new(
         parts
             .iter()
             .map(|summary| {
@@ -592,9 +620,11 @@ fn build_daypart_rows(
                 Cell::from(truncate(label, 14)).style(Style::default().fg(theme.muted_text))
             })
             .collect::<Vec<_>>(),
-    );
+    )
+}
 
-    let row_wind = Row::new(
+fn build_daypart_wind_row(parts: &[DaypartSummary], theme: Theme) -> Row<'static> {
+    Row::new(
         parts
             .iter()
             .map(|summary| {
@@ -608,9 +638,11 @@ fn build_daypart_rows(
                     .style(Style::default().fg(theme.warning))
             })
             .collect::<Vec<_>>(),
-    );
+    )
+}
 
-    let row_vis = Row::new(
+fn build_daypart_visibility_row(parts: &[DaypartSummary], theme: Theme) -> Row<'static> {
+    Row::new(
         parts
             .iter()
             .map(|summary| {
@@ -621,19 +653,7 @@ fn build_daypart_rows(
                 Cell::from(vis).style(Style::default().fg(theme.success))
             })
             .collect::<Vec<_>>(),
-    );
-
-    let mut rows = vec![row_part, row_primary, row_precip];
-    if show_secondary {
-        rows.push(row_secondary);
-    }
-    if show_wind {
-        rows.push(row_wind);
-    }
-    if show_vis {
-        rows.push(row_vis);
-    }
-    rows
+    )
 }
 
 fn render_temp_precip_timeline(

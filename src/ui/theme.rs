@@ -998,50 +998,40 @@ fn hue_from_rgb_components(rf: f32, gf: f32, bf: f32, max: f32, delta: f32) -> f
 }
 
 fn hue_to_basic16(hue: f32, bright: bool) -> Color {
-    match hue {
-        h if !(30.0..330.0).contains(&h) => {
-            if bright {
-                Color::LightRed
-            } else {
-                Color::Red
-            }
-        }
-        h if h < 90.0 => {
-            if bright {
-                Color::LightYellow
-            } else {
-                Color::Yellow
-            }
-        }
-        h if h < 150.0 => {
-            if bright {
-                Color::LightGreen
-            } else {
-                Color::Green
-            }
-        }
-        h if h < 210.0 => {
-            if bright {
-                Color::LightCyan
-            } else {
-                Color::Cyan
-            }
-        }
-        h if h < 270.0 => {
-            if bright {
-                Color::LightBlue
-            } else {
-                Color::Blue
-            }
-        }
-        _ => {
-            if bright {
-                Color::LightMagenta
-            } else {
-                Color::Magenta
-            }
-        }
-    }
+    let band = if !(30.0..330.0).contains(&hue) {
+        0
+    } else if hue < 90.0 {
+        1
+    } else if hue < 150.0 {
+        2
+    } else if hue < 210.0 {
+        3
+    } else if hue < 270.0 {
+        4
+    } else {
+        5
+    };
+    hue_band_color(band, bright)
+}
+
+fn hue_band_color(band: usize, bright: bool) -> Color {
+    const DIM: [Color; 6] = [
+        Color::Red,
+        Color::Yellow,
+        Color::Green,
+        Color::Cyan,
+        Color::Blue,
+        Color::Magenta,
+    ];
+    const BRIGHT: [Color; 6] = [
+        Color::LightRed,
+        Color::LightYellow,
+        Color::LightGreen,
+        Color::LightCyan,
+        Color::LightBlue,
+        Color::LightMagenta,
+    ];
+    if bright { BRIGHT[band] } else { DIM[band] }
 }
 
 #[cfg(test)]
