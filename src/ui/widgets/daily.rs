@@ -134,15 +134,13 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
                 if layout.show_precip_col {
                     let precip = day
                         .precipitation_sum_mm
-                        .map(|v| format!("{v:>4.1}"))
-                        .unwrap_or_else(|| "--.-".to_string());
+                        .map_or_else(|| "--.-".to_string(), |v| format!("{v:>4.1}"));
                     row_cells.push(Cell::from(precip).style(Style::default().fg(theme.info)));
                 }
                 if layout.show_gust_col {
                     let gust = day
                         .wind_gusts_10m_max
-                        .map(|v| format!("{:>3}", v.round() as i32))
-                        .unwrap_or_else(|| "-- ".to_string());
+                        .map_or_else(|| "-- ".to_string(), |v| format!("{:>3}", v.round() as i32));
                     row_cells.push(Cell::from(gust).style(Style::default().fg(theme.warning)));
                 }
 
@@ -173,7 +171,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     }
 
     let row_count = rows.len() as u16;
-    let header_rows = if layout.show_header { 1 } else { 0 };
+    let header_rows = u16::from(layout.show_header);
     let table_height = row_count.saturating_add(header_rows);
 
     let mut table = Table::new(rows, widths)
@@ -377,12 +375,12 @@ fn summarize_week(bundle: &ForecastBundle, units: Units) -> WeekSummaryData {
         }
     }
 
-    let wettest_txt = wettest
-        .map(|(day, mm)| format!("{day} {mm:.1}mm"))
-        .unwrap_or_else(|| "--".to_string());
-    let breeziest_txt = breeziest
-        .map(|(day, gust)| format!("{day} {}km/h", gust.round() as i32))
-        .unwrap_or_else(|| "--".to_string());
+    let wettest_txt =
+        wettest.map_or_else(|| "--".to_string(), |(day, mm)| format!("{day} {mm:.1}mm"));
+    let breeziest_txt = breeziest.map_or_else(
+        || "--".to_string(),
+        |(day, gust)| format!("{day} {}km/h", gust.round() as i32),
+    );
     let avg_daylight = if daylight_count > 0 {
         format_duration_hm(daylight_total / daylight_count as f32)
     } else {
@@ -401,9 +399,8 @@ fn summarize_week(bundle: &ForecastBundle, units: Units) -> WeekSummaryData {
     } else {
         "--".to_string()
     };
-    let uv_peak = strongest_uv
-        .map(|(day, uv)| format!("{day} {uv:.1}"))
-        .unwrap_or_else(|| "--".to_string());
+    let uv_peak =
+        strongest_uv.map_or_else(|| "--".to_string(), |(day, uv)| format!("{day} {uv:.1}"));
     let week_thermal = match (week_min_temp_c, week_max_temp_c) {
         (Some(low), Some(high)) => {
             let low = round_temp(convert_temp(low, units));
@@ -524,34 +521,28 @@ fn append_week_meta_line(
         .daily
         .first()
         .and_then(|d| d.sunrise)
-        .map(|v| v.format("%H:%M").to_string())
-        .unwrap_or_else(|| "--:--".to_string());
+        .map_or_else(|| "--:--".to_string(), |v| v.format("%H:%M").to_string());
     let sunset = bundle
         .daily
         .first()
         .and_then(|d| d.sunset)
-        .map(|v| v.format("%H:%M").to_string())
-        .unwrap_or_else(|| "--:--".to_string());
-    let dawn = bundle
-        .daily
-        .first()
-        .and_then(|d| d.sunrise)
-        .map(|v| {
+        .map_or_else(|| "--:--".to_string(), |v| v.format("%H:%M").to_string());
+    let dawn = bundle.daily.first().and_then(|d| d.sunrise).map_or_else(
+        || "--:--".to_string(),
+        |v| {
             (v - chrono::Duration::minutes(30))
                 .format("%H:%M")
                 .to_string()
-        })
-        .unwrap_or_else(|| "--:--".to_string());
-    let dusk = bundle
-        .daily
-        .first()
-        .and_then(|d| d.sunset)
-        .map(|v| {
+        },
+    );
+    let dusk = bundle.daily.first().and_then(|d| d.sunset).map_or_else(
+        || "--:--".to_string(),
+        |v| {
             (v + chrono::Duration::minutes(30))
                 .format("%H:%M")
                 .to_string()
-        })
-        .unwrap_or_else(|| "--:--".to_string());
+        },
+    );
 
     lines.push(Line::from(vec![
         Span::styled("Meta ", Style::default().fg(theme.muted_text)),
@@ -722,11 +713,11 @@ fn day_cue(day: &DailyForecast) -> String {
 
     let mut parts = Vec::new();
     if snow >= 1.0 {
-        parts.push(format!("snow {:.1}cm", snow));
+        parts.push(format!("snow {snow:.1}cm"));
     } else if precip >= 6.0 {
-        parts.push(format!("wet {:.1}mm", precip));
+        parts.push(format!("wet {precip:.1}mm"));
     } else if precip >= 1.0 {
-        parts.push(format!("light rain {:.1}mm", precip));
+        parts.push(format!("light rain {precip:.1}mm"));
     } else {
         parts.push("mostly dry".to_string());
     }

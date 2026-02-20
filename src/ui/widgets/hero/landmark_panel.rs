@@ -93,7 +93,7 @@ fn overlay_scene_logo(scene_lines: &mut [String]) {
     if height < 4 {
         return;
     }
-    let width = scene_lines.first().map(|s| s.chars().count()).unwrap_or(0);
+    let width = scene_lines.first().map_or(0, |s| s.chars().count());
     if width < 30 {
         return;
     }

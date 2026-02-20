@@ -36,15 +36,15 @@ pub fn scene_for_sky_observatory(
 
     let (sunrise_h, sunset_h) = bundle.daily.first().map_or((6.0, 18.0), |day| {
         (
-            day.sunrise.map_or(6.0, hm_to_hour_f32),
-            day.sunset.map_or(18.0, hm_to_hour_f32),
+            day.sunrise.map_or(6.0, |t| hm_to_hour_f32(&t)),
+            day.sunset.map_or(18.0, |t| hm_to_hour_f32(&t)),
         )
     });
 
     let now_h = bundle
         .hourly
         .first()
-        .map_or(12.0, |hour| hm_to_hour_f32(hour.time));
+        .map_or(12.0, |hour| hm_to_hour_f32(&hour.time));
     let day_span = (sunset_h - sunrise_h).max(0.1);
     let progress = ((now_h - sunrise_h) / day_span).clamp(0.0, 1.0);
     let marker_x = (progress * (w.saturating_sub(1)) as f32).round() as usize;
@@ -211,7 +211,7 @@ fn symbol_for_code(code: u8) -> char {
 }
 
 fn moon_phase(bundle: &ForecastBundle) -> char {
-    let day = bundle.daily.first().map(|d| d.date.ordinal()).unwrap_or(1) as f32;
+    let day = bundle.daily.first().map_or(1, |d| d.date.ordinal()) as f32;
     let phase = (day % 29.53) / 29.53;
     match phase {
         p if p < 0.06 => '●',
@@ -233,6 +233,6 @@ fn format_time_hm(hour_f: f32) -> String {
     format!("{h:02}:{m:02}")
 }
 
-fn hm_to_hour_f32<T: Timelike>(value: T) -> f32 {
+fn hm_to_hour_f32<T: Timelike>(value: &T) -> f32 {
     value.hour() as f32 + value.minute() as f32 / 60.0
 }

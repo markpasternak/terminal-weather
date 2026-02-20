@@ -77,12 +77,12 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
         let first_date = first.time.format("%a %d %b");
         let last_date = last.time.format("%a %d %b");
         if first.time.date() == last.time.date() {
-            format!("Hourly · {} · {}", mode_label, first_date)
+            format!("Hourly · {mode_label} · {first_date}")
         } else {
-            format!("Hourly · {} · {} → {}", mode_label, first_date, last_date)
+            format!("Hourly · {mode_label} · {first_date} → {last_date}")
         }
     } else {
-        format!("Hourly · {}", mode_label)
+        format!("Hourly · {mode_label}")
     };
 
     let block = Block::default()
@@ -128,7 +128,6 @@ fn effective_hourly_mode(requested: HourlyViewMode, area: Rect) -> HourlyViewMod
     }
 
     match requested {
-        HourlyViewMode::Table => HourlyViewMode::Table,
         HourlyViewMode::Hybrid if inner_height >= 6 => HourlyViewMode::Hybrid,
         HourlyViewMode::Chart if inner_height >= 8 => HourlyViewMode::Chart,
         _ => HourlyViewMode::Table,
@@ -195,18 +194,13 @@ fn render_table_mode(
                 let temp = h.temperature_2m_c.map(|t| convert_temp(t, state.units));
                 let is_cursor = cursor_in_view == Some(idx);
                 let mut style = Style::default()
-                    .fg(temp
-                        .map(|t| temp_color(&theme, t))
-                        .unwrap_or(theme.muted_text))
+                    .fg(temp.map_or(theme.muted_text, |t| temp_color(&theme, t)))
                     .add_modifier(Modifier::BOLD);
                 if is_cursor {
                     style = style.add_modifier(Modifier::UNDERLINED);
                 }
-                Cell::from(
-                    temp.map(|t| format!("{}°", round_temp(t)))
-                        .unwrap_or_else(|| "--".to_string()),
-                )
-                .style(style)
+                Cell::from(temp.map_or_else(|| "--".to_string(), |t| format!("{}°", round_temp(t))))
+                    .style(style)
             }));
             cells
         }),
@@ -246,8 +240,7 @@ fn render_table_mode(
             cells.extend(slice.iter().map(|h| {
                 let text = h
                     .precipitation_mm
-                    .map(|p| format!("{:>4.1}", p.max(0.0)))
-                    .unwrap_or_else(|| "--.-".to_string());
+                    .map_or_else(|| "--.-".to_string(), |p| format!("{:>4.1}", p.max(0.0)));
                 Cell::from(text).style(Style::default().fg(theme.info))
             }));
             cells
@@ -259,8 +252,7 @@ fn render_table_mode(
             cells.extend(slice.iter().map(|h| {
                 let text = h
                     .wind_gusts_10m
-                    .map(|g| format!("{:>3}", g.round() as i32))
-                    .unwrap_or_else(|| "-- ".to_string());
+                    .map_or_else(|| "-- ".to_string(), |g| format!("{:>3}", g.round() as i32));
                 Cell::from(text).style(Style::default().fg(theme.warning))
             }));
             cells
@@ -270,10 +262,10 @@ fn render_table_mode(
         rows.push(Row::new({
             let mut cells = vec![Cell::from("Vis").style(Style::default().fg(theme.muted_text))];
             cells.extend(slice.iter().map(|h| {
-                let text = h
-                    .visibility_m
-                    .map(|v| format!("{:>3}", (v / 1000.0).round() as i32))
-                    .unwrap_or_else(|| "-- ".to_string());
+                let text = h.visibility_m.map_or_else(
+                    || "-- ".to_string(),
+                    |v| format!("{:>3}", (v / 1000.0).round() as i32),
+                );
                 Cell::from(text).style(Style::default().fg(theme.success))
             }));
             cells
@@ -283,10 +275,10 @@ fn render_table_mode(
         rows.push(Row::new({
             let mut cells = vec![Cell::from("Cloud").style(Style::default().fg(theme.muted_text))];
             cells.extend(slice.iter().map(|h| {
-                let text = h
-                    .cloud_cover
-                    .map(|c| format!("{:>3}%", c.round() as i32))
-                    .unwrap_or_else(|| "-- ".to_string());
+                let text = h.cloud_cover.map_or_else(
+                    || "-- ".to_string(),
+                    |c| format!("{:>3}%", c.round() as i32),
+                );
                 Cell::from(text).style(Style::default().fg(theme.landmark_neutral))
             }));
             cells
@@ -298,8 +290,7 @@ fn render_table_mode(
             cells.extend(slice.iter().map(|h| {
                 let text = h
                     .pressure_msl_hpa
-                    .map(|p| format!("{:>4.0}", p))
-                    .unwrap_or_else(|| " -- ".to_string());
+                    .map_or_else(|| " -- ".to_string(), |p| format!("{:>4.0}", p));
                 Cell::from(text).style(Style::default().fg(theme.info))
             }));
             cells
@@ -309,10 +300,10 @@ fn render_table_mode(
         rows.push(Row::new({
             let mut cells = vec![Cell::from("RH").style(Style::default().fg(theme.muted_text))];
             cells.extend(slice.iter().map(|h| {
-                let text = h
-                    .relative_humidity_2m
-                    .map(|rh| format!("{:>3}%", rh.round() as i32))
-                    .unwrap_or_else(|| "-- ".to_string());
+                let text = h.relative_humidity_2m.map_or_else(
+                    || "-- ".to_string(),
+                    |rh| format!("{:>3}%", rh.round() as i32),
+                );
                 Cell::from(text).style(Style::default().fg(theme.info))
             }));
             cells
@@ -322,10 +313,10 @@ fn render_table_mode(
         rows.push(Row::new({
             let mut cells = vec![Cell::from("P%").style(Style::default().fg(theme.muted_text))];
             cells.extend(slice.iter().map(|h| {
-                let text = h
-                    .precipitation_probability
-                    .map(|p| format!("{:>3}%", p.round() as i32))
-                    .unwrap_or_else(|| "-- ".to_string());
+                let text = h.precipitation_probability.map_or_else(
+                    || "-- ".to_string(),
+                    |p| format!("{:>3}%", p.round() as i32),
+                );
                 Cell::from(text).style(Style::default().fg(theme.warning))
             }));
             cells
@@ -337,8 +328,7 @@ fn render_table_mode(
             cells.extend(slice.iter().map(|h| {
                 let text = h
                     .wind_speed_10m
-                    .map(|w| format!("{:>3}", w.round() as i32))
-                    .unwrap_or_else(|| "-- ".to_string());
+                    .map_or_else(|| "-- ".to_string(), |w| format!("{:>3}", w.round() as i32));
                 Cell::from(text).style(Style::default().fg(theme.success))
             }));
             cells
@@ -347,10 +337,8 @@ fn render_table_mode(
 
     let column_spacing = if area.width >= 140 {
         2
-    } else if area.width >= 104 {
-        1
     } else {
-        0
+        u16::from(area.width >= 104)
     };
     let mut widths = vec![Constraint::Length(label_width)];
     widths.extend(vec![
@@ -414,16 +402,13 @@ fn render_chart_metrics(frame: &mut Frame, area: Rect, stats: TimelineStats, the
     }
     let wind = stats
         .wind_avg
-        .map(|v| format!("{:.0} km/h", v))
-        .unwrap_or_else(|| "--".to_string());
+        .map_or_else(|| "--".to_string(), |v| format!("{v:.0} km/h"));
     let precip = stats
         .precip_prob_max
-        .map(|v| format!("{:.0}%", v))
-        .unwrap_or_else(|| "--".to_string());
+        .map_or_else(|| "--".to_string(), |v| format!("{v:.0}%"));
     let cloud = stats
         .cloud_avg
-        .map(|v| format!("{:.0}%", v))
-        .unwrap_or_else(|| "--".to_string());
+        .map_or_else(|| "--".to_string(), |v| format!("{v:.0}%"));
 
     let line = Line::from(vec![
         Span::styled("Wind ", Style::default().fg(theme.muted_text)),
@@ -547,8 +532,7 @@ fn render_daypart_cards(
                 .map(|summary| {
                     let prob = summary
                         .precip_probability_max
-                        .map(|v| format!("{v:.0}%"))
-                        .unwrap_or_else(|| "--".to_string());
+                        .map_or_else(|| "--".to_string(), |v| format!("{v:.0}%"));
                     Cell::from(format!("{:.1}mm {prob}", summary.precip_sum_mm.max(0.0)))
                         .style(Style::default().fg(theme.info))
                 })
@@ -572,18 +556,14 @@ fn render_daypart_cards(
             parts
                 .iter()
                 .map(|summary| {
-                    Cell::from(format!(
-                        "{}-{}km/h",
-                        summary
-                            .wind_min_kmh
-                            .map(|v| format!("{:.0}", v))
-                            .unwrap_or_else(|| "--".to_string()),
-                        summary
-                            .wind_max_kmh
-                            .map(|v| format!("{:.0}", v))
-                            .unwrap_or_else(|| "--".to_string())
-                    ))
-                    .style(Style::default().fg(theme.warning))
+                    let min_wind = summary
+                        .wind_min_kmh
+                        .map_or_else(|| "--".to_string(), |v| format!("{v:.0}"));
+                    let max_wind = summary
+                        .wind_max_kmh
+                        .map_or_else(|| "--".to_string(), |v| format!("{v:.0}"));
+                    Cell::from(format!("{min_wind}-{max_wind}km/h"))
+                        .style(Style::default().fg(theme.warning))
                 })
                 .collect::<Vec<_>>(),
         );
@@ -592,10 +572,10 @@ fn render_daypart_cards(
             parts
                 .iter()
                 .map(|summary| {
-                    let vis = summary
-                        .visibility_median_m
-                        .map(|v| format!("{:.0}km", (v / 1000.0).max(0.0)))
-                        .unwrap_or_else(|| "--".to_string());
+                    let vis = summary.visibility_median_m.map_or_else(
+                        || "--".to_string(),
+                        |v| format!("{:.0}km", (v / 1000.0).max(0.0)),
+                    );
                     Cell::from(vis).style(Style::default().fg(theme.success))
                 })
                 .collect::<Vec<_>>(),
@@ -679,7 +659,7 @@ fn render_temp_precip_timeline(
         precip_prob_max: slice
             .iter()
             .filter_map(|h| h.precipitation_probability)
-            .max_by(|a, b| a.total_cmp(b)),
+            .max_by(f32::total_cmp),
         cloud_avg: average(slice.iter().filter_map(|h| h.cloud_cover)),
     }
 }
