@@ -70,6 +70,19 @@ pub fn scene_for_weather(
 
     // --- Layer 4: Clouds ---
     paint_cloud_layer(&mut canvas, cloud_pct, wind_speed, phase, horizon_y, w);
+    paint_ambient_sky_life(
+        &mut canvas,
+        AmbientSkyLifeContext {
+            category,
+            is_day: bundle.current.is_day,
+            cloud_pct,
+            wind_speed,
+            phase,
+            animate,
+            horizon_y,
+            width: w,
+        },
+    );
 
     // --- Layer 5: Weather phenomena ---
     let code = bundle.current.weather_code;
@@ -299,6 +312,85 @@ fn paint_cloud_layer(
         }
         let cw = (max_cloud_w / 2) + (seed % (max_cloud_w / 2 + 1));
         draw_ambient_cloud(canvas, base_x, base_y, cw, cloud_rows, w, horizon_y);
+    }
+}
+
+#[derive(Clone, Copy)]
+struct AmbientSkyLifeContext {
+    category: WeatherCategory,
+    is_day: bool,
+    cloud_pct: f32,
+    wind_speed: f32,
+    phase: usize,
+    animate: bool,
+    horizon_y: usize,
+    width: usize,
+}
+
+fn paint_ambient_sky_life(canvas: &mut [Vec<char>], ctx: AmbientSkyLifeContext) {
+    if !ctx.animate
+        || !ctx.is_day
+        || ctx.phase == 0
+        || !matches!(
+            ctx.category,
+            WeatherCategory::Clear | WeatherCategory::Cloudy
+        )
+        || ctx.cloud_pct > 85.0
+        || ctx.width < 32
+        || ctx.horizon_y < 6
+    {
+        return;
+    }
+
+    let sky_rows = ctx.horizon_y.saturating_sub(2);
+    if sky_rows <= 1 {
+        return;
+    }
+
+    let bird_count = (ctx.width / 24).clamp(2, 5);
+    let bird_cycle = ctx.width + 12;
+    for i in 0..bird_count {
+        let speed = 1 + (i % 3);
+        let x = ((ctx.phase * speed + i * 17) % bird_cycle) as isize - 6;
+        let lane = 1 + ((i * 3 + ctx.phase / 19) % sky_rows.saturating_sub(1).max(1));
+        let glyph = if ((ctx.phase / 6) + i).is_multiple_of(2) {
+            'v'
+        } else {
+            'V'
+        };
+        paint_char(canvas, x, lane as isize, glyph, false);
+    }
+
+    let plane_cycle = 220;
+    let plane_window = 90;
+    let window_phase = ctx.phase % plane_cycle;
+    if window_phase >= plane_window {
+        return;
+    }
+
+    let plane = ['=', '=', '>'];
+    let plane_len = plane.len();
+    let progress = window_phase as f32 / (plane_window.saturating_sub(1)) as f32;
+    let wind_drift = ((ctx.wind_speed / 18.0).round() as isize).clamp(0, 3);
+    let plane_span = ctx.width + plane_len + 8;
+    let plane_x =
+        (progress * plane_span as f32).round() as isize - (plane_len as isize + 4) + wind_drift;
+    let lane_count = ctx.horizon_y.saturating_sub(4).max(1);
+    let plane_y = 1 + ((ctx.phase / plane_cycle + ctx.width / 9) % lane_count);
+
+    for (idx, ch) in plane.iter().enumerate() {
+        paint_char(canvas, plane_x + idx as isize, plane_y as isize, *ch, false);
+    }
+
+    let contrail_len = (1 + (ctx.wind_speed as usize / 20)).clamp(1, 3);
+    for step in 1..=contrail_len {
+        paint_char(
+            canvas,
+            plane_x - step as isize,
+            plane_y as isize,
+            '-',
+            false,
+        );
     }
 }
 
@@ -571,5 +663,115 @@ fn paint_hail(canvas: &mut [Vec<char>], phase: usize, horizon_y: usize, w: usize
                 *cell = '•';
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AmbientSkyLifeContext, paint_ambient_sky_life};
+    use crate::domain::weather::WeatherCategory;
+
+    fn blank_canvas(width: usize, height: usize) -> Vec<Vec<char>> {
+        vec![vec![' '; width]; height]
+    }
+
+    fn ambient_marks(canvas: &[Vec<char>]) -> usize {
+        canvas
+            .iter()
+            .flatten()
+            .filter(|ch| matches!(**ch, 'v' | 'V' | '=' | '>' | '-'))
+            .count()
+    }
+
+    #[test]
+    fn ambient_sky_life_not_rendered_at_night() {
+        let mut canvas = blank_canvas(40, 16);
+        paint_ambient_sky_life(
+            &mut canvas,
+            AmbientSkyLifeContext {
+                category: WeatherCategory::Clear,
+                is_day: false,
+                cloud_pct: 30.0,
+                wind_speed: 10.0,
+                phase: 24,
+                animate: true,
+                horizon_y: 10,
+                width: 40,
+            },
+        );
+        assert_eq!(ambient_marks(&canvas), 0);
+    }
+
+    #[test]
+    fn ambient_sky_life_not_rendered_in_rain_or_thunder() {
+        for category in [WeatherCategory::Rain, WeatherCategory::Thunder] {
+            let mut canvas = blank_canvas(40, 16);
+            paint_ambient_sky_life(
+                &mut canvas,
+                AmbientSkyLifeContext {
+                    category,
+                    is_day: true,
+                    cloud_pct: 30.0,
+                    wind_speed: 10.0,
+                    phase: 24,
+                    animate: true,
+                    horizon_y: 10,
+                    width: 40,
+                },
+            );
+            assert_eq!(ambient_marks(&canvas), 0);
+        }
+    }
+
+    #[test]
+    fn ambient_sky_life_renders_when_clear_day_and_phase_nonzero() {
+        let mut canvas = blank_canvas(48, 16);
+        paint_ambient_sky_life(
+            &mut canvas,
+            AmbientSkyLifeContext {
+                category: WeatherCategory::Clear,
+                is_day: true,
+                cloud_pct: 28.0,
+                wind_speed: 12.0,
+                phase: 20,
+                animate: true,
+                horizon_y: 10,
+                width: 48,
+            },
+        );
+        assert!(ambient_marks(&canvas) > 0);
+    }
+
+    #[test]
+    fn ambient_sky_life_deterministic_for_same_inputs() {
+        let mut first = blank_canvas(48, 16);
+        let mut second = blank_canvas(48, 16);
+        paint_ambient_sky_life(
+            &mut first,
+            AmbientSkyLifeContext {
+                category: WeatherCategory::Cloudy,
+                is_day: true,
+                cloud_pct: 35.0,
+                wind_speed: 14.0,
+                phase: 37,
+                animate: true,
+                horizon_y: 10,
+                width: 48,
+            },
+        );
+        paint_ambient_sky_life(
+            &mut second,
+            AmbientSkyLifeContext {
+                category: WeatherCategory::Cloudy,
+                is_day: true,
+                cloud_pct: 35.0,
+                wind_speed: 14.0,
+                phase: 37,
+                animate: true,
+                horizon_y: 10,
+                width: 48,
+            },
+        );
+        assert_eq!(first, second);
     }
 }

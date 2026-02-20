@@ -174,6 +174,7 @@ fn scene_char_color_atmos(ch: char, theme: Theme, base_tint: Color) -> Color {
     match ch {
         '█' | '▅' | '▃' | '▁' => theme.accent,
         '◉' | '◐' | 'o' | '•' => theme.warning,
+        'v' | 'V' | '>' | '=' | '-' => theme.info,
         '░' | '▒' | '▓' => theme.landmark_neutral,
         '/' | '╱' | '╲' | '.' | ',' => theme.info,
         '❆' | '*' | '✦' | '✧' => theme.landmark_cool,

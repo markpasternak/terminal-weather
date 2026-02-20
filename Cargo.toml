@@ -7,6 +7,8 @@ license = "MIT"
 homepage = "https://github.com/markpasternak/terminal-weather"
 repository = "https://github.com/markpasternak/terminal-weather"
 readme = "README.md"
+keywords = ["weather", "terminal", "tui", "cli", "dashboard"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 anyhow = "1.0"
