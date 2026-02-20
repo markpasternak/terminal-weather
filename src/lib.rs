@@ -102,24 +102,18 @@ async fn run_one_shot(cli: &Cli) -> Result<()> {
         let day_name = day.date.format("%a %d").to_string();
         let icon = day
             .weather_code
-            .map(|c| weather_icon(c, icon_mode, true))
-            .unwrap_or("--");
+            .map_or("--", |c| weather_icon(c, icon_mode, true));
         let min = day
             .temperature_min_c
             .map(|t| round_temp(convert_temp(t, units)));
         let max = day
             .temperature_max_c
             .map(|t| round_temp(convert_temp(t, units)));
-        let min_str = min
-            .map(|v| format!("{v}°"))
-            .unwrap_or_else(|| "--".to_string());
-        let max_str = max
-            .map(|v| format!("{v}°"))
-            .unwrap_or_else(|| "--".to_string());
+        let min_str = min.map_or_else(|| "--".to_string(), |v| format!("{v}°"));
+        let max_str = max.map_or_else(|| "--".to_string(), |v| format!("{v}°"));
         let precip = day
             .precipitation_sum_mm
-            .map(|p| format!("{p:.1}mm"))
-            .unwrap_or_else(|| "--".to_string());
+            .map_or_else(|| "--".to_string(), |p| format!("{p:.1}mm"));
         println!("  {day_name:<8} {icon:<4} {min_str:>4} / {max_str:<4}  {precip}");
     }
 

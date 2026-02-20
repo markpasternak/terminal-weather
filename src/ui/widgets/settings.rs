@@ -14,16 +14,15 @@ use crate::{
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(Clear, area);
 
-    let (category, is_day) = state
-        .weather
-        .as_ref()
-        .map(|w| {
+    let (category, is_day) = state.weather.as_ref().map_or(
+        (crate::domain::weather::WeatherCategory::Unknown, false),
+        |w| {
             (
                 crate::domain::weather::weather_code_to_category(w.current.weather_code),
                 w.current.is_day,
             )
-        })
-        .unwrap_or((crate::domain::weather::WeatherCategory::Unknown, false));
+        },
+    );
     let theme = theme_for(
         category,
         is_day,

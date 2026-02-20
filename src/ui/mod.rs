@@ -25,16 +25,16 @@ const MIN_RENDER_HEIGHT: u16 = 10;
 pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     let area = frame.area();
     let capability = detect_color_capability(state.color_mode);
-    let (category, is_day) = state
-        .weather
-        .as_ref()
-        .map(|w| {
-            (
-                weather_code_to_category(w.current.weather_code),
-                w.current.is_day,
-            )
-        })
-        .unwrap_or((WeatherCategory::Unknown, false));
+    let (category, is_day) =
+        state
+            .weather
+            .as_ref()
+            .map_or((WeatherCategory::Unknown, false), |w| {
+                (
+                    weather_code_to_category(w.current.weather_code),
+                    w.current.is_day,
+                )
+            });
     let theme = theme_for(category, is_day, capability, state.settings.theme);
 
     if area.width < MIN_RENDER_WIDTH || area.height < MIN_RENDER_HEIGHT {
@@ -51,8 +51,7 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
         lines.push(Line::from(""));
         lines.push(Line::from("Too small for full render"));
         lines.push(Line::from(format!(
-            "Need {}x{}+",
-            MIN_RENDER_WIDTH, MIN_RENDER_HEIGHT
+            "Need {MIN_RENDER_WIDTH}x{MIN_RENDER_HEIGHT}+"
         )));
 
         let warning = Paragraph::new(lines)
@@ -147,16 +146,16 @@ fn compact_logo_lines(inner_width: u16) -> Vec<&'static str> {
 
 fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
     let capability = detect_color_capability(state.color_mode);
-    let (category, is_day) = state
-        .weather
-        .as_ref()
-        .map(|w| {
-            (
-                weather_code_to_category(w.current.weather_code),
-                w.current.is_day,
-            )
-        })
-        .unwrap_or((WeatherCategory::Unknown, false));
+    let (category, is_day) =
+        state
+            .weather
+            .as_ref()
+            .map_or((WeatherCategory::Unknown, false), |w| {
+                (
+                    weather_code_to_category(w.current.weather_code),
+                    w.current.is_day,
+                )
+            });
     let theme = theme_for(category, is_day, capability, state.settings.theme);
 
     let label = match state.refresh_meta.state {
@@ -188,16 +187,16 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
     }
 
     let capability = detect_color_capability(state.color_mode);
-    let (category, is_day) = state
-        .weather
-        .as_ref()
-        .map(|w| {
-            (
-                weather_code_to_category(w.current.weather_code),
-                w.current.is_day,
-            )
-        })
-        .unwrap_or((WeatherCategory::Unknown, false));
+    let (category, is_day) =
+        state
+            .weather
+            .as_ref()
+            .map_or((WeatherCategory::Unknown, false), |w| {
+                (
+                    weather_code_to_category(w.current.weather_code),
+                    w.current.is_day,
+                )
+            });
     let theme = theme_for(category, is_day, capability, state.settings.theme);
     let text = footer_text_for_width(area.width);
     let footer = Paragraph::new(Line::from(vec![

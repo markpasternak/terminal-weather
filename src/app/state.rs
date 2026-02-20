@@ -333,7 +333,9 @@ impl AppState {
                 self.frame_tick = self.frame_tick.saturating_add(1);
 
                 self.particles.update(
-                    self.weather.as_ref().map(|w| w.current_weather_code()),
+                    self.weather
+                        .as_ref()
+                        .map(ForecastBundle::current_weather_code),
                     self.weather.as_ref().map(|w| w.current.wind_speed_10m),
                     self.weather.as_ref().map(|w| w.current.wind_direction_10m),
                     delta,
@@ -365,7 +367,7 @@ impl AppState {
                 GeocodeResolution::Selected(location) => {
                     self.selected_location = Some(location.clone());
                     self.pending_locations.clear();
-                    self.fetch_forecast(tx, location).await?;
+                    self.fetch_forecast(tx, location)?;
                 }
                 GeocodeResolution::NeedsDisambiguation(locations) => {
                     self.pending_locations = locations;
@@ -547,7 +549,7 @@ impl AppState {
                     self.selected_location = Some(selected.clone());
                     self.pending_locations.clear();
                     self.mode = AppMode::Loading;
-                    self.fetch_forecast(tx, selected).await?;
+                    self.fetch_forecast(tx, selected)?;
                 }
             }
             _ => {}
@@ -704,8 +706,7 @@ impl AppState {
                 if !query.is_empty() {
                     self.city_picker_open = false;
                     self.city_status = Some(format!("Searching {query}..."));
-                    self.start_city_search(tx, query, cli.country_code.clone())
-                        .await?;
+                    self.start_city_search(tx, query, cli.country_code.clone())?;
                 } else if Some(self.city_history_selected) == self.city_picker_action_index() {
                     self.clear_recent_locations();
                 } else if let Some(saved) = self
@@ -876,10 +877,10 @@ impl AppState {
         self.pending_locations.clear();
         self.mode = AppMode::Loading;
         self.city_status = Some(format!("Switching to {}", location.display_name()));
-        self.fetch_forecast(tx, location).await
+        self.fetch_forecast(tx, location)
     }
 
-    async fn start_city_search(
+    fn start_city_search(
         &mut self,
         tx: &mpsc::Sender<AppEvent>,
         city: String,
@@ -915,7 +916,7 @@ impl AppState {
         tx.send(AppEvent::FetchStarted).await?;
 
         if let Some(location) = self.selected_location.clone() {
-            self.fetch_forecast(tx, location).await?;
+            self.fetch_forecast(tx, location)?;
             return Ok(());
         }
 
@@ -976,11 +977,7 @@ impl AppState {
         Ok(())
     }
 
-    async fn fetch_forecast(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        location: Location,
-    ) -> Result<()> {
+    fn fetch_forecast(&mut self, tx: &mpsc::Sender<AppEvent>, location: Location) -> Result<()> {
         let client = ForecastClient::new();
         let tx2 = tx.clone();
         tokio::spawn(async move {
@@ -1005,7 +1002,7 @@ impl AppState {
             DemoAction::OpenCityPicker(query) => {
                 self.settings_open = false;
                 self.city_picker_open = true;
-                self.city_query = query.clone();
+                self.city_query.clone_from(&query);
                 self.city_history_selected = 0;
                 self.city_status = Some(format!("Demo: search for {query}"));
             }

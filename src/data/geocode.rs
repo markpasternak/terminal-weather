@@ -123,15 +123,12 @@ fn rank_locations(
         .enumerate()
         .map(|(idx, entry)| {
             let exact_name_match = normalize(&entry.name) == normalized_city;
-            let country_match = country_code
-                .map(|cc| {
-                    entry
-                        .country_code
-                        .as_deref()
-                        .map(|country| country.eq_ignore_ascii_case(cc))
-                        .unwrap_or(false)
-                })
-                .unwrap_or(false);
+            let country_match = country_code.is_some_and(|cc| {
+                entry
+                    .country_code
+                    .as_deref()
+                    .is_some_and(|country| country.eq_ignore_ascii_case(cc))
+            });
 
             ScoredLocation {
                 location: Location {
