@@ -138,6 +138,21 @@ Weather data comes from [Open-Meteo](https://open-meteo.com/) (your coordinates 
 
 ---
 
+## Contributing
+
+Bug reports and pull requests are welcome. [Open an issue](https://github.com/markpasternak/terminal-weather/issues) to discuss a bug or feature before sending a PR.
+
+To contribute code:
+
+1. Fork the repo and create a branch from `main`
+2. Make your changes
+3. Run `./scripts/ci-local.sh` — CI must pass before a PR can merge
+4. Open a pull request against `main`
+
+The maintainer reviews and merges all PRs. Direct pushes to `main` are restricted.
+
+---
+
 ## Attribution & License
 
 Weather and geocoding data: [Open-Meteo](https://open-meteo.com/)
