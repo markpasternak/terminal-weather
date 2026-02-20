@@ -126,6 +126,41 @@ fn retry_countdown_is_clamped_at_zero() {
     assert_eq!(metadata.retry_in_seconds_at(now), Some(0));
 }
 
+#[test]
+fn summarize_precip_window_includes_12h_boundary() {
+    let base = NaiveDateTime::parse_from_str("2026-02-12T15:00", "%Y-%m-%dT%H:%M").unwrap();
+    let hourly = (0..13)
+        .map(|idx| HourlyForecast {
+            time: base + chrono::Duration::hours(i64::from(idx)),
+            temperature_2m_c: None,
+            weather_code: None,
+            is_day: None,
+            relative_humidity_2m: None,
+            precipitation_probability: None,
+            precipitation_mm: Some(if idx == 12 { 0.4 } else { 0.0 }),
+            rain_mm: None,
+            snowfall_cm: None,
+            wind_speed_10m: None,
+            wind_gusts_10m: None,
+            pressure_msl_hpa: None,
+            visibility_m: None,
+            cloud_cover: None,
+            cloud_cover_low: None,
+            cloud_cover_mid: None,
+            cloud_cover_high: None,
+        })
+        .collect::<Vec<_>>();
+
+    let summary = summarize_precip_window(
+        &hourly,
+        PRECIP_NEAR_TERM_HOURS,
+        PRECIP_SIGNIFICANT_THRESHOLD_MM,
+    )
+    .expect("precip summary");
+    assert_eq!(summary.first_idx, 12);
+    assert!((summary.first_amount_mm - 0.4).abs() < 0.001);
+}
+
 fn sample_hour(
     time: NaiveDateTime,
     temp_c: f32,

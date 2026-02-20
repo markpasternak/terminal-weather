@@ -226,17 +226,29 @@ pub(super) fn value_span(values: &[f32]) -> Option<(f32, f32)> {
 }
 
 pub(super) fn next_precip_summary(hourly: &[HourlyForecast]) -> String {
-    let threshold = 0.2_f32;
-    for (idx, h) in hourly.iter().take(12).enumerate() {
-        let amount = h.precipitation_mm.unwrap_or(0.0).max(0.0);
-        if amount >= threshold {
-            if idx == 0 {
-                return format!("now ({amount:.1}mm)");
+    crate::domain::weather::summarize_precip_window(
+        hourly,
+        crate::domain::weather::PRECIP_NEAR_TERM_HOURS,
+        crate::domain::weather::PRECIP_SIGNIFICANT_THRESHOLD_MM,
+    )
+    .map_or_else(
+        || {
+            format!(
+                "none in {}h",
+                crate::domain::weather::PRECIP_NEAR_TERM_HOURS
+            )
+        },
+        |summary| {
+            if summary.has_precip_now() {
+                format!("now ({:.1}mm)", summary.first_amount_mm)
+            } else {
+                format!(
+                    "in {}h ({:.1}mm)",
+                    summary.first_idx, summary.first_amount_mm
+                )
             }
-            return format!("in {idx}h ({amount:.1}mm)");
-        }
-    }
-    "none in 12h".to_string()
+        },
+    )
 }
 
 pub(super) fn peak_gust_summary(hourly: &[HourlyForecast]) -> String {

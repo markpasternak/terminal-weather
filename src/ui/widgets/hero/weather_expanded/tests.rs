@@ -15,6 +15,13 @@ fn next_precip_summary_covers_now_in_nh_and_none() {
 }
 
 #[test]
+fn next_precip_summary_includes_12h_boundary() {
+    let mut hourly = (0..13).map(|idx| hour(idx, Some(0.0))).collect::<Vec<_>>();
+    hourly[12].precipitation_mm = Some(0.4);
+    assert_eq!(next_precip_summary(&hourly), "in 12h (0.4mm)");
+}
+
+#[test]
 fn pressure_span_summary_handles_empty_and_non_empty() {
     assert_eq!(pressure_span_summary(&[]), "--");
     assert_eq!(

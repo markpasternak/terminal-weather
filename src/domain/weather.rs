@@ -321,6 +321,60 @@ impl ForecastBundle {
     }
 }
 
+pub const PRECIP_NEAR_TERM_HOURS: usize = 12;
+pub const PRECIP_SIGNIFICANT_THRESHOLD_MM: f32 = 0.2;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PrecipWindowSummary {
+    pub first_idx: usize,
+    pub first_amount_mm: f32,
+    pub last_idx: usize,
+    pub total_mm: f32,
+}
+
+impl PrecipWindowSummary {
+    #[must_use]
+    pub const fn has_precip_now(self) -> bool {
+        self.first_idx == 0
+    }
+}
+
+#[must_use]
+pub fn summarize_precip_window(
+    hourly: &[HourlyForecast],
+    lookahead_hours: usize,
+    threshold_mm: f32,
+) -> Option<PrecipWindowSummary> {
+    if lookahead_hours == 0 || !threshold_mm.is_finite() || threshold_mm < 0.0 {
+        return None;
+    }
+
+    let mut first_idx = None;
+    let mut first_amount_mm = 0.0_f32;
+    let mut last_idx = None;
+    let mut total_mm = 0.0_f32;
+
+    for (idx, hour) in hourly.iter().take(lookahead_hours + 1).enumerate() {
+        let amount_mm = hour.precipitation_mm.unwrap_or(0.0).max(0.0);
+        if amount_mm < threshold_mm {
+            continue;
+        }
+        if first_idx.is_none() {
+            first_idx = Some(idx);
+            first_amount_mm = amount_mm;
+        }
+        last_idx = Some(idx);
+        total_mm += amount_mm;
+    }
+
+    Some(PrecipWindowSummary {
+        first_idx: first_idx?,
+        first_amount_mm,
+        last_idx: last_idx?,
+        total_mm,
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AirQualityCategory {
     Good,
