@@ -82,6 +82,9 @@ impl ParticleEngine {
             return;
         }
         self.accumulator = 0.0;
+        if particle_kind == ParticleKind::None {
+            return;
+        }
         for _ in 0..self.particle_density() {
             if let Some(p) = spawn_particle(particle_kind, drift, rng) {
                 self.particles.push(p);
