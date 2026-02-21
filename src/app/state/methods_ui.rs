@@ -108,7 +108,7 @@ impl AppState {
         cli: &Cli,
     ) -> bool {
         let max_index = self.city_picker_max_index();
-        if navigate_list(&mut self.city_history_selected, max_index, code) {
+        if handle_vertical_nav(&mut self.city_history_selected, max_index, code) {
             return true;
         }
         match code {
@@ -298,14 +298,14 @@ fn ctrl_char(key: KeyEvent, target: char) -> bool {
         && matches!(key.code, KeyCode::Char(ch) if ch.eq_ignore_ascii_case(&target))
 }
 
-fn navigate_list(selected: &mut usize, max: usize, code: KeyCode) -> bool {
+fn handle_vertical_nav(selected: &mut usize, max_index: usize, code: KeyCode) -> bool {
     match code {
         KeyCode::Up => {
             *selected = selected.saturating_sub(1);
             true
         }
         KeyCode::Down => {
-            *selected = (*selected + 1).min(max);
+            *selected = (*selected + 1).min(max_index);
             true
         }
         _ => false,
@@ -314,41 +314,50 @@ fn navigate_list(selected: &mut usize, max: usize, code: KeyCode) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::navigate_list;
-    use crossterm::event::KeyCode;
+    use super::*;
 
     #[test]
-    fn navigate_list_handles_up_down() {
-        let mut idx = 1;
-        let max = 5;
-
-        // Up: decrement
-        assert!(navigate_list(&mut idx, max, KeyCode::Up));
-        assert_eq!(idx, 0);
-
-        // Up: clamp at 0
-        assert!(navigate_list(&mut idx, max, KeyCode::Up));
-        assert_eq!(idx, 0);
-
-        // Down: increment
-        assert!(navigate_list(&mut idx, max, KeyCode::Down));
-        assert_eq!(idx, 1);
-
-        // Down: clamp at max
-        idx = max;
-        assert!(navigate_list(&mut idx, max, KeyCode::Down));
-        assert_eq!(idx, max);
+    fn test_handle_vertical_nav_up() {
+        let mut selected = 5;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Up);
+        assert!(handled);
+        assert_eq!(selected, 4);
     }
 
     #[test]
-    fn navigate_list_ignores_other_keys() {
-        let mut idx = 1;
-        let max = 5;
+    fn test_handle_vertical_nav_up_at_zero() {
+        let mut selected = 0;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Up);
+        assert!(handled);
+        assert_eq!(selected, 0);
+    }
 
-        assert!(!navigate_list(&mut idx, max, KeyCode::Left));
-        assert_eq!(idx, 1);
+    #[test]
+    fn test_handle_vertical_nav_down() {
+        let mut selected = 5;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Down);
+        assert!(handled);
+        assert_eq!(selected, 6);
+    }
 
-        assert!(!navigate_list(&mut idx, max, KeyCode::Enter));
-        assert_eq!(idx, 1);
+    #[test]
+    fn test_handle_vertical_nav_down_at_max() {
+        let mut selected = 10;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Down);
+        assert!(handled);
+        assert_eq!(selected, 10);
+    }
+
+    #[test]
+    fn test_handle_vertical_nav_other_key() {
+        let mut selected = 5;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Left);
+        assert!(!handled);
+        assert_eq!(selected, 5);
     }
 }
