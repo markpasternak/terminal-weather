@@ -144,12 +144,12 @@ impl AppState {
     pub(crate) fn demo_open_settings(&mut self) {
         self.city_picker_open = false;
         self.settings_open = true;
-        self.settings_selected = SETTINGS_HERO_VISUAL;
+        self.settings_selected = SettingsSelection::HeroVisual;
     }
 
     pub(crate) fn demo_set_hero_visual(&mut self, visual: HeroVisualArg) {
         self.settings_open = true;
-        self.settings_selected = SETTINGS_HERO_VISUAL;
+        self.settings_selected = SettingsSelection::HeroVisual;
         if self.settings.hero_visual != visual {
             self.settings.hero_visual = visual;
             self.apply_runtime_settings();
@@ -159,7 +159,7 @@ impl AppState {
 
     pub(crate) fn demo_set_theme(&mut self, theme: ThemeArg) {
         self.settings_open = true;
-        self.settings_selected = SETTINGS_THEME;
+        self.settings_selected = SettingsSelection::Theme;
         if self.settings.theme != theme {
             self.settings.theme = theme;
             self.apply_runtime_settings();

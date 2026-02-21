@@ -23,11 +23,11 @@ impl AppState {
     fn handle_settings_nav_key(&mut self, code: KeyCode) -> bool {
         match code {
             KeyCode::Up => {
-                self.settings_selected = self.settings_selected.saturating_sub(1);
+                self.settings_selected = self.settings_selected.prev();
                 true
             }
             KeyCode::Down => {
-                self.settings_selected = (self.settings_selected + 1).min(SETTINGS_COUNT - 1);
+                self.settings_selected = self.settings_selected.next();
                 true
             }
             KeyCode::Left => {
@@ -47,12 +47,10 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> Result<()> {
-        if self.settings_selected == SETTINGS_REFRESH_NOW {
-            self.start_fetch(tx, cli).await?;
-        } else if self.settings_selected == SETTINGS_CLOSE {
-            self.settings_open = false;
-        } else {
-            self.adjust_selected_setting(1);
+        match self.settings_selected {
+            SettingsSelection::RefreshNow => self.start_fetch(tx, cli).await?,
+            SettingsSelection::Close => self.settings_open = false,
+            _ => self.adjust_selected_setting(1),
         }
         Ok(())
     }
@@ -169,9 +167,18 @@ impl AppState {
     }
 
     pub(crate) fn adjust_selected_setting(&mut self, direction: i8) {
-        let changed = SETTINGS_ADJUSTERS
-            .get(self.settings_selected)
-            .is_some_and(|adjust| adjust(self, direction));
+        let changed = match self.settings_selected {
+            SettingsSelection::Units => adjust_units_setting(self, direction),
+            SettingsSelection::Theme => adjust_theme_setting(self, direction),
+            SettingsSelection::Motion => adjust_motion_setting(self, direction),
+            SettingsSelection::Flash => adjust_flash_setting(self, direction),
+            SettingsSelection::Icons => adjust_icon_setting(self, direction),
+            SettingsSelection::HourlyView => adjust_hourly_view_setting(self, direction),
+            SettingsSelection::HeroVisual => adjust_hero_visual_setting(self, direction),
+            SettingsSelection::RefreshInterval => adjust_refresh_interval_setting(self, direction),
+            SettingsSelection::RefreshNow | SettingsSelection::Close => false,
+        };
+
         if changed {
             self.apply_runtime_settings();
             self.persist_settings();
