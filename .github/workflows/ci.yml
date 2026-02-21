@@ -13,6 +13,12 @@ jobs:
   quality:
     name: Format, Lint, Test, Build
     runs-on: ubuntu-latest
+    env:
+      CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
+      CODACY_API_TOKEN: ${{ secrets.CODACY_API_TOKEN }}
+      CODACY_ORGANIZATION_PROVIDER: ${{ secrets.CODACY_ORGANIZATION_PROVIDER }}
+      CODACY_USERNAME: ${{ secrets.CODACY_USERNAME }}
+      CODACY_PROJECT_NAME: ${{ secrets.CODACY_PROJECT_NAME }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -36,18 +42,14 @@ jobs:
         run: ./scripts/ci-local.sh
 
       - name: Install coverage tooling
-        if: ${{ secrets.CODACY_PROJECT_TOKEN != '' || (secrets.CODACY_API_TOKEN != '' && secrets.CODACY_ORGANIZATION_PROVIDER != '' && secrets.CODACY_USERNAME != '' && secrets.CODACY_PROJECT_NAME != '') }}
+        if: ${{ env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '') }}
         run: |
-          rustup component add llvm-tools-preview
+          rustup toolchain install nightly --profile minimal
+          rustup component add llvm-tools-preview --toolchain nightly
           cargo install --locked cargo-llvm-cov
 
       - name: Report coverage to Codacy
-        if: ${{ (secrets.CODACY_PROJECT_TOKEN != '' || (secrets.CODACY_API_TOKEN != '' && secrets.CODACY_ORGANIZATION_PROVIDER != '' && secrets.CODACY_USERNAME != '' && secrets.CODACY_PROJECT_NAME != '')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        if: ${{ (env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         env:
-          CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
-          CODACY_API_TOKEN: ${{ secrets.CODACY_API_TOKEN }}
-          CODACY_ORGANIZATION_PROVIDER: ${{ secrets.CODACY_ORGANIZATION_PROVIDER }}
-          CODACY_USERNAME: ${{ secrets.CODACY_USERNAME }}
-          CODACY_PROJECT_NAME: ${{ secrets.CODACY_PROJECT_NAME }}
           TW_CODACY_UPLOAD: "1"
         run: ./scripts/codacy-coverage.sh
