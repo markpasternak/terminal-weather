@@ -331,54 +331,66 @@ fn expanded_left_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<L
 
 fn expanded_right_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<Line<'static>> {
     vec![
-        Line::from(vec![
-            Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                format!("{}hPa{}", data.pressure, data.pressure_trend),
-                Style::default().fg(theme.warning),
-            ),
-            Span::raw("  "),
-            Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                format!("{}%", data.humidity),
-                Style::default().fg(theme.info),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("Cloud ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                format!("{}%", data.cloud_total),
-                Style::default().fg(theme.landmark_neutral),
-            ),
-            Span::raw(" "),
-            Span::styled(
-                data.cloud_split.clone(),
-                Style::default().fg(theme.muted_text),
-            ),
-            Span::raw("  "),
-            Span::styled("UV ", Style::default().fg(theme.muted_text)),
-            Span::styled(data.uv_today.clone(), Style::default().fg(theme.warning)),
-            Span::raw("  "),
-            Span::styled("P ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                data.precip_probability.clone(),
-                Style::default().fg(theme.info),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("Sunrise ", Style::default().fg(theme.muted_text)),
-            Span::styled(data.sunrise.clone(), Style::default().fg(theme.warning)),
-            Span::raw("  "),
-            Span::styled("Sunset ", Style::default().fg(theme.muted_text)),
-            Span::styled(data.sunset.clone(), Style::default().fg(theme.warning)),
-            Span::raw("  "),
-            Span::styled("AQI ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                data.aqi.clone(),
-                Style::default().fg(expanded_aqi_color(data, theme)),
-            ),
-        ]),
+        expanded_pressure_line(data, theme),
+        expanded_cloud_line(data, theme),
+        expanded_sun_aqi_line(data, theme),
     ]
+}
+
+fn expanded_pressure_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'static> {
+    Line::from(vec![
+        Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}hPa{}", data.pressure, data.pressure_trend),
+            Style::default().fg(theme.warning),
+        ),
+        Span::raw("  "),
+        Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}%", data.humidity),
+            Style::default().fg(theme.info),
+        ),
+    ])
+}
+
+fn expanded_cloud_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'static> {
+    Line::from(vec![
+        Span::styled("Cloud ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            format!("{}%", data.cloud_total),
+            Style::default().fg(theme.landmark_neutral),
+        ),
+        Span::raw(" "),
+        Span::styled(
+            data.cloud_split.clone(),
+            Style::default().fg(theme.muted_text),
+        ),
+        Span::raw("  "),
+        Span::styled("UV ", Style::default().fg(theme.muted_text)),
+        Span::styled(data.uv_today.clone(), Style::default().fg(theme.warning)),
+        Span::raw("  "),
+        Span::styled("P ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            data.precip_probability.clone(),
+            Style::default().fg(theme.info),
+        ),
+    ])
+}
+
+fn expanded_sun_aqi_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'static> {
+    Line::from(vec![
+        Span::styled("Sunrise ", Style::default().fg(theme.muted_text)),
+        Span::styled(data.sunrise.clone(), Style::default().fg(theme.warning)),
+        Span::raw("  "),
+        Span::styled("Sunset ", Style::default().fg(theme.muted_text)),
+        Span::styled(data.sunset.clone(), Style::default().fg(theme.warning)),
+        Span::raw("  "),
+        Span::styled("AQI ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            data.aqi.clone(),
+            Style::default().fg(expanded_aqi_color(data, theme)),
+        ),
+    ])
 }
 
 fn expanded_precip_probability(hourly: &[HourlyForecast]) -> String {

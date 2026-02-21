@@ -2,6 +2,7 @@
 
 use std::{
     io::IsTerminal,
+    num::NonZeroUsize,
     path::PathBuf,
     sync::{
         Arc,
@@ -12,6 +13,7 @@ use std::{
 
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use lru::LruCache;
 use tokio::sync::mpsc;
 
 use crate::{
@@ -40,44 +42,44 @@ mod methods_async;
 mod methods_fetch;
 mod methods_ui;
 
-#[repr(usize)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SettingsSelection {
-    Units = 0,
-    Theme = 1,
-    Motion = 2,
-    ThunderFlash = 3,
-    Icons = 4,
-    HourlyView = 5,
-    HeroVisual = 6,
-    RefreshInterval = 7,
-    RefreshNow = 8,
-    Close = 9,
+    #[default]
+    Units,
+    Theme,
+    Motion,
+    Flash,
+    Icons,
+    HourlyView,
+    HeroVisual,
+    RefreshInterval,
+    RefreshNow,
+    Close,
 }
 
 impl SettingsSelection {
+    #[must_use]
     pub fn next(&self) -> Self {
         match self {
             Self::Units => Self::Theme,
             Self::Theme => Self::Motion,
-            Self::Motion => Self::ThunderFlash,
-            Self::ThunderFlash => Self::Icons,
+            Self::Motion => Self::Flash,
+            Self::Flash => Self::Icons,
             Self::Icons => Self::HourlyView,
             Self::HourlyView => Self::HeroVisual,
             Self::HeroVisual => Self::RefreshInterval,
             Self::RefreshInterval => Self::RefreshNow,
-            Self::RefreshNow => Self::Close,
-            Self::Close => Self::Close,
+            Self::RefreshNow | Self::Close => Self::Close,
         }
     }
 
+    #[must_use]
     pub fn prev(&self) -> Self {
         match self {
-            Self::Units => Self::Units,
-            Self::Theme => Self::Units,
+            Self::Units | Self::Theme => Self::Units,
             Self::Motion => Self::Theme,
-            Self::ThunderFlash => Self::Motion,
-            Self::Icons => Self::ThunderFlash,
+            Self::Flash => Self::Motion,
+            Self::Icons => Self::Flash,
             Self::HourlyView => Self::Icons,
             Self::HeroVisual => Self::HourlyView,
             Self::RefreshInterval => Self::HeroVisual,
@@ -85,9 +87,12 @@ impl SettingsSelection {
             Self::Close => Self::RefreshNow,
         }
     }
-}
 
-const SETTINGS_COUNT: usize = 10;
+    #[must_use]
+    pub fn to_usize(&self) -> usize {
+        *self as usize
+    }
+}
 
 const REFRESH_OPTIONS: [u64; 4] = [300, 600, 900, 1800];
 const HISTORY_MAX: usize = 12;
@@ -118,8 +123,6 @@ const THEME_OPTIONS: [ThemeArg; 18] = [
     ThemeArg::NoClownFiesta,
 ];
 
-type SettingsAdjuster = fn(&mut AppState, i8) -> bool;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {
     Loading,
@@ -136,6 +139,27 @@ pub struct SettingsEntry {
     pub editable: bool,
 }
 
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct LocationKey {
+    name: String,
+    lat_bits: u64,
+    lon_bits: u64,
+    country: Option<String>,
+    admin1: Option<String>,
+}
+
+impl From<&Location> for LocationKey {
+    fn from(loc: &Location) -> Self {
+        Self {
+            name: loc.name.clone(),
+            lat_bits: loc.latitude.to_bits(),
+            lon_bits: loc.longitude.to_bits(),
+            country: loc.country.clone(),
+            admin1: loc.admin1.clone(),
+        }
+    }
+}
+
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct AppState {
@@ -146,6 +170,7 @@ pub struct AppState {
     pub selected_location: Option<Location>,
     pub pending_locations: Vec<Location>,
     pub weather: Option<ForecastBundle>,
+    pub forecast_cache: LruCache<LocationKey, ForecastBundle>,
     pub refresh_meta: RefreshMetadata,
     pub units: Units,
     pub hourly_offset: usize,
@@ -174,16 +199,8 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(cli: &Cli) -> Self {
-        let (mut settings, settings_path) =
-            load_runtime_settings(cli, std::io::stdout().is_terminal());
-        if cli.demo {
-            if let Some(path) = settings_path.as_deref() {
-                let _ = clear_runtime_settings(path);
-            }
-            settings = RuntimeSettings::default();
-        }
-        let disabled = matches!(settings.motion, MotionSetting::Off);
-        let reduced = matches!(settings.motion, MotionSetting::Reduced);
+        let (settings, settings_path) = load_or_reset_settings(cli);
+        let (disabled, reduced) = motion_flags(&settings);
         let runtime_hourly_view = cli
             .hourly_view
             .map_or(settings.hourly_view, hourly_view_from_cli);
@@ -199,6 +216,7 @@ impl AppState {
             selected_location,
             pending_locations: Vec::new(),
             weather: None,
+            forecast_cache: LruCache::new(NonZeroUsize::new(10).unwrap_or(NonZeroUsize::MIN)),
             refresh_meta: RefreshMetadata::default(),
             units: settings.units,
             hourly_offset: 0,
@@ -214,7 +232,7 @@ impl AppState {
             settings,
             settings_open: false,
             help_open: false,
-            settings_selected: SettingsSelection::Units,
+            settings_selected: SettingsSelection::default(),
             city_picker_open: false,
             city_query: String::new(),
             city_history_selected: 0,
@@ -263,20 +281,25 @@ impl AppState {
     }
 }
 
-const SETTINGS_ADJUSTERS: [SettingsAdjuster; SETTINGS_COUNT] = [
-    adjust_units_setting,
-    adjust_theme_setting,
-    adjust_motion_setting,
-    adjust_flash_setting,
-    adjust_icon_setting,
-    adjust_hourly_view_setting,
-    adjust_hero_visual_setting,
-    adjust_refresh_interval_setting,
-    no_adjustment,
-    no_adjustment,
-];
+fn load_or_reset_settings(cli: &Cli) -> (RuntimeSettings, Option<PathBuf>) {
+    let (mut settings, settings_path) = load_runtime_settings(cli, std::io::stdout().is_terminal());
+    if cli.demo {
+        if let Some(path) = settings_path.as_deref() {
+            let _ = clear_runtime_settings(path);
+        }
+        settings = RuntimeSettings::default();
+    }
+    (settings, settings_path)
+}
 
-fn adjust_units_setting(state: &mut AppState, direction: i8) -> bool {
+fn motion_flags(settings: &RuntimeSettings) -> (bool, bool) {
+    (
+        matches!(settings.motion, MotionSetting::Off),
+        matches!(settings.motion, MotionSetting::Reduced),
+    )
+}
+
+pub(crate) fn adjust_units_setting(state: &mut AppState, direction: i8) -> bool {
     state.settings.units = cycle(
         &[Units::Celsius, Units::Fahrenheit],
         state.settings.units,
@@ -285,12 +308,12 @@ fn adjust_units_setting(state: &mut AppState, direction: i8) -> bool {
     true
 }
 
-fn adjust_theme_setting(state: &mut AppState, direction: i8) -> bool {
+pub(crate) fn adjust_theme_setting(state: &mut AppState, direction: i8) -> bool {
     state.settings.theme = cycle(&THEME_OPTIONS, state.settings.theme, direction);
     true
 }
 
-fn adjust_motion_setting(state: &mut AppState, direction: i8) -> bool {
+pub(crate) fn adjust_motion_setting(state: &mut AppState, direction: i8) -> bool {
     state.settings.motion = cycle(
         &[
             MotionSetting::Full,
@@ -303,12 +326,12 @@ fn adjust_motion_setting(state: &mut AppState, direction: i8) -> bool {
     true
 }
 
-fn adjust_flash_setting(state: &mut AppState, _: i8) -> bool {
+pub(crate) fn adjust_flash_setting(state: &mut AppState, _: i8) -> bool {
     state.settings.no_flash = !state.settings.no_flash;
     true
 }
 
-fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
+pub(crate) fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
     state.settings.icon_mode = cycle(
         &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
         state.settings.icon_mode,
@@ -317,12 +340,12 @@ fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
     true
 }
 
-fn adjust_hourly_view_setting(state: &mut AppState, direction: i8) -> bool {
+pub(crate) fn adjust_hourly_view_setting(state: &mut AppState, direction: i8) -> bool {
     state.settings.hourly_view = cycle(&HOURLY_VIEW_OPTIONS, state.hourly_view_mode, direction);
     true
 }
 
-fn adjust_hero_visual_setting(state: &mut AppState, direction: i8) -> bool {
+pub(crate) fn adjust_hero_visual_setting(state: &mut AppState, direction: i8) -> bool {
     state.settings.hero_visual = cycle(
         &[
             HeroVisualArg::AtmosCanvas,
@@ -335,17 +358,13 @@ fn adjust_hero_visual_setting(state: &mut AppState, direction: i8) -> bool {
     true
 }
 
-fn adjust_refresh_interval_setting(state: &mut AppState, direction: i8) -> bool {
+pub(crate) fn adjust_refresh_interval_setting(state: &mut AppState, direction: i8) -> bool {
     state.settings.refresh_interval_secs = cycle(
         &REFRESH_OPTIONS,
         state.settings.refresh_interval_secs,
         direction,
     );
     true
-}
-
-fn no_adjustment(_: &mut AppState, _: i8) -> bool {
-    false
 }
 
 fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
@@ -464,7 +483,9 @@ fn hero_visual_hint(mode: HeroVisualArg) -> &'static str {
 
 fn settings_hint_for_selection(selected: SettingsSelection) -> &'static str {
     match selected {
-        SettingsSelection::Theme => "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status",
+        SettingsSelection::Theme => {
+            "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status"
+        }
         SettingsSelection::Motion => {
             "Motion controls the moving effects: weather particles + animated hero scene (Full/Reduced/Off)"
         }
@@ -516,100 +537,4 @@ fn settings_close_key(code: KeyCode) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{AppState, initial_selected_location, is_city_char};
-    use crate::{
-        app::settings::{RecentLocation, RuntimeSettings},
-        cli::{Cli, ColorArg, HeroVisualArg, ThemeArg, UnitsArg},
-    };
-    use std::sync::atomic::Ordering;
-
-    #[test]
-    fn city_input_accepts_unicode_letters() {
-        assert!(is_city_char('å'));
-        assert!(is_city_char('Å'));
-        assert!(is_city_char('é'));
-    }
-
-    #[test]
-    fn city_input_rejects_control_chars() {
-        assert!(!is_city_char('\n'));
-        assert!(!is_city_char('\t'));
-    }
-
-    #[test]
-    fn initial_selected_location_uses_recent_when_no_cli_location() {
-        let cli = test_cli();
-        let mut settings = RuntimeSettings::default();
-        settings.recent_locations.push(RecentLocation {
-            name: "Stockholm".to_string(),
-            latitude: 59.3293,
-            longitude: 18.0686,
-            country: Some("Sweden".to_string()),
-            admin1: Some("Stockholm".to_string()),
-            timezone: Some("Europe/Stockholm".to_string()),
-        });
-
-        let selected = initial_selected_location(&cli, &settings).expect("selected location");
-        assert_eq!(selected.name, "Stockholm");
-    }
-
-    #[test]
-    fn initial_selected_location_respects_cli_city_override() {
-        let mut cli = test_cli();
-        cli.city = Some("Berlin".to_string());
-        let mut settings = RuntimeSettings::default();
-        settings.recent_locations.push(RecentLocation {
-            name: "Stockholm".to_string(),
-            latitude: 59.3293,
-            longitude: 18.0686,
-            country: Some("Sweden".to_string()),
-            admin1: Some("Stockholm".to_string()),
-            timezone: Some("Europe/Stockholm".to_string()),
-        });
-
-        assert!(initial_selected_location(&cli, &settings).is_none());
-    }
-
-    #[test]
-    fn settings_hint_explains_hero_visual() {
-        let mut state = AppState::new(&test_cli());
-        state.settings_selected = super::SettingsSelection::HeroVisual;
-        assert!(state.settings_hint().contains("Current panel right side"));
-    }
-
-    #[test]
-    fn apply_runtime_settings_updates_refresh_interval_runtime() {
-        let mut state = AppState::new(&test_cli());
-        state.settings.refresh_interval_secs = 300;
-        state.apply_runtime_settings();
-        assert_eq!(
-            state.refresh_interval_secs_runtime.load(Ordering::Relaxed),
-            300
-        );
-    }
-
-    fn test_cli() -> Cli {
-        Cli {
-            city: None,
-            units: UnitsArg::Celsius,
-            fps: 30,
-            no_animation: true,
-            reduced_motion: false,
-            no_flash: true,
-            ascii_icons: false,
-            emoji_icons: false,
-            color: ColorArg::Auto,
-            no_color: false,
-            hourly_view: None,
-            theme: ThemeArg::Auto,
-            hero_visual: HeroVisualArg::AtmosCanvas,
-            country_code: None,
-            lat: None,
-            lon: None,
-            refresh_interval: 600,
-            demo: false,
-            one_shot: false,
-        }
-    }
-}
+mod tests;

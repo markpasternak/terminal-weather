@@ -4,7 +4,10 @@ use chrono::{NaiveDate, NaiveDateTime, Utc};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use std::sync::atomic::Ordering;
 use terminal_weather::{
-    app::{events::AppEvent, state::{AppState, SettingsSelection}},
+    app::{
+        events::AppEvent,
+        state::{AppState, SettingsSelection},
+    },
     cli::{Cli, ColorArg, HeroVisualArg, HourlyViewArg, ThemeArg, UnitsArg},
     domain::weather::{
         CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, HourlyViewMode, Location,
