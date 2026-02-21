@@ -5,7 +5,19 @@ use std::collections::BTreeMap;
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{cli::IconMode, resilience::freshness::FreshnessState};
+use crate::resilience::freshness::FreshnessState;
+
+mod conditions;
+mod conversions;
+
+pub use conditions::{
+    ParticleKind, WeatherCategory, weather_code_to_category, weather_code_to_particle,
+    weather_icon, weather_label, weather_label_for_time,
+};
+pub use conversions::{
+    convert_temp, convert_wind_speed, evaluate_freshness, parse_date, parse_datetime, round_temp,
+    round_wind_speed,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Units {
@@ -349,28 +361,24 @@ pub fn summarize_precip_window(
         return None;
     }
 
-    let mut first_idx = None;
-    let mut first_amount_mm = 0.0_f32;
-    let mut last_idx = None;
-    let mut total_mm = 0.0_f32;
+    let matching = hourly
+        .iter()
+        .take(lookahead_hours + 1)
+        .enumerate()
+        .filter_map(|(idx, hour)| {
+            let amount_mm = hour.precipitation_mm.unwrap_or(0.0).max(0.0);
+            (amount_mm >= threshold_mm).then_some((idx, amount_mm))
+        })
+        .collect::<Vec<_>>();
 
-    for (idx, hour) in hourly.iter().take(lookahead_hours + 1).enumerate() {
-        let amount_mm = hour.precipitation_mm.unwrap_or(0.0).max(0.0);
-        if amount_mm < threshold_mm {
-            continue;
-        }
-        if first_idx.is_none() {
-            first_idx = Some(idx);
-            first_amount_mm = amount_mm;
-        }
-        last_idx = Some(idx);
-        total_mm += amount_mm;
-    }
+    let (first_idx, first_amount_mm) = *matching.first()?;
+    let last_idx = matching.last()?.0;
+    let total_mm = matching.iter().map(|(_, amount_mm)| amount_mm).sum::<f32>();
 
     Some(PrecipWindowSummary {
-        first_idx: first_idx?,
+        first_idx,
         first_amount_mm,
-        last_idx: last_idx?,
+        last_idx,
         total_mm,
     })
 }
@@ -468,152 +476,6 @@ pub fn categorize_european_aqi(aqi: u16) -> AirQualityCategory {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WeatherCategory {
-    Clear,
-    Cloudy,
-    Rain,
-    Snow,
-    Fog,
-    Thunder,
-    Unknown,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParticleKind {
-    None,
-    Rain,
-    Snow,
-    Fog,
-    Thunder,
-}
-
-#[must_use]
-pub fn weather_code_to_category(code: u8) -> WeatherCategory {
-    match code {
-        0 | 1 => WeatherCategory::Clear,
-        2 | 3 => WeatherCategory::Cloudy,
-        45 | 48 => WeatherCategory::Fog,
-        51..=57 | 61..=67 | 80..=82 => WeatherCategory::Rain,
-        71..=77 | 85..=86 => WeatherCategory::Snow,
-        95 | 96 | 99 => WeatherCategory::Thunder,
-        _ => WeatherCategory::Unknown,
-    }
-}
-
-#[must_use]
-pub fn weather_code_to_particle(code: u8) -> ParticleKind {
-    match weather_code_to_category(code) {
-        WeatherCategory::Rain => ParticleKind::Rain,
-        WeatherCategory::Snow => ParticleKind::Snow,
-        WeatherCategory::Fog => ParticleKind::Fog,
-        WeatherCategory::Thunder => ParticleKind::Thunder,
-        WeatherCategory::Cloudy | WeatherCategory::Clear | WeatherCategory::Unknown => {
-            ParticleKind::None
-        }
-    }
-}
-
-#[must_use]
-pub fn weather_label(code: u8) -> &'static str {
-    weather_label_for_time(code, true)
-}
-
-#[must_use]
-pub fn weather_label_for_time(code: u8, is_day: bool) -> &'static str {
-    match code {
-        0 => {
-            if is_day {
-                "Clear sky"
-            } else {
-                "Clear night"
-            }
-        }
-        1 => {
-            if is_day {
-                "Mainly clear"
-            } else {
-                "Mainly clear night"
-            }
-        }
-        _ => weather_label_lookup(code).unwrap_or("Unknown"),
-    }
-}
-
-#[must_use]
-pub fn weather_icon(code: u8, mode: IconMode, is_day: bool) -> &'static str {
-    let (ascii, emoji, unicode) = icon_tokens(weather_code_to_category(code), is_day);
-    match mode {
-        IconMode::Ascii => ascii,
-        IconMode::Emoji => emoji,
-        IconMode::Unicode => unicode,
-    }
-}
-
-const WEATHER_LABELS: &[(u8, &str)] = &[
-    (2, "Partly cloudy"),
-    (3, "Overcast"),
-    (45, "Fog"),
-    (48, "Depositing rime fog"),
-    (51, "Light drizzle"),
-    (53, "Moderate drizzle"),
-    (55, "Dense drizzle"),
-    (56, "Light freezing drizzle"),
-    (57, "Dense freezing drizzle"),
-    (61, "Slight rain"),
-    (63, "Moderate rain"),
-    (65, "Heavy rain"),
-    (66, "Light freezing rain"),
-    (67, "Heavy freezing rain"),
-    (71, "Slight snowfall"),
-    (73, "Moderate snowfall"),
-    (75, "Heavy snowfall"),
-    (77, "Snow grains"),
-    (80, "Slight rain showers"),
-    (81, "Moderate rain showers"),
-    (82, "Violent rain showers"),
-    (85, "Slight snow showers"),
-    (86, "Heavy snow showers"),
-    (95, "Thunderstorm"),
-    (96, "Thunderstorm + light hail"),
-    (99, "Thunderstorm + heavy hail"),
-];
-
-fn weather_label_lookup(code: u8) -> Option<&'static str> {
-    WEATHER_LABELS
-        .iter()
-        .find_map(|(candidate, label)| (*candidate == code).then_some(*label))
-}
-
-fn icon_tokens(
-    category: WeatherCategory,
-    is_day: bool,
-) -> (&'static str, &'static str, &'static str) {
-    if matches!(category, WeatherCategory::Clear) {
-        return clear_icon_tokens(is_day);
-    }
-    non_clear_icon_tokens(category)
-}
-
-fn clear_icon_tokens(is_day: bool) -> (&'static str, &'static str, &'static str) {
-    if is_day {
-        ("SUN", "☀️", "☀")
-    } else {
-        ("MON", "🌙", "☾")
-    }
-}
-
-fn non_clear_icon_tokens(category: WeatherCategory) -> (&'static str, &'static str, &'static str) {
-    match category {
-        WeatherCategory::Cloudy => ("CLD", "☁️", "☁"),
-        WeatherCategory::Rain => ("RAN", "🌧️", "☂"),
-        WeatherCategory::Snow => ("SNW", "🌨️", "❄"),
-        WeatherCategory::Fog => ("FOG", "🌫️", "░"),
-        WeatherCategory::Thunder => ("THN", "⛈️", "⚡"),
-        WeatherCategory::Unknown | WeatherCategory::Clear => ("---", "☁️", "☁"),
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum GeocodeResolution {
     Selected(Location),
@@ -682,46 +544,6 @@ impl RefreshMetadata {
         self.next_retry_at
             .map(|retry_at| (retry_at - now).num_seconds().max(0))
     }
-}
-
-#[must_use]
-pub fn convert_temp(celsius: f32, units: Units) -> f32 {
-    match units {
-        Units::Celsius => celsius,
-        Units::Fahrenheit => celsius * 1.8 + 32.0,
-    }
-}
-
-#[must_use]
-pub fn convert_wind_speed(kmh: f32) -> f32 {
-    kmh / 3.6
-}
-
-#[must_use]
-pub fn round_wind_speed(kmh: f32) -> i32 {
-    convert_wind_speed(kmh).round() as i32
-}
-
-#[must_use]
-pub fn round_temp(value: f32) -> i32 {
-    value.round() as i32
-}
-
-#[must_use]
-pub fn parse_datetime(value: &str) -> Option<NaiveDateTime> {
-    NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M").ok()
-}
-
-#[must_use]
-pub fn parse_date(value: &str) -> Option<NaiveDate> {
-    NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()
-}
-
-pub fn evaluate_freshness(
-    last_success: Option<DateTime<Utc>>,
-    consecutive_failures: u32,
-) -> FreshnessState {
-    crate::resilience::freshness::evaluate_freshness(last_success, consecutive_failures)
 }
 
 #[cfg(test)]

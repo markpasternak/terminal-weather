@@ -2224,6 +2224,7 @@ dependencies = [
  "crossterm",
  "futures",
  "insta",
+ "lru",
  "proptest",
  "rand 0.9.2",
  "ratatui",

@@ -156,9 +156,7 @@ impl AppState {
     ) {
         match resolution {
             GeocodeResolution::Selected(location) => {
-                self.selected_location = Some(location.clone());
-                self.pending_locations.clear();
-                Self::fetch_forecast(tx, location);
+                self.switch_to_location(tx, location);
             }
             GeocodeResolution::NeedsDisambiguation(locations) => {
                 self.pending_locations = locations;
@@ -177,6 +175,8 @@ impl AppState {
 
     pub(crate) fn handle_fetch_succeeded(&mut self, bundle: ForecastBundle) {
         let location = bundle.location.clone();
+        let key: LocationKey = (&location).into();
+        self.forecast_cache.put(key, bundle.clone());
         self.fetch_in_flight = false;
         self.weather = Some(bundle);
         self.mode = AppMode::Ready;
@@ -440,7 +440,7 @@ impl AppState {
         self.city_picker_open = false;
         self.help_open = false;
         self.settings_open = true;
-        self.settings_selected = 0;
+        self.settings_selected = SettingsSelection::default();
     }
 
     pub(crate) fn open_city_picker(&mut self) {

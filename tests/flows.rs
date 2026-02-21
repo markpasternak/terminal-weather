@@ -4,7 +4,10 @@ use chrono::{NaiveDate, NaiveDateTime, Utc};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use std::sync::atomic::Ordering;
 use terminal_weather::{
-    app::{events::AppEvent, state::AppState},
+    app::{
+        events::AppEvent,
+        state::{AppState, SettingsSelection},
+    },
     cli::{Cli, ColorArg, HeroVisualArg, HourlyViewArg, ThemeArg, UnitsArg},
     domain::weather::{
         CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, HourlyViewMode, Location,
@@ -280,7 +283,7 @@ async fn flow_refresh_interval_setting_updates_runtime_value_immediately() {
     let mut state = AppState::new(&cli);
     let (tx, _rx) = mpsc::channel(8);
     state.settings_open = true;
-    state.settings_selected = 7;
+    state.settings_selected = SettingsSelection::RefreshInterval;
     let previous = state.settings.refresh_interval_secs;
 
     state

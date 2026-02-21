@@ -16,6 +16,7 @@ chrono = { version = "0.4", features = ["clock"] }
 clap = { version = "4.5", features = ["derive"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
 futures = "0.3"
+lru = "0.16.3"
 rand = "0.9"
 ratatui = "0.30"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
@@ -44,3 +45,4 @@ lto = "thin"
 [package.metadata.dev-tools]
 rust_code_analysis_cli = "0.0.25"
 jq = "1.6"
+cargo_dupes = "0.2.1"

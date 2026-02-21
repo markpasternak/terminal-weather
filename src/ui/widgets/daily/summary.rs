@@ -2,7 +2,7 @@ use super::*;
 
 mod utils;
 
-use utils::{format_duration_hm, gust_cue, precipitation_cue, profile_bar, sunlight_cue};
+use utils::{day_cue, first_day_shifted_time, first_day_time, format_duration_hm, profile_bar};
 
 pub(super) fn render_week_summary(
     frame: &mut Frame,
@@ -371,32 +371,6 @@ fn append_sunrise_sunset_line(
     ]));
 }
 
-fn first_day_time(
-    bundle: &ForecastBundle,
-    projection: impl Fn(&DailyForecast) -> Option<chrono::NaiveDateTime>,
-) -> String {
-    bundle.daily.first().and_then(projection).map_or_else(
-        || "--:--".to_string(),
-        |value| value.format("%H:%M").to_string(),
-    )
-}
-
-fn first_day_shifted_time(
-    bundle: &ForecastBundle,
-    projection: impl Fn(&DailyForecast) -> Option<chrono::NaiveDateTime>,
-    shift_minutes: i64,
-) -> String {
-    bundle
-        .daily
-        .first()
-        .and_then(projection)
-        .map(|value| value + chrono::Duration::minutes(shift_minutes))
-        .map_or_else(
-            || "--:--".to_string(),
-            |value| value.format("%H:%M").to_string(),
-        )
-}
-
 fn append_week_profiles(
     lines: &mut Vec<Line<'static>>,
     remaining_rows: &mut usize,
@@ -535,15 +509,4 @@ fn append_compact_profiles(
         ]));
         slots_left = slots_left.saturating_sub(1);
     }
-}
-
-fn day_cue(day: &DailyForecast) -> String {
-    let mut parts = vec![precipitation_cue(day)];
-    if let Some(gust) = gust_cue(day.wind_gusts_10m_max.unwrap_or(0.0)) {
-        parts.push(gust);
-    }
-    if let Some(sunlight) = sunlight_cue(day) {
-        parts.push(sunlight.to_string());
-    }
-    parts.join(", ")
 }
