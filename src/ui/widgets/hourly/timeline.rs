@@ -68,6 +68,8 @@ struct TimelineSeries {
     times: Vec<chrono::NaiveDateTime>,
 }
 
+type TimelineLine = Line<'static>;
+
 fn timeline_series(slice: &[&HourlyForecast], units: Units) -> TimelineSeries {
     TimelineSeries {
         temps: slice
@@ -87,42 +89,65 @@ fn timeline_lines(
     cols: usize,
     height: u16,
     theme: Theme,
-) -> Vec<Line<'static>> {
+) -> Vec<TimelineLine> {
     let mut lines = vec![
-        Line::from(vec![
-            Span::styled("Temp  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                sparkline_optional(&series.temps, cols),
-                Style::default().fg(theme.accent),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("Tick  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                hour_tick_line(&series.times, cols),
-                Style::default().fg(theme.popup_muted_text),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("Rain  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                barline(&series.precips, cols),
-                Style::default().fg(theme.info),
-            ),
-        ]),
+        temp_timeline_line(series, cols, theme),
+        tick_timeline_line(series, cols, theme),
+        rain_timeline_line(series, cols, theme),
     ];
-
     if height >= 4 {
-        lines.push(Line::from(vec![
-            Span::styled("Hour  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                hour_label_line(&series.times, cols),
-                Style::default().fg(theme.text),
-            ),
-        ]));
+        lines.push(hour_timeline_line(series, cols, theme));
     }
     lines.truncate(height as usize);
     lines
+}
+
+fn timeline_row(
+    label: &'static str,
+    value: String,
+    label_color: Color,
+    value_color: Color,
+) -> TimelineLine {
+    Line::from(vec![
+        Span::styled(label, Style::default().fg(label_color)),
+        Span::styled(value, Style::default().fg(value_color)),
+    ])
+}
+
+fn temp_timeline_line(series: &TimelineSeries, cols: usize, theme: Theme) -> TimelineLine {
+    timeline_row(
+        "Temp  ",
+        sparkline_optional(&series.temps, cols),
+        theme.muted_text,
+        theme.accent,
+    )
+}
+
+fn tick_timeline_line(series: &TimelineSeries, cols: usize, theme: Theme) -> TimelineLine {
+    timeline_row(
+        "Tick  ",
+        hour_tick_line(&series.times, cols),
+        theme.muted_text,
+        theme.popup_muted_text,
+    )
+}
+
+fn rain_timeline_line(series: &TimelineSeries, cols: usize, theme: Theme) -> TimelineLine {
+    timeline_row(
+        "Rain  ",
+        barline(&series.precips, cols),
+        theme.muted_text,
+        theme.info,
+    )
+}
+
+fn hour_timeline_line(series: &TimelineSeries, cols: usize, theme: Theme) -> TimelineLine {
+    timeline_row(
+        "Hour  ",
+        hour_label_line(&series.times, cols),
+        theme.muted_text,
+        theme.text,
+    )
 }
 
 fn timeline_stats(slice: &[&HourlyForecast]) -> TimelineStats {

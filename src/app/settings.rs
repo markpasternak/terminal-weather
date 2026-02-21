@@ -259,6 +259,11 @@ pub fn clear_runtime_settings(path: &Path) -> anyhow::Result<()> {
 }
 
 fn settings_path() -> Option<PathBuf> {
+    #[cfg(test)]
+    if let Some(path) = test_settings_path_override() {
+        return Some(path);
+    }
+
     if let Some(base) = std::env::var_os("TERMINAL_WEATHER_CONFIG_DIR") {
         return Some(PathBuf::from(base).join("settings.json"));
     }
@@ -273,6 +278,27 @@ fn settings_path() -> Option<PathBuf> {
             .join("terminal-weather")
             .join("settings.json"),
     )
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_SETTINGS_PATH_OVERRIDE: std::cell::RefCell<Option<PathBuf>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn test_settings_path_override() -> Option<PathBuf> {
+    TEST_SETTINGS_PATH_OVERRIDE.with(|slot| slot.borrow().clone())
+}
+
+#[cfg(test)]
+pub(super) fn with_settings_path_override<R>(path: Option<PathBuf>, run: impl FnOnce() -> R) -> R {
+    TEST_SETTINGS_PATH_OVERRIDE.with(|slot| {
+        let previous = slot.replace(path);
+        let result = run();
+        slot.replace(previous);
+        result
+    })
 }
 
 #[cfg(test)]
