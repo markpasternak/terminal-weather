@@ -21,10 +21,15 @@ impl AppState {
     }
 
     fn handle_settings_nav_key(&mut self, code: KeyCode) -> bool {
-        if handle_vertical_nav(&mut self.settings_selected, SETTINGS_COUNT - 1, code) {
-            return true;
-        }
         match code {
+            KeyCode::Up => {
+                self.settings_selected = self.settings_selected.prev();
+                true
+            }
+            KeyCode::Down => {
+                self.settings_selected = self.settings_selected.next();
+                true
+            }
             KeyCode::Left => {
                 self.adjust_selected_setting(-1);
                 true
