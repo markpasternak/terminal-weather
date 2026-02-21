@@ -521,23 +521,15 @@ pub fn weather_label(code: u8) -> &'static str {
 
 #[must_use]
 pub fn weather_label_for_time(code: u8, is_day: bool) -> &'static str {
-    match code {
-        0 => {
-            if is_day {
-                "Clear sky"
-            } else {
-                "Clear night"
-            }
-        }
-        1 => {
-            if is_day {
-                "Mainly clear"
-            } else {
-                "Mainly clear night"
-            }
-        }
-        _ => weather_label_lookup(code).unwrap_or("Unknown"),
-    }
+    WEATHER_LABELS
+        .iter()
+        .find(|(candidate, _, _)| *candidate == code)
+        .map(
+            |(_, day, night)| {
+                if is_day { *day } else { night.unwrap_or(*day) }
+            },
+        )
+        .unwrap_or("Unknown")
 }
 
 #[must_use]
@@ -550,40 +542,36 @@ pub fn weather_icon(code: u8, mode: IconMode, is_day: bool) -> &'static str {
     }
 }
 
-const WEATHER_LABELS: &[(u8, &str)] = &[
-    (2, "Partly cloudy"),
-    (3, "Overcast"),
-    (45, "Fog"),
-    (48, "Depositing rime fog"),
-    (51, "Light drizzle"),
-    (53, "Moderate drizzle"),
-    (55, "Dense drizzle"),
-    (56, "Light freezing drizzle"),
-    (57, "Dense freezing drizzle"),
-    (61, "Slight rain"),
-    (63, "Moderate rain"),
-    (65, "Heavy rain"),
-    (66, "Light freezing rain"),
-    (67, "Heavy freezing rain"),
-    (71, "Slight snowfall"),
-    (73, "Moderate snowfall"),
-    (75, "Heavy snowfall"),
-    (77, "Snow grains"),
-    (80, "Slight rain showers"),
-    (81, "Moderate rain showers"),
-    (82, "Violent rain showers"),
-    (85, "Slight snow showers"),
-    (86, "Heavy snow showers"),
-    (95, "Thunderstorm"),
-    (96, "Thunderstorm + light hail"),
-    (99, "Thunderstorm + heavy hail"),
+const WEATHER_LABELS: &[(u8, &str, Option<&str>)] = &[
+    (0, "Clear sky", Some("Clear night")),
+    (1, "Mainly clear", Some("Mainly clear night")),
+    (2, "Partly cloudy", None),
+    (3, "Overcast", None),
+    (45, "Fog", None),
+    (48, "Depositing rime fog", None),
+    (51, "Light drizzle", None),
+    (53, "Moderate drizzle", None),
+    (55, "Dense drizzle", None),
+    (56, "Light freezing drizzle", None),
+    (57, "Dense freezing drizzle", None),
+    (61, "Slight rain", None),
+    (63, "Moderate rain", None),
+    (65, "Heavy rain", None),
+    (66, "Light freezing rain", None),
+    (67, "Heavy freezing rain", None),
+    (71, "Slight snowfall", None),
+    (73, "Moderate snowfall", None),
+    (75, "Heavy snowfall", None),
+    (77, "Snow grains", None),
+    (80, "Slight rain showers", None),
+    (81, "Moderate rain showers", None),
+    (82, "Violent rain showers", None),
+    (85, "Slight snow showers", None),
+    (86, "Heavy snow showers", None),
+    (95, "Thunderstorm", None),
+    (96, "Thunderstorm + light hail", None),
+    (99, "Thunderstorm + heavy hail", None),
 ];
-
-fn weather_label_lookup(code: u8) -> Option<&'static str> {
-    WEATHER_LABELS
-        .iter()
-        .find_map(|(candidate, label)| (*candidate == code).then_some(*label))
-}
 
 fn icon_tokens(
     category: WeatherCategory,
