@@ -10,7 +10,7 @@ impl AppState {
             return Ok(());
         }
         tx.send(AppEvent::FetchStarted).await?;
-        if self.try_fetch_existing_location(tx) {
+        if self.try_fetch_existing_location(tx).await {
             return Ok(());
         }
         if Self::try_fetch_coords(tx, cli).await? {
@@ -32,8 +32,19 @@ impl AppState {
         cli.city.is_none() && cli.lat.is_none()
     }
 
-    pub(crate) fn try_fetch_existing_location(&self, tx: &mpsc::Sender<AppEvent>) -> bool {
+    pub(crate) async fn try_fetch_existing_location(&self, tx: &mpsc::Sender<AppEvent>) -> bool {
+        let geocoder = GeocodeClient::new();
+        self.try_fetch_existing_location_with_geocoder(tx, &geocoder)
+            .await
+    }
+
+    pub(crate) async fn try_fetch_existing_location_with_geocoder(
+        &self,
+        tx: &mpsc::Sender<AppEvent>,
+        geocoder: &GeocodeClient,
+    ) -> bool {
         if let Some(location) = self.selected_location.clone() {
+            let location = resolve_saved_location_with_reverse_geocoder(geocoder, location).await;
             self.fetch_forecast(tx, location);
             return true;
         }
@@ -41,8 +52,17 @@ impl AppState {
     }
 
     pub(crate) async fn try_fetch_coords(tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<bool> {
+        let geocoder = GeocodeClient::new();
+        Self::try_fetch_coords_with_geocoder(tx, cli, &geocoder).await
+    }
+
+    pub(crate) async fn try_fetch_coords_with_geocoder(
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+        geocoder: &GeocodeClient,
+    ) -> Result<bool> {
         if let (Some(lat), Some(lon)) = (cli.lat, cli.lon) {
-            let location = Location::from_coords(lat, lon);
+            let location = resolve_coords_with_reverse_geocoder(geocoder, lat, lon).await;
             tx.send(AppEvent::GeocodeResolved(GeocodeResolution::Selected(
                 location,
             )))
@@ -181,6 +201,37 @@ impl AppState {
     }
 }
 
+async fn resolve_coords_with_reverse_geocoder(
+    geocoder: &GeocodeClient,
+    lat: f64,
+    lon: f64,
+) -> Location {
+    match geocoder.reverse_resolve(lat, lon).await {
+        Ok(Some(location)) => location,
+        Ok(None) | Err(_) => Location::from_coords(lat, lon),
+    }
+}
+
+async fn resolve_saved_location_with_reverse_geocoder(
+    geocoder: &GeocodeClient,
+    location: Location,
+) -> Location {
+    if !is_coordinate_label(&location) {
+        return location;
+    }
+    match geocoder
+        .reverse_resolve(location.latitude, location.longitude)
+        .await
+    {
+        Ok(Some(resolved)) => resolved,
+        Ok(None) | Err(_) => location,
+    }
+}
+
+fn is_coordinate_label(location: &Location) -> bool {
+    location.name.trim() == format!("{:.4}, {:.4}", location.latitude, location.longitude)
+}
+
 async fn resolve_city_with_geocoder(
     tx: mpsc::Sender<AppEvent>,
     city: String,
@@ -202,6 +253,10 @@ mod tests {
     use super::*;
     use crate::cli::{HeroVisualArg, ThemeArg};
     use tokio::sync::mpsc;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
 
     fn test_state() -> AppState {
         AppState::new(&crate::test_support::state_test_cli())
@@ -239,9 +294,23 @@ mod tests {
         let mut cli = crate::test_support::state_test_cli();
         cli.lat = Some(59.3293);
         cli.lon = Some(18.0686);
+        let server = MockServer::start().await;
+        let payload = serde_json::json!({
+            "address": {
+                "city": "Stockholm",
+                "state": "Stockholm County",
+                "country": "Sweden"
+            }
+        });
+        Mock::given(method("GET"))
+            .and(path("/v1/reverse"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
+            .mount(&server)
+            .await;
+        let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
 
         let (tx, mut rx) = mpsc::channel(2);
-        let handled = AppState::try_fetch_coords(&tx, &cli)
+        let handled = AppState::try_fetch_coords_with_geocoder(&tx, &cli, &geocoder)
             .await
             .expect("coords should be handled");
 
@@ -250,8 +319,73 @@ mod tests {
         assert!(matches!(
             event,
             AppEvent::GeocodeResolved(GeocodeResolution::Selected(location))
-            if (location.latitude - 59.3293).abs() < f64::EPSILON
+            if location.name == "Stockholm"
+            && (location.latitude - 59.3293).abs() < f64::EPSILON
         ));
+    }
+
+    #[tokio::test]
+    async fn try_fetch_coords_falls_back_when_reverse_geocode_fails() {
+        let mut cli = crate::test_support::state_test_cli();
+        cli.lat = Some(59.3293);
+        cli.lon = Some(18.0686);
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/reverse"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let handled = AppState::try_fetch_coords_with_geocoder(&tx, &cli, &geocoder)
+            .await
+            .expect("coords should be handled");
+
+        assert!(handled);
+        let event = rx.recv().await.expect("event");
+        assert!(matches!(
+            event,
+            AppEvent::GeocodeResolved(GeocodeResolution::Selected(location))
+            if location.name == "59.3293, 18.0686"
+        ));
+    }
+
+    #[tokio::test]
+    async fn resolve_saved_location_updates_coordinate_label_when_reverse_available() {
+        let server = MockServer::start().await;
+        let payload = serde_json::json!({
+            "address": {
+                "city": "Stockholm",
+                "state": "Stockholm County",
+                "country": "Sweden"
+            }
+        });
+        Mock::given(method("GET"))
+            .and(path("/v1/reverse"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
+            .mount(&server)
+            .await;
+        let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+
+        let location = resolve_saved_location_with_reverse_geocoder(
+            &geocoder,
+            Location::from_coords(59.3293, 18.0686),
+        )
+        .await;
+
+        assert_eq!(location.name, "Stockholm");
+    }
+
+    #[tokio::test]
+    async fn resolve_saved_location_keeps_named_location_without_reverse_lookup() {
+        let geocoder = GeocodeClient::with_base_url("http://127.0.0.1:9");
+        let named = crate::test_support::stockholm_location();
+
+        let location = resolve_saved_location_with_reverse_geocoder(&geocoder, named.clone()).await;
+
+        assert_eq!(location.name, named.name);
+        assert_eq!(location.country, named.country);
     }
 
     #[tokio::test]
@@ -334,16 +468,16 @@ mod tests {
     async fn try_fetch_existing_location_returns_false_without_selection() {
         let state = test_state();
         let (tx, _rx) = mpsc::channel(2);
-        assert!(!state.try_fetch_existing_location(&tx));
+        assert!(!state.try_fetch_existing_location(&tx).await);
     }
 
     #[tokio::test]
     async fn try_fetch_existing_location_returns_true_with_selection() {
         let mut state = test_state();
-        state.selected_location = Some(Location::from_coords(59.3293, 18.0686));
+        state.selected_location = Some(crate::test_support::stockholm_location());
         state.forecast_url_override = Some("http://127.0.0.1:1".to_string());
         state.air_quality_url_override = Some("http://127.0.0.1:1".to_string());
         let (tx, _rx) = mpsc::channel(2);
-        assert!(state.try_fetch_existing_location(&tx));
+        assert!(state.try_fetch_existing_location(&tx).await);
     }
 }

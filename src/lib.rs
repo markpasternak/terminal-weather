@@ -68,7 +68,10 @@ async fn resolve_one_shot_location(
     use crate::domain::weather::{GeocodeResolution, Location};
 
     if let (Some(lat), Some(lon)) = (cli.lat, cli.lon) {
-        return Ok(Location::from_coords(lat, lon));
+        return Ok(match geocoder.reverse_resolve(lat, lon).await {
+            Ok(Some(location)) => location,
+            Ok(None) | Err(_) => Location::from_coords(lat, lon),
+        });
     }
 
     let city = cli.default_city();
@@ -285,14 +288,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn resolve_one_shot_location_prefers_coordinates_when_present() {
+    async fn resolve_one_shot_location_uses_reverse_geocode_for_coordinates() {
         let mut cli = one_shot_cli();
         cli.lat = Some(59.3293);
         cli.lon = Some(18.0686);
-        let geocoder = crate::data::geocode::GeocodeClient::new();
+        let server = MockServer::start().await;
+        let payload = serde_json::json!({
+            "address": {
+                "city": "Stockholm",
+                "state": "Stockholm County",
+                "country": "Sweden"
+            }
+        });
+        Mock::given(method("GET"))
+            .and(path("/v1/reverse"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
+            .mount(&server)
+            .await;
+        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(format!(
+            "{}/v1/search",
+            server.uri()
+        ));
         let location = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect("coords resolve");
+        assert_eq!(location.name, "Stockholm");
+    }
+
+    #[tokio::test]
+    async fn resolve_one_shot_location_falls_back_to_raw_coordinates_on_reverse_failure() {
+        let mut cli = one_shot_cli();
+        cli.lat = Some(59.3293);
+        cli.lon = Some(18.0686);
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/reverse"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(format!(
+            "{}/v1/search",
+            server.uri()
+        ));
+        let location = resolve_one_shot_location(&cli, &geocoder)
+            .await
+            .expect("coords fallback resolve");
         assert_eq!(location.name, "59.3293, 18.0686");
     }
 

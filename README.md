@@ -135,7 +135,7 @@ Custom endpoints must remain Open-Meteo compatible (same query parameters and re
 
 When launched without a city argument, `terminal-weather` sends your IP address to [ipapi.co](https://ipapi.co/) to determine your location. Pass a city name or `--lat`/`--lon` to skip this lookup entirely.
 
-Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (your coordinates and search string are sent). The IP-based auto-location lookup uses [ipapi.co](https://ipapi.co/). All services are free and open; no account or API key required, and no data is stored by this app.
+Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (your coordinates and search string are sent). Reverse geocoding for coordinate-based locations (for example `--lat/--lon` and coordinate-only history entries) uses [Nominatim](https://nominatim.openstreetmap.org/) (your coordinates are sent). The IP-based auto-location lookup uses [ipapi.co](https://ipapi.co/). No account or API key is required, and this app does not persist data outside local settings/history on your machine.
 
 ---
 
@@ -183,6 +183,9 @@ cargo install --locked cargo-llvm-cov
 
 ## Attribution & License
 
-Weather and geocoding data: [Open-Meteo](https://open-meteo.com/)
+Weather and forward geocoding data: [Open-Meteo](https://open-meteo.com/)
+
+Reverse geocoding: [Nominatim](https://nominatim.openstreetmap.org/) powered by OpenStreetMap data.  
+OpenStreetMap data attribution: [Data © OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL 1.0).
 
 Licensed under [GPL-3.0-only](LICENSE).
