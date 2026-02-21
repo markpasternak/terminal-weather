@@ -25,8 +25,10 @@ use crate::{
 };
 
 mod loading;
+mod metric_lines;
 mod metrics;
 
+use metric_lines::{WeatherMetricsData, push_metric_lines};
 pub use metrics::{
     cloud_layers_from_hourly, compass, format_cloud_layers, format_visibility,
     pressure_trend_marker,
@@ -103,26 +105,6 @@ pub fn render_weather_info(
     }
 }
 
-#[derive(Debug)]
-struct WeatherMetricsData {
-    feels: i32,
-    humidity: i32,
-    dew: i32,
-    wind_dir: &'static str,
-    wind: i32,
-    gust: i32,
-    visibility: String,
-    pressure: i32,
-    pressure_trend: &'static str,
-    uv_today: String,
-    cloud_total: i32,
-    cloud_split: String,
-    precip_probability: String,
-    aqi: String,
-    aqi_category: AirQualityCategory,
-    aqi_available: bool,
-}
-
 fn build_weather_lines(
     state: &AppState,
     weather: &ForecastBundle,
@@ -132,11 +114,13 @@ fn build_weather_lines(
 ) -> Vec<Line<'static>> {
     let mut lines = build_header_lines(state, weather, theme, code, scale);
     let metrics = collect_weather_metrics(state, weather);
-    if scale.compact_metrics() {
-        push_compact_metric_lines(&mut lines, &metrics, theme, scale.metric_gap());
-    } else {
-        push_standard_metric_lines(&mut lines, &metrics, theme, scale.metric_gap());
-    }
+    push_metric_lines(
+        &mut lines,
+        &metrics,
+        theme,
+        scale.metric_gap(),
+        scale.compact_metrics(),
+    );
     if let Some((flag, color)) = freshness_flag(state, theme) {
         lines.push(Line::from(Span::styled(
             flag,
@@ -269,160 +253,6 @@ fn collect_weather_metrics(state: &AppState, weather: &ForecastBundle) -> Weathe
     }
 }
 
-fn push_compact_metric_lines(
-    lines: &mut Vec<Line<'static>>,
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) {
-    lines.push(Line::from(vec![
-        Span::styled("Wind ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}/{} m/s {}", data.wind, data.gust, data.wind_dir),
-            Style::default().fg(theme.success),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("Visibility ", Style::default().fg(theme.muted_text)),
-        Span::styled(data.visibility.clone(), Style::default().fg(theme.accent)),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}{}", data.pressure, data.pressure_trend),
-            Style::default().fg(theme.warning),
-        ),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("Dew ", Style::default().fg(theme.muted_text)),
-        Span::styled(format!("{}°", data.dew), Style::default().fg(theme.text)),
-        Span::raw(metric_gap),
-        Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}%", data.humidity),
-            Style::default().fg(theme.info),
-        ),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("Rain chance ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            data.precip_probability.clone(),
-            Style::default().fg(theme.info),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("AQI ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            data.aqi.clone(),
-            Style::default().fg(aqi_color(data, theme)),
-        ),
-    ]));
-}
-
-fn push_standard_metric_lines(
-    lines: &mut Vec<Line<'static>>,
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) {
-    lines.push(standard_metric_feels_line(data, theme, metric_gap));
-    lines.push(standard_metric_wind_line(data, theme, metric_gap));
-    lines.push(standard_metric_pressure_line(data, theme, metric_gap));
-    lines.push(standard_metric_cloud_line(data, theme, metric_gap));
-    lines.push(standard_metric_risk_line(data, theme, metric_gap));
-}
-
-fn standard_metric_feels_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Feels ", Style::default().fg(theme.muted_text)),
-        Span::styled(format!("{}°", data.feels), Style::default().fg(theme.text)),
-        Span::raw(metric_gap),
-        Span::styled("Dew ", Style::default().fg(theme.muted_text)),
-        Span::styled(format!("{}°", data.dew), Style::default().fg(theme.info)),
-    ])
-}
-
-fn standard_metric_wind_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Wind ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}/{} m/s {}", data.wind, data.gust, data.wind_dir),
-            Style::default().fg(theme.success),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("Visibility ", Style::default().fg(theme.muted_text)),
-        Span::styled(data.visibility.clone(), Style::default().fg(theme.accent)),
-    ])
-}
-
-fn standard_metric_pressure_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}hPa{}", data.pressure, data.pressure_trend),
-            Style::default().fg(theme.warning),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}%", data.humidity),
-            Style::default().fg(theme.info),
-        ),
-    ])
-}
-
-fn standard_metric_cloud_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Cloud ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}%", data.cloud_total),
-            Style::default().fg(theme.landmark_neutral),
-        ),
-        Span::raw(" "),
-        Span::styled(
-            data.cloud_split.clone(),
-            Style::default().fg(theme.muted_text),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("UV ", Style::default().fg(theme.muted_text)),
-        Span::styled(data.uv_today.clone(), Style::default().fg(theme.warning)),
-    ])
-}
-
-fn standard_metric_risk_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Rain chance ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            data.precip_probability.clone(),
-            Style::default().fg(theme.info),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("AQI ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            data.aqi.clone(),
-            Style::default().fg(aqi_color(data, theme)),
-        ),
-    ])
-}
-
 fn freshness_flag(state: &AppState, theme: Theme) -> Option<(&'static str, Color)> {
     match state.refresh_meta.state {
         crate::resilience::freshness::FreshnessState::Fresh => None,
@@ -459,10 +289,6 @@ fn next_precip_probability(hourly: &[HourlyForecast]) -> String {
 
 fn aqi_summary(weather: &ForecastBundle) -> (String, AirQualityCategory, bool) {
     hero_shared::aqi_summary(weather)
-}
-
-fn aqi_color(data: &WeatherMetricsData, theme: Theme) -> Color {
-    hero_shared::aqi_color(theme, data.aqi_category, data.aqi_available)
 }
 
 #[cfg(test)]
