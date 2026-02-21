@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli::IconMode;
 use chrono::{Duration, Utc};
 
 #[test]

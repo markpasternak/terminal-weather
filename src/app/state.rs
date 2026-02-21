@@ -198,16 +198,8 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(cli: &Cli) -> Self {
-        let (mut settings, settings_path) =
-            load_runtime_settings(cli, std::io::stdout().is_terminal());
-        if cli.demo {
-            if let Some(path) = settings_path.as_deref() {
-                let _ = clear_runtime_settings(path);
-            }
-            settings = RuntimeSettings::default();
-        }
-        let disabled = matches!(settings.motion, MotionSetting::Off);
-        let reduced = matches!(settings.motion, MotionSetting::Reduced);
+        let (settings, settings_path) = load_or_reset_settings(cli);
+        let (disabled, reduced) = motion_flags(&settings);
         let runtime_hourly_view = cli
             .hourly_view
             .map_or(settings.hourly_view, hourly_view_from_cli);
@@ -286,6 +278,24 @@ impl AppState {
         }
         settings_hint_for_selection(self.settings_selected).to_string()
     }
+}
+
+fn load_or_reset_settings(cli: &Cli) -> (RuntimeSettings, Option<PathBuf>) {
+    let (mut settings, settings_path) = load_runtime_settings(cli, std::io::stdout().is_terminal());
+    if cli.demo {
+        if let Some(path) = settings_path.as_deref() {
+            let _ = clear_runtime_settings(path);
+        }
+        settings = RuntimeSettings::default();
+    }
+    (settings, settings_path)
+}
+
+fn motion_flags(settings: &RuntimeSettings) -> (bool, bool) {
+    (
+        matches!(settings.motion, MotionSetting::Off),
+        matches!(settings.motion, MotionSetting::Reduced),
+    )
 }
 
 pub(crate) fn adjust_units_setting(state: &mut AppState, direction: i8) -> bool {
@@ -526,100 +536,4 @@ fn settings_close_key(code: KeyCode) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{AppState, initial_selected_location, is_city_char};
-    use crate::{
-        app::settings::{RecentLocation, RuntimeSettings},
-        cli::{Cli, ColorArg, HeroVisualArg, ThemeArg, UnitsArg},
-    };
-    use std::sync::atomic::Ordering;
-
-    #[test]
-    fn city_input_accepts_unicode_letters() {
-        assert!(is_city_char('å'));
-        assert!(is_city_char('Å'));
-        assert!(is_city_char('é'));
-    }
-
-    #[test]
-    fn city_input_rejects_control_chars() {
-        assert!(!is_city_char('\n'));
-        assert!(!is_city_char('\t'));
-    }
-
-    #[test]
-    fn initial_selected_location_uses_recent_when_no_cli_location() {
-        let cli = test_cli();
-        let mut settings = RuntimeSettings::default();
-        settings.recent_locations.push(RecentLocation {
-            name: "Stockholm".to_string(),
-            latitude: 59.3293,
-            longitude: 18.0686,
-            country: Some("Sweden".to_string()),
-            admin1: Some("Stockholm".to_string()),
-            timezone: Some("Europe/Stockholm".to_string()),
-        });
-
-        let selected = initial_selected_location(&cli, &settings).expect("selected location");
-        assert_eq!(selected.name, "Stockholm");
-    }
-
-    #[test]
-    fn initial_selected_location_respects_cli_city_override() {
-        let mut cli = test_cli();
-        cli.city = Some("Berlin".to_string());
-        let mut settings = RuntimeSettings::default();
-        settings.recent_locations.push(RecentLocation {
-            name: "Stockholm".to_string(),
-            latitude: 59.3293,
-            longitude: 18.0686,
-            country: Some("Sweden".to_string()),
-            admin1: Some("Stockholm".to_string()),
-            timezone: Some("Europe/Stockholm".to_string()),
-        });
-
-        assert!(initial_selected_location(&cli, &settings).is_none());
-    }
-
-    #[test]
-    fn settings_hint_explains_hero_visual() {
-        let mut state = AppState::new(&test_cli());
-        state.settings_selected = super::SettingsSelection::HeroVisual;
-        assert!(state.settings_hint().contains("Current panel right side"));
-    }
-
-    #[test]
-    fn apply_runtime_settings_updates_refresh_interval_runtime() {
-        let mut state = AppState::new(&test_cli());
-        state.settings.refresh_interval_secs = 300;
-        state.apply_runtime_settings();
-        assert_eq!(
-            state.refresh_interval_secs_runtime.load(Ordering::Relaxed),
-            300
-        );
-    }
-
-    fn test_cli() -> Cli {
-        Cli {
-            city: None,
-            units: UnitsArg::Celsius,
-            fps: 30,
-            no_animation: true,
-            reduced_motion: false,
-            no_flash: true,
-            ascii_icons: false,
-            emoji_icons: false,
-            color: ColorArg::Auto,
-            no_color: false,
-            hourly_view: None,
-            theme: ThemeArg::Auto,
-            hero_visual: HeroVisualArg::AtmosCanvas,
-            country_code: None,
-            lat: None,
-            lon: None,
-            refresh_interval: 600,
-            demo: false,
-            one_shot: false,
-        }
-    }
-}
+mod tests;
