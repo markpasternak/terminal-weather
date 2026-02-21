@@ -23,11 +23,11 @@ impl AppState {
     fn handle_settings_nav_key(&mut self, code: KeyCode) -> bool {
         match code {
             KeyCode::Up => {
-                self.settings_selected = self.settings_selected.saturating_sub(1);
+                self.settings_selected = self.settings_selected.prev();
                 true
             }
             KeyCode::Down => {
-                self.settings_selected = (self.settings_selected + 1).min(SETTINGS_COUNT - 1);
+                self.settings_selected = self.settings_selected.next();
                 true
             }
             KeyCode::Left => {
@@ -47,9 +47,9 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> Result<()> {
-        if self.settings_selected == SETTINGS_REFRESH_NOW {
+        if self.settings_selected == SettingsSelection::RefreshNow {
             self.start_fetch(tx, cli).await?;
-        } else if self.settings_selected == SETTINGS_CLOSE {
+        } else if self.settings_selected == SettingsSelection::Close {
             self.settings_open = false;
         } else {
             self.adjust_selected_setting(1);
@@ -170,7 +170,7 @@ impl AppState {
 
     pub(crate) fn adjust_selected_setting(&mut self, direction: i8) {
         let changed = SETTINGS_ADJUSTERS
-            .get(self.settings_selected)
+            .get(self.settings_selected as usize)
             .is_some_and(|adjust| adjust(self, direction));
         if changed {
             self.apply_runtime_settings();

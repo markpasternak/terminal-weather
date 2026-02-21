@@ -40,14 +40,53 @@ mod methods_async;
 mod methods_fetch;
 mod methods_ui;
 
-const SETTINGS_THEME: usize = 1;
-const SETTINGS_MOTION: usize = 2;
-const SETTINGS_ICONS: usize = 4;
-const SETTINGS_HOURLY_VIEW: usize = 5;
-const SETTINGS_HERO_VISUAL: usize = 6;
-const SETTINGS_REFRESH_INTERVAL: usize = 7;
-const SETTINGS_REFRESH_NOW: usize = 8;
-const SETTINGS_CLOSE: usize = 9;
+#[repr(usize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingsSelection {
+    Units = 0,
+    Theme = 1,
+    Motion = 2,
+    ThunderFlash = 3,
+    Icons = 4,
+    HourlyView = 5,
+    HeroVisual = 6,
+    RefreshInterval = 7,
+    RefreshNow = 8,
+    Close = 9,
+}
+
+impl SettingsSelection {
+    pub fn next(&self) -> Self {
+        match self {
+            Self::Units => Self::Theme,
+            Self::Theme => Self::Motion,
+            Self::Motion => Self::ThunderFlash,
+            Self::ThunderFlash => Self::Icons,
+            Self::Icons => Self::HourlyView,
+            Self::HourlyView => Self::HeroVisual,
+            Self::HeroVisual => Self::RefreshInterval,
+            Self::RefreshInterval => Self::RefreshNow,
+            Self::RefreshNow => Self::Close,
+            Self::Close => Self::Close,
+        }
+    }
+
+    pub fn prev(&self) -> Self {
+        match self {
+            Self::Units => Self::Units,
+            Self::Theme => Self::Units,
+            Self::Motion => Self::Theme,
+            Self::ThunderFlash => Self::Motion,
+            Self::Icons => Self::ThunderFlash,
+            Self::HourlyView => Self::Icons,
+            Self::HeroVisual => Self::HourlyView,
+            Self::RefreshInterval => Self::HeroVisual,
+            Self::RefreshNow => Self::RefreshInterval,
+            Self::Close => Self::RefreshNow,
+        }
+    }
+}
+
 const SETTINGS_COUNT: usize = 10;
 
 const REFRESH_OPTIONS: [u64; 4] = [300, 600, 900, 1800];
@@ -122,7 +161,7 @@ pub struct AppState {
     pub settings: RuntimeSettings,
     pub settings_open: bool,
     pub help_open: bool,
-    pub settings_selected: usize,
+    pub settings_selected: SettingsSelection,
     pub city_picker_open: bool,
     pub city_query: String,
     pub city_history_selected: usize,
@@ -175,7 +214,7 @@ impl AppState {
             settings,
             settings_open: false,
             help_open: false,
-            settings_selected: 0,
+            settings_selected: SettingsSelection::Units,
             city_picker_open: false,
             city_query: String::new(),
             city_history_selected: 0,
@@ -217,10 +256,10 @@ impl AppState {
 
     #[must_use]
     pub fn settings_hint(&self) -> String {
-        if self.settings_selected == SETTINGS_HERO_VISUAL {
+        if self.settings_selected == SettingsSelection::HeroVisual {
             return hero_visual_hint(self.settings.hero_visual).to_string();
         }
-        settings_hint_for_index(self.settings_selected).to_string()
+        settings_hint_for_selection(self.settings_selected).to_string()
     }
 }
 
@@ -423,17 +462,17 @@ fn hero_visual_hint(mode: HeroVisualArg) -> &'static str {
     }
 }
 
-fn settings_hint_for_index(selected: usize) -> &'static str {
+fn settings_hint_for_selection(selected: SettingsSelection) -> &'static str {
     match selected {
-        SETTINGS_THEME => "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status",
-        SETTINGS_MOTION => {
+        SettingsSelection::Theme => "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status",
+        SettingsSelection::Motion => {
             "Motion controls the moving effects: weather particles + animated hero scene (Full/Reduced/Off)"
         }
-        SETTINGS_ICONS => "Icon mode affects weather symbols in Hourly and 7-Day panels",
-        SETTINGS_HOURLY_VIEW => {
+        SettingsSelection::Icons => "Icon mode affects weather symbols in Hourly and 7-Day panels",
+        SettingsSelection::HourlyView => {
             "Hourly View controls the Hourly panel: Table, Hybrid cards+charts, or Chart"
         }
-        SETTINGS_REFRESH_INTERVAL => "Auto-refresh cadence updates immediately",
+        SettingsSelection::RefreshInterval => "Auto-refresh cadence updates immediately",
         _ => "Use left/right or Enter to change the selected setting",
     }
 }
@@ -535,7 +574,7 @@ mod tests {
     #[test]
     fn settings_hint_explains_hero_visual() {
         let mut state = AppState::new(&test_cli());
-        state.settings_selected = super::SETTINGS_HERO_VISUAL;
+        state.settings_selected = super::SettingsSelection::HeroVisual;
         assert!(state.settings_hint().contains("Current panel right side"));
     }
 

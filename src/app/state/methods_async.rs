@@ -440,7 +440,7 @@ impl AppState {
         self.city_picker_open = false;
         self.help_open = false;
         self.settings_open = true;
-        self.settings_selected = 0;
+        self.settings_selected = SettingsSelection::Units;
     }
 
     pub(crate) fn open_city_picker(&mut self) {
