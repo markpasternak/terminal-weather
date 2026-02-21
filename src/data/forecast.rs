@@ -44,25 +44,39 @@ impl ForecastClient {
         }
     }
 
-    pub async fn fetch(&self, location: Location) -> Result<ForecastBundle> {
-        let response = self
-            .client
-            .get(&self.base_url)
-            .query(&forecast_query(&location))
-            .send()
-            .await
-            .context("forecast request failed")?
-            .error_for_status()
-            .context("forecast request returned non-success status")?;
+    pub fn with_air_quality_url(mut self, url: impl Into<String>) -> Self {
+        self.air_quality_url = url.into();
+        self
+    }
 
-        let payload: ForecastResponse = response
-            .json()
-            .await
-            .context("failed to parse forecast payload")?;
+    pub async fn fetch(&self, location: Location) -> Result<ForecastBundle> {
+        let forecast_fut = async {
+            let response = self
+                .client
+                .get(&self.base_url)
+                .query(&forecast_query(&location))
+                .send()
+                .await
+                .context("forecast request failed")?
+                .error_for_status()
+                .context("forecast request returned non-success status")?;
+
+            let payload: ForecastResponse = response
+                .json()
+                .await
+                .context("failed to parse forecast payload")?;
+
+            Ok::<_, anyhow::Error>(payload)
+        };
+
+        let air_quality_fut = self.fetch_air_quality(&location);
+
+        let (forecast_result, air_quality) = tokio::join!(forecast_fut, air_quality_fut);
+
+        let payload = forecast_result?;
 
         let daily = parse_daily(&payload.daily);
         let current = current_from_payload(&payload, &daily);
-        let air_quality = self.fetch_air_quality(&location).await;
 
         Ok(ForecastBundle {
             location,
