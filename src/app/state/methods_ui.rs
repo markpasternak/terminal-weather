@@ -21,15 +21,10 @@ impl AppState {
     }
 
     fn handle_settings_nav_key(&mut self, code: KeyCode) -> bool {
+        if handle_vertical_nav(&mut self.settings_selected, SETTINGS_COUNT - 1, code) {
+            return true;
+        }
         match code {
-            KeyCode::Up => {
-                self.settings_selected = self.settings_selected.saturating_sub(1);
-                true
-            }
-            KeyCode::Down => {
-                self.settings_selected = (self.settings_selected + 1).min(SETTINGS_COUNT - 1);
-                true
-            }
             KeyCode::Left => {
                 self.adjust_selected_setting(-1);
                 true
@@ -109,19 +104,14 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> bool {
+        let max_index = self.city_picker_max_index();
+        if handle_vertical_nav(&mut self.city_history_selected, max_index, code) {
+            return true;
+        }
         match code {
             KeyCode::Esc => {
                 self.city_picker_open = false;
                 self.city_status = None;
-                true
-            }
-            KeyCode::Up => {
-                self.city_history_selected = self.city_history_selected.saturating_sub(1);
-                true
-            }
-            KeyCode::Down => {
-                self.city_history_selected =
-                    (self.city_history_selected + 1).min(self.city_picker_max_index());
                 true
             }
             KeyCode::Enter => {
@@ -280,4 +270,68 @@ impl AppState {
 fn ctrl_char(key: KeyEvent, target: char) -> bool {
     key.modifiers.contains(KeyModifiers::CONTROL)
         && matches!(key.code, KeyCode::Char(ch) if ch.eq_ignore_ascii_case(&target))
+}
+
+fn handle_vertical_nav(selected: &mut usize, max_index: usize, code: KeyCode) -> bool {
+    match code {
+        KeyCode::Up => {
+            *selected = selected.saturating_sub(1);
+            true
+        }
+        KeyCode::Down => {
+            *selected = (*selected + 1).min(max_index);
+            true
+        }
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_handle_vertical_nav_up() {
+        let mut selected = 5;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Up);
+        assert!(handled);
+        assert_eq!(selected, 4);
+    }
+
+    #[test]
+    fn test_handle_vertical_nav_up_at_zero() {
+        let mut selected = 0;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Up);
+        assert!(handled);
+        assert_eq!(selected, 0);
+    }
+
+    #[test]
+    fn test_handle_vertical_nav_down() {
+        let mut selected = 5;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Down);
+        assert!(handled);
+        assert_eq!(selected, 6);
+    }
+
+    #[test]
+    fn test_handle_vertical_nav_down_at_max() {
+        let mut selected = 10;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Down);
+        assert!(handled);
+        assert_eq!(selected, 10);
+    }
+
+    #[test]
+    fn test_handle_vertical_nav_other_key() {
+        let mut selected = 5;
+        let max_index = 10;
+        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Left);
+        assert!(!handled);
+        assert_eq!(selected, 5);
+    }
 }
