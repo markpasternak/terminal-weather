@@ -247,7 +247,38 @@ pub fn save_runtime_settings(path: &Path, settings: &RuntimeSettings) -> anyhow:
     }
     let payload =
         serde_json::to_string_pretty(&settings).context("serializing settings payload failed")?;
-    fs::write(path, payload).context("writing settings file failed")
+
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .context("writing settings file failed")?;
+
+        let metadata = file.metadata().context("reading file metadata failed")?;
+        let mut perms = metadata.permissions();
+        if perms.mode() & 0o777 != 0o600 {
+            perms.set_mode(0o600);
+            file.set_permissions(perms)
+                .context("setting file permissions failed")?;
+        }
+
+        file.write_all(payload.as_bytes())
+            .context("writing settings file failed")?;
+    }
+
+    #[cfg(not(unix))]
+    {
+        fs::write(path, payload).context("writing settings file failed")?;
+    }
+
+    Ok(())
 }
 
 pub fn clear_runtime_settings(path: &Path) -> anyhow::Result<()> {
@@ -317,5 +348,20 @@ mod tests {
         let restored: RuntimeSettings = serde_json::from_str(&content).expect("parse settings");
 
         assert_eq!(restored.hourly_view, HourlyViewMode::Chart);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn save_runtime_settings_sets_secure_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let settings = RuntimeSettings::default();
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let path = temp_dir.path().join("settings.json");
+
+        save_runtime_settings(&path, &settings).expect("save settings");
+
+        let metadata = std::fs::metadata(&path).expect("get metadata");
+        let mode = metadata.permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "permissions should be 600");
     }
 }
