@@ -524,12 +524,13 @@ pub fn weather_label_for_time(code: u8, is_day: bool) -> &'static str {
     WEATHER_LABELS
         .iter()
         .find(|(candidate, _, _)| *candidate == code)
-        .map(
-            |(_, day, night)| {
-                if is_day { *day } else { night.unwrap_or(*day) }
-            },
-        )
-        .unwrap_or("Unknown")
+        .map_or("Unknown", |(_, day, night)| {
+            if is_day {
+                *day
+            } else {
+                night.unwrap_or(*day)
+            }
+        })
 }
 
 #[must_use]
