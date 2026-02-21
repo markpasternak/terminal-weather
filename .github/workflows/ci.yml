@@ -39,7 +39,7 @@ jobs:
           cargo install --locked cargo-dupes --version 0.2.1
 
       - name: Run local CI parity script
-        run: ./scripts/ci-local.sh
+        run: ./scripts/check.sh
 
       - name: Install coverage tooling
         run: |
@@ -50,5 +50,5 @@ jobs:
       - name: Run coverage gate (upload when credentials are available)
         env:
           TW_CODACY_UPLOAD: ${{ (env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '0' }}
-          TW_CODACY_FAIL_ON_THRESHOLD: "0"
-        run: ./scripts/codacy-coverage.sh
+          TW_COVERAGE_FAIL_ON_THRESHOLD: "0"
+        run: ./scripts/coverage.sh
