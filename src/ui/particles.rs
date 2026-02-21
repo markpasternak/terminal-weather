@@ -70,19 +70,20 @@ impl ParticleEngine {
         self.accumulator += dt;
         let particle_kind = weather_code.map_or(ParticleKind::None, weather_code_to_particle);
         let drift = wind_drift(wind_speed, wind_direction);
-        self.spawn_particles(particle_kind, drift);
+        let mut rng = rand::rng();
+        self.spawn_particles(particle_kind, drift, &mut rng);
         self.advance_particles(dt);
-        self.maybe_trigger_flash(particle_kind);
+        self.maybe_trigger_flash(particle_kind, &mut rng);
         self.flash_timer = (self.flash_timer - dt).max(0.0);
     }
 
-    fn spawn_particles(&mut self, particle_kind: ParticleKind, drift: f32) {
+    fn spawn_particles(&mut self, particle_kind: ParticleKind, drift: f32, rng: &mut impl Rng) {
         if self.accumulator < 0.04 {
             return;
         }
         self.accumulator = 0.0;
         for _ in 0..self.particle_density() {
-            if let Some(p) = spawn_particle(particle_kind, drift) {
+            if let Some(p) = spawn_particle(particle_kind, drift, rng) {
                 self.particles.push(p);
             }
         }
@@ -102,12 +103,11 @@ impl ParticleEngine {
             .retain(|p| p.y < 1.2 && p.x > -0.2 && p.x < 1.2);
     }
 
-    fn maybe_trigger_flash(&mut self, particle_kind: ParticleKind) {
+    fn maybe_trigger_flash(&mut self, particle_kind: ParticleKind, rng: &mut impl Rng) {
         if particle_kind != ParticleKind::Thunder || self.no_flash {
             return;
         }
         let chance = if self.reduced_motion { 0.004 } else { 0.016 };
-        let mut rng = rand::rng();
         if rng.random_bool(chance) {
             self.flash_timer = 0.12;
         }
@@ -120,8 +120,7 @@ fn wind_drift(wind_speed: Option<f32>, wind_direction: Option<f32>) -> f32 {
     drift_base * drift_sign
 }
 
-fn spawn_particle(kind: ParticleKind, drift: f32) -> Option<Particle> {
-    let mut rng = rand::rng();
+fn spawn_particle(kind: ParticleKind, drift: f32, rng: &mut impl Rng) -> Option<Particle> {
     let x = rng.random_range(0.0..1.0);
 
     match kind {
@@ -154,5 +153,20 @@ fn spawn_particle(kind: ParticleKind, drift: f32) -> Option<Particle> {
             glyph: '│',
         }),
         ParticleKind::None => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_spawn_particles_updates_particles() {
+        let mut engine = ParticleEngine::new(false, false, false);
+        let dt = Duration::from_millis(50);
+        // Weather code 61 is Slight rain -> ParticleKind::Rain
+        engine.update(Some(61), Some(10.0), Some(180.0), dt);
+
+        assert!(!engine.particles.is_empty(), "Particles should be spawned");
     }
 }
