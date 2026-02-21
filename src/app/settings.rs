@@ -155,6 +155,8 @@ fn fold_lower(value: &str) -> String {
     value.chars().flat_map(char::to_lowercase).collect()
 }
 
+const MAX_SETTINGS_SIZE: u64 = 128 * 1024;
+
 #[must_use]
 pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, Option<PathBuf>) {
     let mut settings = RuntimeSettings::from_cli_defaults(cli);
@@ -166,7 +168,9 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
         return (settings, None);
     };
 
-    if let Ok(content) = fs::read_to_string(&path)
+    if let Ok(metadata) = fs::metadata(&path)
+        && metadata.len() <= MAX_SETTINGS_SIZE
+        && let Ok(content) = fs::read_to_string(&path)
         && let Ok(saved) = serde_json::from_str::<RuntimeSettings>(&content)
     {
         settings = saved;
@@ -247,7 +251,38 @@ pub fn save_runtime_settings(path: &Path, settings: &RuntimeSettings) -> anyhow:
     }
     let payload =
         serde_json::to_string_pretty(&settings).context("serializing settings payload failed")?;
-    fs::write(path, payload).context("writing settings file failed")
+
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .context("writing settings file failed")?;
+
+        let metadata = file.metadata().context("reading file metadata failed")?;
+        let mut perms = metadata.permissions();
+        if perms.mode() & 0o777 != 0o600 {
+            perms.set_mode(0o600);
+            file.set_permissions(perms)
+                .context("setting file permissions failed")?;
+        }
+
+        file.write_all(payload.as_bytes())
+            .context("writing settings file failed")?;
+    }
+
+    #[cfg(not(unix))]
+    {
+        fs::write(path, payload).context("writing settings file failed")?;
+    }
+
+    Ok(())
 }
 
 pub fn clear_runtime_settings(path: &Path) -> anyhow::Result<()> {
@@ -317,5 +352,85 @@ mod tests {
         let restored: RuntimeSettings = serde_json::from_str(&content).expect("parse settings");
 
         assert_eq!(restored.hourly_view, HourlyViewMode::Chart);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn save_runtime_settings_sets_secure_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let settings = RuntimeSettings::default();
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let path = temp_dir.path().join("settings.json");
+
+        save_runtime_settings(&path, &settings).expect("save settings");
+
+        let metadata = std::fs::metadata(&path).expect("get metadata");
+        let mode = metadata.permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "permissions should be 600");
+    }
+}
+
+#[cfg(test)]
+mod verification_test {
+    use super::*;
+    use crate::cli::{Cli, UnitsArg, ColorArg, ThemeArg, HeroVisualArg};
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn test_cli() -> Cli {
+        Cli {
+            city: None,
+            units: UnitsArg::Celsius,
+            fps: 30,
+            no_animation: false,
+            reduced_motion: false,
+            no_flash: false,
+            ascii_icons: false,
+            emoji_icons: false,
+            color: ColorArg::Auto,
+            no_color: false,
+            hourly_view: None,
+            theme: ThemeArg::Auto,
+            hero_visual: HeroVisualArg::AtmosCanvas,
+            country_code: None,
+            lat: None,
+            lon: None,
+            refresh_interval: 600,
+            demo: false,
+            one_shot: false,
+        }
+    }
+
+    #[test]
+    fn ignores_large_settings_file() {
+        let dir = tempdir().expect("create temp dir");
+        let settings_path = dir.path().join("settings.json");
+
+        // 130KB of data.
+        let large_string = "a".repeat(130 * 1024);
+        let content = format!(r#"{{
+            "units": "Celsius",
+            "recent_locations": [
+                {{
+                    "name": "{}",
+                    "latitude": 0.0,
+                    "longitude": 0.0,
+                    "country": null,
+                    "admin1": null,
+                    "timezone": null
+                }}
+            ]
+        }}"#, large_string);
+
+        fs::write(&settings_path, content).expect("write large settings file");
+
+        unsafe { std::env::set_var("TERMINAL_WEATHER_CONFIG_DIR", dir.path()); }
+
+        let cli = test_cli();
+        let (settings, _loaded_path) = load_runtime_settings(&cli, true);
+
+        unsafe { std::env::remove_var("TERMINAL_WEATHER_CONFIG_DIR"); }
+
+        assert!(settings.recent_locations.is_empty(), "Should ignore large settings file");
     }
 }
