@@ -157,6 +157,12 @@ async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) 
     tokio::pin!(input_stream);
     let mut app = AppState::new(&cli);
 
+    // optimize: set initial viewport width, then rely on resize events to avoid
+    // calling terminal.size() (ioctl) on every frame.
+    if let Ok(size) = terminal.size() {
+        app.viewport_width = size.width;
+    }
+
     tx.send(AppEvent::Bootstrap).await?;
 
     while app.running {
@@ -169,7 +175,6 @@ async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) 
             }
         }
 
-        app.viewport_width = terminal.size()?.width;
         terminal.draw(|frame| ui::render(frame, &app, &cli))?;
 
         if app.mode == AppMode::Quit {
