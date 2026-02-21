@@ -58,6 +58,7 @@ pub enum SettingsSelection {
 }
 
 impl SettingsSelection {
+    #[must_use]
     pub fn next(&self) -> Self {
         match self {
             Self::Units => Self::Theme,
@@ -68,15 +69,14 @@ impl SettingsSelection {
             Self::HourlyView => Self::HeroVisual,
             Self::HeroVisual => Self::RefreshInterval,
             Self::RefreshInterval => Self::RefreshNow,
-            Self::RefreshNow => Self::Close,
-            Self::Close => Self::Close,
+            Self::RefreshNow | Self::Close => Self::Close,
         }
     }
 
+    #[must_use]
     pub fn prev(&self) -> Self {
         match self {
-            Self::Units => Self::Units,
-            Self::Theme => Self::Units,
+            Self::Units | Self::Theme => Self::Units,
             Self::Motion => Self::Theme,
             Self::Flash => Self::Motion,
             Self::Icons => Self::Flash,
@@ -88,6 +88,7 @@ impl SettingsSelection {
         }
     }
 
+    #[must_use]
     pub fn to_usize(&self) -> usize {
         *self as usize
     }
@@ -215,7 +216,7 @@ impl AppState {
             selected_location,
             pending_locations: Vec::new(),
             weather: None,
-            forecast_cache: LruCache::new(NonZeroUsize::new(10).unwrap()),
+            forecast_cache: LruCache::new(NonZeroUsize::new(10).unwrap_or(NonZeroUsize::MIN)),
             refresh_meta: RefreshMetadata::default(),
             units: settings.units,
             hourly_offset: 0,

@@ -12,14 +12,59 @@ use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
 #[tokio::test]
 async fn caching_reduces_network_calls() {
+    let server = setup_mock_server().await;
+    let cli = Cli::parse_from(["terminal-weather"]);
+    let mut app = AppState::new(&cli);
+    let (tx, mut rx) = mpsc::channel(100);
+    let loc_a = Location::from_coords(10.0, 10.0);
+    let loc_b = Location::from_coords(20.0, 20.0);
+
+    request_and_expect_fetch(
+        &mut app,
+        &cli,
+        &tx,
+        &mut rx,
+        loc_a.clone(),
+        10.0,
+        "Loc A (1st)",
+    )
+    .await;
+    request_and_expect_fetch(
+        &mut app,
+        &cli,
+        &tx,
+        &mut rx,
+        loc_b.clone(),
+        20.0,
+        "Loc B (1st)",
+    )
+    .await;
+    request_and_expect_ready_or_fetch(&mut app, &cli, &tx, &mut rx, loc_a, 10.0).await;
+    request_and_expect_ready_or_fetch(&mut app, &cli, &tx, &mut rx, loc_b, 20.0).await;
+
+    let requests = server.received_requests().await.unwrap();
+    let request_count = requests.len();
+    assert_eq!(
+        request_count, 4,
+        "Expected 4 requests with cache, got {request_count}"
+    );
+}
+
+async fn setup_mock_server() -> MockServer {
     let server = MockServer::start().await;
     unsafe {
         std::env::set_var("TERMINAL_WEATHER_FORECAST_URL", server.uri());
         std::env::set_var("TERMINAL_WEATHER_AIR_QUALITY_URL", server.uri());
     }
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(mock_forecast_payload()))
+        .mount(&server)
+        .await;
+    server
+}
 
-    // Minimal valid JSON payload
-    let payload = serde_json::json!({
+fn mock_forecast_payload() -> serde_json::Value {
+    serde_json::json!({
         "current": {
             "temperature_2m": 20.0,
             "relative_humidity_2m": 50.0,
@@ -71,125 +116,71 @@ async fn caching_reduces_network_calls() {
             "daylight_duration": [43200.0],
             "sunshine_duration": [43200.0]
         }
-    });
+    })
+}
 
-    Mock::given(method("GET"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(payload))
-        .mount(&server)
-        .await;
-
-    let cli = Cli::parse_from(["terminal-weather"]);
-    let mut app = AppState::new(&cli);
-    let (tx, mut rx) = mpsc::channel(100);
-
-    let loc_a = Location::from_coords(10.0, 10.0);
-    let loc_b = Location::from_coords(20.0, 20.0);
-
-    // 1. Request Loc A
+async fn request_and_expect_fetch(
+    app: &mut AppState,
+    cli: &Cli,
+    tx: &mpsc::Sender<AppEvent>,
+    rx: &mut mpsc::Receiver<AppEvent>,
+    location: Location,
+    expected_latitude: f64,
+    label: &str,
+) {
     app.handle_event(
-        AppEvent::GeocodeResolved(GeocodeResolution::Selected(loc_a.clone())),
-        &tx,
-        &cli,
+        AppEvent::GeocodeResolved(GeocodeResolution::Selected(location)),
+        tx,
+        cli,
     )
     .await
     .unwrap();
 
     if app.mode == AppMode::Loading {
-        let bundle = wait_for_success(&mut rx).await;
-        app.handle_event(AppEvent::FetchSucceeded(bundle.clone()), &tx, &cli)
+        let bundle = wait_for_success(rx).await;
+        app.handle_event(AppEvent::FetchSucceeded(bundle.clone()), tx, cli)
             .await
             .unwrap();
-        assert_eq!(bundle.location.latitude, 10.0);
+        assert_latitude(bundle.location.latitude, expected_latitude);
     } else {
-        panic!("Expected network fetch for Loc A (1st)");
+        panic!("Expected network fetch for {label}");
     }
+}
 
-    // 2. Request Loc B
+async fn request_and_expect_ready_or_fetch(
+    app: &mut AppState,
+    cli: &Cli,
+    tx: &mpsc::Sender<AppEvent>,
+    rx: &mut mpsc::Receiver<AppEvent>,
+    location: Location,
+    expected_latitude: f64,
+) {
     app.handle_event(
-        AppEvent::GeocodeResolved(GeocodeResolution::Selected(loc_b.clone())),
-        &tx,
-        &cli,
+        AppEvent::GeocodeResolved(GeocodeResolution::Selected(location)),
+        tx,
+        cli,
     )
     .await
     .unwrap();
 
-    if app.mode == AppMode::Loading {
-        let bundle = wait_for_success(&mut rx).await;
-        app.handle_event(AppEvent::FetchSucceeded(bundle.clone()), &tx, &cli)
+    if app.mode == AppMode::Ready {
+        let cached_latitude = app.weather.as_ref().unwrap().location.latitude;
+        assert_latitude(cached_latitude, expected_latitude);
+    } else {
+        let bundle = wait_for_success(rx).await;
+        app.handle_event(AppEvent::FetchSucceeded(bundle.clone()), tx, cli)
             .await
             .unwrap();
-        assert_eq!(bundle.location.latitude, 20.0);
-    } else {
-        panic!("Expected network fetch for Loc B (1st)");
+        assert_latitude(bundle.location.latitude, expected_latitude);
     }
+}
 
-    // 3. Request Loc A again (should be cached)
-    app.handle_event(
-        AppEvent::GeocodeResolved(GeocodeResolution::Selected(loc_a.clone())),
-        &tx,
-        &cli,
-    )
-    .await
-    .unwrap();
-
-    if app.mode == AppMode::Loading {
-        // It might be stale, so it might trigger fetch. But payload timestamp is old?
-        // In mock payload, timestamp is hardcoded "2024-01-01".
-        // Current time is 2024+ (real time).
-        // So it will be stale.
-        // And "prevent redundant network calls" logic calls fetch if stale.
-        // Wait, if it fetches, we get requests.
-        // I want to verify cache behavior.
-        // If stale, it updates synchronously from cache, THEN triggers fetch.
-        // So `mode` will be `Ready` (from cache update), BUT `fetch_in_flight` will be true.
-        // Wait, `switch_to_location` calls `handle_fetch_succeeded`. That sets `mode = Ready`.
-        // Then if stale, it spawns task to send `FetchStarted`, and calls `fetch_forecast`.
-        // So immediately after `handle_event` returns:
-        // `mode` is `Ready`.
-        // `fetch_in_flight` is NOT yet true (because `FetchStarted` is sent async, or `fetch_forecast` didn't set it yet).
-        // Actually `fetch_forecast` spawns a task. It does NOT set `fetch_in_flight`.
-        // `handle_fetch_started` sets it.
-
-        // So `mode` should be `Ready`.
-    }
-
-    if app.mode != AppMode::Ready {
-        let bundle = wait_for_success(&mut rx).await;
-        app.handle_event(AppEvent::FetchSucceeded(bundle.clone()), &tx, &cli)
-            .await
-            .unwrap();
-    } else {
-        // Cache hit.
-        assert_eq!(app.weather.as_ref().unwrap().location.latitude, 10.0);
-    }
-
-    // 4. Request Loc B again (should be cached)
-    app.handle_event(
-        AppEvent::GeocodeResolved(GeocodeResolution::Selected(loc_b.clone())),
-        &tx,
-        &cli,
-    )
-    .await
-    .unwrap();
-
-    if app.mode != AppMode::Ready {
-        let bundle = wait_for_success(&mut rx).await;
-        app.handle_event(AppEvent::FetchSucceeded(bundle.clone()), &tx, &cli)
-            .await
-            .unwrap();
-    } else {
-        // Cache hit.
-        assert_eq!(app.weather.as_ref().unwrap().location.latitude, 20.0);
-    }
-
-    let requests = server.received_requests().await.unwrap();
-    // Expect 2 fetches * 2 calls = 4.
-    // If not cached, 4 fetches * 2 calls = 8.
-    assert_eq!(
-        requests.len(),
-        4,
-        "Expected 4 requests with cache, got {}",
-        requests.len()
+fn assert_latitude(actual: f64, expected: f64) {
+    const EPSILON: f64 = 1e-6;
+    let delta = (actual - expected).abs();
+    assert!(
+        delta <= EPSILON,
+        "expected latitude {expected}, got {actual} (delta={delta})"
     );
 }
 
@@ -197,7 +188,7 @@ async fn wait_for_success(rx: &mut mpsc::Receiver<AppEvent>) -> ForecastBundle {
     loop {
         match rx.recv().await {
             Some(AppEvent::FetchSucceeded(bundle)) => return bundle,
-            Some(AppEvent::FetchFailed(err)) => panic!("Fetch failed: {}", err),
+            Some(AppEvent::FetchFailed(err)) => panic!("Fetch failed: {err}"),
             Some(_) => {}
             None => panic!("Channel closed"),
         }
