@@ -162,6 +162,42 @@ To contribute code:
 
 The maintainer reviews and merges all PRs. Direct pushes to `main` are restricted.
 
+### Codacy Coverage
+
+Generate an LCOV report locally:
+
+```bash
+cargo install --locked cargo-llvm-cov
+./scripts/codacy-coverage.sh
+```
+
+Upload coverage to Codacy (local):
+
+```bash
+export CODACY_PROJECT_TOKEN=your_project_token
+TW_CODACY_UPLOAD=1 ./scripts/codacy-coverage.sh
+```
+
+Alternative (account token mode):
+
+```bash
+export CODACY_API_TOKEN=your_account_token
+export CODACY_ORGANIZATION_PROVIDER=gh
+export CODACY_USERNAME=your_org_or_user
+export CODACY_PROJECT_NAME=terminal-weather
+TW_CODACY_UPLOAD=1 ./scripts/codacy-coverage.sh
+```
+
+Run full local parity including Codacy complexity + coverage:
+
+```bash
+./scripts/ci-local.sh --with-codacy
+```
+
+GitHub Actions uploads coverage automatically when either:
+- `CODACY_PROJECT_TOKEN` is set in repository secrets, or
+- `CODACY_API_TOKEN`, `CODACY_ORGANIZATION_PROVIDER`, `CODACY_USERNAME`, and `CODACY_PROJECT_NAME` are all set.
+
 ---
 
 ## Attribution & License

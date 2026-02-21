@@ -30,4 +30,10 @@ run_step "Build release" cargo build --release
 
 if [[ "$WITH_CODACY" -eq 1 ]]; then
   run_step "Run codacy complexity parity gate" ./scripts/codacy-complexity-gate.sh
+
+  if [[ -n "${CODACY_PROJECT_TOKEN:-}" || -n "${CODACY_API_TOKEN:-}" ]]; then
+    run_step "Generate and upload Codacy coverage report" env TW_CODACY_UPLOAD=1 ./scripts/codacy-coverage.sh
+  else
+    run_step "Generate Codacy coverage report (upload skipped: no token set)" ./scripts/codacy-coverage.sh
+  fi
 fi
