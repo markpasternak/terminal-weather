@@ -32,7 +32,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 
     let items = settings_items(state);
 
-    let mut list_state = ListState::default().with_selected(Some(state.settings_selected));
+    let mut list_state =
+        ListState::default().with_selected(Some(state.settings_selected.to_usize()));
     let list = settings_list(items, panel_style, theme);
     frame.render_stateful_widget(list, chunks[0], &mut list_state);
 

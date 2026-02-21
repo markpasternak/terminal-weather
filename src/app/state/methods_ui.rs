@@ -42,12 +42,10 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> Result<()> {
-        if self.settings_selected == SETTINGS_REFRESH_NOW {
-            self.start_fetch(tx, cli).await?;
-        } else if self.settings_selected == SETTINGS_CLOSE {
-            self.settings_open = false;
-        } else {
-            self.adjust_selected_setting(1);
+        match self.settings_selected {
+            SettingsSelection::RefreshNow => self.start_fetch(tx, cli).await?,
+            SettingsSelection::Close => self.settings_open = false,
+            _ => self.adjust_selected_setting(1),
         }
         Ok(())
     }
@@ -159,9 +157,18 @@ impl AppState {
     }
 
     pub(crate) fn adjust_selected_setting(&mut self, direction: i8) {
-        let changed = SETTINGS_ADJUSTERS
-            .get(self.settings_selected)
-            .is_some_and(|adjust| adjust(self, direction));
+        let changed = match self.settings_selected {
+            SettingsSelection::Units => adjust_units_setting(self, direction),
+            SettingsSelection::Theme => adjust_theme_setting(self, direction),
+            SettingsSelection::Motion => adjust_motion_setting(self, direction),
+            SettingsSelection::Flash => adjust_flash_setting(self, direction),
+            SettingsSelection::Icons => adjust_icon_setting(self, direction),
+            SettingsSelection::HourlyView => adjust_hourly_view_setting(self, direction),
+            SettingsSelection::HeroVisual => adjust_hero_visual_setting(self, direction),
+            SettingsSelection::RefreshInterval => adjust_refresh_interval_setting(self, direction),
+            SettingsSelection::RefreshNow | SettingsSelection::Close => false,
+        };
+
         if changed {
             self.apply_runtime_settings();
             self.persist_settings();
@@ -235,6 +242,20 @@ impl AppState {
     pub(crate) fn switch_to_location(&mut self, tx: &mpsc::Sender<AppEvent>, location: Location) {
         self.selected_location = Some(location.clone());
         self.pending_locations.clear();
+
+        let key: LocationKey = (&location).into();
+        if let Some(bundle) = self.forecast_cache.get(&key).cloned() {
+            self.handle_fetch_succeeded(bundle.clone());
+            if (chrono::Utc::now() - bundle.fetched_at) > chrono::Duration::minutes(10) {
+                let tx2 = tx.clone();
+                tokio::spawn(async move {
+                    let _ = tx2.send(AppEvent::FetchStarted).await;
+                });
+                Self::fetch_forecast(tx, location);
+            }
+            return;
+        }
+
         self.mode = AppMode::Loading;
         self.city_status = Some(format!("Switching to {}", location.display_name()));
         Self::fetch_forecast(tx, location);

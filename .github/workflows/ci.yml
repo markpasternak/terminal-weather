@@ -25,11 +25,12 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
 
-      - name: Install static-analysis tooling
+      - name: Install analysis tooling
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
           cargo install --locked rust-code-analysis-cli --version 0.0.25
+          cargo install --locked cargo-dupes --version 0.2.1
 
       - name: Run local CI parity script
         run: ./scripts/ci-local.sh

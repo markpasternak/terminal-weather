@@ -67,3 +67,40 @@ pub(super) fn sunlight_cue(day: &crate::domain::weather::DailyForecast) -> Optio
         None
     }
 }
+
+pub(super) fn first_day_time(
+    bundle: &crate::domain::weather::ForecastBundle,
+    projection: impl Fn(&crate::domain::weather::DailyForecast) -> Option<chrono::NaiveDateTime>,
+) -> String {
+    bundle.daily.first().and_then(projection).map_or_else(
+        || "--:--".to_string(),
+        |value| value.format("%H:%M").to_string(),
+    )
+}
+
+pub(super) fn first_day_shifted_time(
+    bundle: &crate::domain::weather::ForecastBundle,
+    projection: impl Fn(&crate::domain::weather::DailyForecast) -> Option<chrono::NaiveDateTime>,
+    shift_minutes: i64,
+) -> String {
+    bundle
+        .daily
+        .first()
+        .and_then(projection)
+        .map(|value| value + chrono::Duration::minutes(shift_minutes))
+        .map_or_else(
+            || "--:--".to_string(),
+            |value| value.format("%H:%M").to_string(),
+        )
+}
+
+pub(super) fn day_cue(day: &crate::domain::weather::DailyForecast) -> String {
+    let mut parts = vec![precipitation_cue(day)];
+    if let Some(gust) = gust_cue(day.wind_gusts_10m_max.unwrap_or(0.0)) {
+        parts.push(gust);
+    }
+    if let Some(sunlight) = sunlight_cue(day) {
+        parts.push(sunlight.to_string());
+    }
+    parts.join(", ")
+}
