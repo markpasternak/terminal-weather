@@ -34,6 +34,7 @@ impl ForecastClient {
         Self::with_base_url(url)
     }
 
+    #[must_use]
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(10))
