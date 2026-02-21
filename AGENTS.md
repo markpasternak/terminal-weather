@@ -27,7 +27,7 @@ cargo fmt --all                                  # format
 cargo fmt --all -- --check                       # verify formatting (CI gate)
 cargo clippy --all-targets --all-features -- -D warnings   # lint, zero warnings
 cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic -D clippy::if_same_then_else -D clippy::match_same_arms -D clippy::branches_sharing_code  # pedantic + duplication-pattern lint gate
-./scripts/static-analysis-gate.sh                # complexity/MI static gate (CI gate)
+./scripts/complexity-gate.sh                     # complexity/MI static gate (CI gate)
 ./scripts/duplication-gate.sh                    # duplication analysis (advisory by default)
 cargo check --all-targets --all-features         # type-check
 cargo test --all --all-features                  # full test suite
@@ -36,8 +36,8 @@ cargo build --release                            # release build
 
 Additional local parity gate:
 ```bash
-./scripts/codacy-complexity-gate.sh              # Codacy-style complexity parity (critical fail by default)
-./scripts/codacy-coverage.sh                     # coverage gate (line/function/branch thresholds)
+./scripts/complexity-audit.sh                    # tiered complexity audit (critical fail by default)
+./scripts/coverage.sh                            # coverage gate (line/function/branch thresholds)
 ```
 
 Install static tooling once:
@@ -53,19 +53,19 @@ Static gate thresholds (enforced by CI and local script):
 - maintainability index (MI): `>= 30`
 - scope: all functions in `src/` + `tests/`
 
-Codacy complexity parity thresholds (`scripts/codacy-complexity-gate.sh`):
+Complexity audit thresholds (`scripts/complexity-audit.sh`):
 - file NLOC: medium `> 500`, critical `> 1000`
 - function NLOC: medium `> 50`, critical `> 100`
 - cyclomatic complexity: medium `> 8`, critical `> 12`
 - function parameter count: medium `> 8`, critical `> 12`
-- default fail policy: fail critical (`TW_FAIL_ON_CRITICAL=1`), report medium (`TW_FAIL_ON_MEDIUM=0`)
+- default fail policy: fail critical (`TW_COMPLEXITY_FAIL_ON_CRITICAL=1`), report medium (`TW_COMPLEXITY_FAIL_ON_MEDIUM=0`)
 
 Duplication gate defaults (`scripts/duplication-gate.sh`):
 - mode: advisory (`TW_DUPES_ENFORCE=0`) — reports but does not fail
 - strict mode: `TW_DUPES_ENFORCE=1`
 - strict thresholds (when enabled): `TW_DUPES_MAX_EXACT_PERCENT=5.0`, `TW_DUPES_MAX_NEAR_PERCENT=10.0`
 
-Coverage gate thresholds (`scripts/coverage-thresholds.env`, enforced by `scripts/codacy-coverage.sh`):
+Coverage gate thresholds (`scripts/coverage-thresholds.env`, enforced by `scripts/coverage.sh`):
 - line coverage: `>= 85%`
 - function coverage: `>= 85%`
 - branch coverage: `>= 75%`
