@@ -194,6 +194,8 @@ pub struct AppState {
     pub color_mode: ColorArg,
     pub hourly_view_mode: HourlyViewMode,
     pub refresh_interval_secs_runtime: Arc<AtomicU64>,
+    forecast_url_override: Option<String>,
+    air_quality_url_override: Option<String>,
     settings_path: Option<PathBuf>,
 }
 
@@ -240,6 +242,8 @@ impl AppState {
             color_mode: cli.effective_color_mode(),
             hourly_view_mode: runtime_hourly_view,
             refresh_interval_secs_runtime,
+            forecast_url_override: cli.forecast_url.clone(),
+            air_quality_url_override: cli.air_quality_url.clone(),
             settings_path,
         }
     }

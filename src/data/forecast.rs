@@ -12,6 +12,8 @@ use crate::domain::weather::{
 
 const FORECAST_URL: &str = "https://api.open-meteo.com/v1/forecast";
 const AIR_QUALITY_URL: &str = "https://air-quality-api.open-meteo.com/v1/air-quality";
+const FORECAST_URL_ENV: &str = "TERMINAL_WEATHER_FORECAST_URL";
+const AIR_QUALITY_URL_ENV: &str = "TERMINAL_WEATHER_AIR_QUALITY_URL";
 
 #[derive(Debug, Clone)]
 pub struct ForecastClient {
@@ -29,23 +31,26 @@ impl Default for ForecastClient {
 impl ForecastClient {
     #[must_use]
     pub fn new() -> Self {
-        let url = std::env::var("TERMINAL_WEATHER_FORECAST_URL")
-            .unwrap_or_else(|_| FORECAST_URL.to_string());
-        Self::with_base_url(url)
+        let (base_url, air_quality_url) = resolve_api_urls(|key| std::env::var(key).ok());
+        Self::with_urls(base_url, air_quality_url)
     }
 
     #[must_use]
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
+        let (_, air_quality_url) = resolve_api_urls(|key| std::env::var(key).ok());
+        Self::with_urls(base_url, air_quality_url)
+    }
+
+    #[must_use]
+    pub fn with_urls(base_url: impl Into<String>, air_quality_url: impl Into<String>) -> Self {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap_or_else(|_| Client::new());
-        let air_quality_url = std::env::var("TERMINAL_WEATHER_AIR_QUALITY_URL")
-            .unwrap_or_else(|_| AIR_QUALITY_URL.to_string());
         Self {
             client,
             base_url: base_url.into(),
-            air_quality_url,
+            air_quality_url: air_quality_url.into(),
         }
     }
 
@@ -98,6 +103,13 @@ impl ForecastClient {
         let payload: AirQualityResponse = response.json().await.ok()?;
         parse_air_quality(payload.current.as_ref())
     }
+}
+
+fn resolve_api_urls(get_env: impl Fn(&str) -> Option<String>) -> (String, String) {
+    let forecast_url = get_env(FORECAST_URL_ENV).unwrap_or_else(|| FORECAST_URL.to_string());
+    let air_quality_url =
+        get_env(AIR_QUALITY_URL_ENV).unwrap_or_else(|| AIR_QUALITY_URL.to_string());
+    (forecast_url, air_quality_url)
 }
 
 fn forecast_query(location: &Location) -> Vec<(&'static str, String)> {
@@ -389,50 +401,28 @@ mod tests {
     }
 
     #[test]
-    fn test_forecast_config_env_vars() {
-        struct EnvVarGuard {
-            key: &'static str,
-        }
+    fn resolve_api_urls_uses_defaults_when_env_missing() {
+        let (forecast_url, air_quality_url) = resolve_api_urls(|_| None);
+        assert_eq!(forecast_url, FORECAST_URL);
+        assert_eq!(air_quality_url, AIR_QUALITY_URL);
+    }
 
-        impl Drop for EnvVarGuard {
-            fn drop(&mut self) {
-                unsafe {
-                    std::env::remove_var(self.key);
-                }
-            }
-        }
+    #[test]
+    fn resolve_api_urls_prefers_env_values() {
+        let (forecast_url, air_quality_url) = resolve_api_urls(|key| match key {
+            FORECAST_URL_ENV => Some("https://example.com/forecast".to_string()),
+            AIR_QUALITY_URL_ENV => Some("https://example.com/aq".to_string()),
+            _ => None,
+        });
+        assert_eq!(forecast_url, "https://example.com/forecast");
+        assert_eq!(air_quality_url, "https://example.com/aq");
+    }
 
-        let custom_forecast = "https://example.com/forecast";
-        let custom_aq = "https://example.com/aq";
-        let key_forecast = "TERMINAL_WEATHER_FORECAST_URL";
-        let key_aq = "TERMINAL_WEATHER_AIR_QUALITY_URL";
-
-        // Set env vars
-        // Note: this modifies process state which may affect other tests running in parallel
-        // however, these env vars are specific to this test case.
-        // We use RAII guards to ensure cleanup even if assertions fail.
-        unsafe {
-            std::env::set_var(key_forecast, custom_forecast);
-        }
-        let guard_forecast = EnvVarGuard { key: key_forecast };
-
-        unsafe {
-            std::env::set_var(key_aq, custom_aq);
-        }
-        let guard_aq = EnvVarGuard { key: key_aq };
-
-        let client = ForecastClient::new();
-
-        assert_eq!(client.base_url, custom_forecast);
-        assert_eq!(client.air_quality_url, custom_aq);
-
-        // Drop guards here to clean up before checking defaults
-        drop(guard_forecast);
-        drop(guard_aq);
-
-        // Verify defaults are restored
-        let client_default = ForecastClient::new();
-        assert_eq!(client_default.base_url, FORECAST_URL);
-        assert_eq!(client_default.air_quality_url, AIR_QUALITY_URL);
+    #[test]
+    fn with_urls_sets_both_endpoints() {
+        let client =
+            ForecastClient::with_urls("https://example.com/forecast", "https://example.com/aq");
+        assert_eq!(client.base_url, "https://example.com/forecast");
+        assert_eq!(client.air_quality_url, "https://example.com/aq");
     }
 }

@@ -88,6 +88,8 @@ fn test_cli() -> Cli {
         country_code: None,
         lat: None,
         lon: None,
+        forecast_url: None,
+        air_quality_url: None,
         refresh_interval: 600,
         demo: false,
         one_shot: false,

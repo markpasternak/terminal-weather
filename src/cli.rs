@@ -137,6 +137,14 @@ pub struct Cli {
     #[arg(long)]
     pub lon: Option<f64>,
 
+    /// Override forecast API base URL
+    #[arg(long)]
+    pub forecast_url: Option<String>,
+
+    /// Override air-quality API base URL
+    #[arg(long)]
+    pub air_quality_url: Option<String>,
+
     /// Refresh interval in seconds
     #[arg(long, default_value_t = 600)]
     pub refresh_interval: u64,

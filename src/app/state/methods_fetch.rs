@@ -34,7 +34,7 @@ impl AppState {
 
     pub(crate) fn try_fetch_existing_location(&self, tx: &mpsc::Sender<AppEvent>) -> bool {
         if let Some(location) = self.selected_location.clone() {
-            Self::fetch_forecast(tx, location);
+            self.fetch_forecast(tx, location);
             return true;
         }
         false
@@ -83,8 +83,8 @@ impl AppState {
         });
     }
 
-    pub(crate) fn fetch_forecast(tx: &mpsc::Sender<AppEvent>, location: Location) {
-        let client = ForecastClient::new();
+    pub(crate) fn fetch_forecast(&self, tx: &mpsc::Sender<AppEvent>, location: Location) {
+        let client = self.build_forecast_client();
         let tx2 = tx.clone();
         tokio::spawn(async move {
             match client.fetch(location).await {
@@ -96,6 +96,19 @@ impl AppState {
                 }
             }
         });
+    }
+
+    fn build_forecast_client(&self) -> ForecastClient {
+        match (&self.forecast_url_override, &self.air_quality_url_override) {
+            (Some(forecast_url), Some(air_quality_url)) => {
+                ForecastClient::with_urls(forecast_url.clone(), air_quality_url.clone())
+            }
+            (Some(forecast_url), None) => ForecastClient::with_base_url(forecast_url.clone()),
+            (None, Some(air_quality_url)) => {
+                ForecastClient::new().with_air_quality_url(air_quality_url.clone())
+            }
+            (None, None) => ForecastClient::new(),
+        }
     }
 
     pub(crate) async fn handle_demo_action(

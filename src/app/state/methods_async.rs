@@ -426,7 +426,7 @@ impl AppState {
             self.selected_location = Some(selected.clone());
             self.pending_locations.clear();
             self.mode = AppMode::Loading;
-            Self::fetch_forecast(tx, selected);
+            self.fetch_forecast(tx, selected);
         }
     }
 

@@ -256,14 +256,14 @@ impl AppState {
                 tokio::spawn(async move {
                     let _ = tx2.send(AppEvent::FetchStarted).await;
                 });
-                Self::fetch_forecast(tx, location);
+                self.fetch_forecast(tx, location);
             }
             return;
         }
 
         self.mode = AppMode::Loading;
         self.city_status = Some(format!("Switching to {}", location.display_name()));
-        Self::fetch_forecast(tx, location);
+        self.fetch_forecast(tx, location);
     }
 
     pub(crate) fn start_city_search(

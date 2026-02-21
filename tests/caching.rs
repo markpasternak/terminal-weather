@@ -13,7 +13,13 @@ use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 #[tokio::test]
 async fn caching_reduces_network_calls() {
     let server = setup_mock_server().await;
-    let cli = Cli::parse_from(["terminal-weather"]);
+    let cli = Cli::parse_from(vec![
+        "terminal-weather".to_string(),
+        "--forecast-url".to_string(),
+        server.uri(),
+        "--air-quality-url".to_string(),
+        server.uri(),
+    ]);
     let mut app = AppState::new(&cli);
     let (tx, mut rx) = mpsc::channel(100);
     let loc_a = Location::from_coords(10.0, 10.0);
@@ -52,10 +58,6 @@ async fn caching_reduces_network_calls() {
 
 async fn setup_mock_server() -> MockServer {
     let server = MockServer::start().await;
-    unsafe {
-        std::env::set_var("TERMINAL_WEATHER_FORECAST_URL", server.uri());
-        std::env::set_var("TERMINAL_WEATHER_AIR_QUALITY_URL", server.uri());
-    }
     Mock::given(method("GET"))
         .respond_with(ResponseTemplate::new(200).set_body_json(mock_forecast_payload()))
         .mount(&server)
