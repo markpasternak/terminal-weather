@@ -76,6 +76,8 @@ Options:
   --country-code <ISO2>                 Geocode bias (e.g. SE, US)
   --lat <FLOAT>                         Direct latitude (requires --lon)
   --lon <FLOAT>                         Direct longitude (requires --lat)
+  --forecast-url <URL>                  Override forecast API base URL
+  --air-quality-url <URL>               Override air-quality API base URL
   --refresh-interval <secs>             Default: 600
   --one-shot                            Print snapshot to stdout and exit
   --demo                                Run scripted showcase and exit
@@ -111,11 +113,21 @@ Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` 
 
 ## Configuration
 
-Settings persist to `~/.config/terminal-weather/settings.json`. Override the directory with `TERMINAL_WEATHER_CONFIG_DIR`.
+Settings persist to `~/.config/terminal-weather/settings.json`. Override the directory with `TERMINAL_WEATHER_CONFIG_DIR` (legacy `ATMOS_TUI_CONFIG_DIR` is also supported).
 
 Persisted values: units, theme, motion (`full`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`), hourly view, hero visual, refresh interval, recent locations.
 
 Color detection falls back TrueColor → xterm-256 → 16-color based on `COLORTERM` and `TERM`. `NO_COLOR` is honored in `auto` mode.
+
+API endpoint overrides:
+
+- `TERMINAL_WEATHER_FORECAST_URL` sets the forecast endpoint
+- `TERMINAL_WEATHER_AIR_QUALITY_URL` sets the air-quality endpoint
+- `--forecast-url` / `--air-quality-url` override env vars for the current run
+
+Precedence is: CLI flag → environment variable → built-in default URL.
+
+Custom endpoints must remain Open-Meteo compatible (same query parameters and response shape).
 
 ---
 
@@ -123,7 +135,7 @@ Color detection falls back TrueColor → xterm-256 → 16-color based on `COLORT
 
 When launched without a city argument, `terminal-weather` sends your IP address to [ipapi.co](https://ipapi.co/) to determine your location. Pass a city name or `--lat`/`--lon` to skip this lookup entirely.
 
-Weather data comes from [Open-Meteo](https://open-meteo.com/) (your coordinates are sent with each forecast request). City searches go to [Nominatim](https://nominatim.org/) (your search string is sent). All three services are free and open; no account or API key required, and no data is stored by this app.
+Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (your coordinates and search string are sent). The IP-based auto-location lookup uses [ipapi.co](https://ipapi.co/). All services are free and open; no account or API key required, and no data is stored by this app.
 
 ---
 
