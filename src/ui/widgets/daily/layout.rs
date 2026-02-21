@@ -12,17 +12,65 @@ pub(super) struct DailyLayout {
     pub(super) column_spacing: u16,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct BarLayoutSpec {
+    reserve: usize,
+    min_bar: usize,
+    max_bar: usize,
+    show_icon: bool,
+    show_precip_col: bool,
+    show_gust_col: bool,
+    column_spacing: u16,
+}
+
 impl DailyLayout {
+    const WIDE_SPEC: BarLayoutSpec = BarLayoutSpec {
+        reserve: 4 + 3 + 5 + 5 + 5 + 4 + 10,
+        min_bar: 18,
+        max_bar: 48,
+        show_icon: true,
+        show_precip_col: true,
+        show_gust_col: true,
+        column_spacing: 2,
+    };
+    const MEDIUM_PLUS_SPEC: BarLayoutSpec = BarLayoutSpec {
+        reserve: 4 + 3 + 5 + 5 + 5 + 8,
+        min_bar: 14,
+        max_bar: 34,
+        show_icon: true,
+        show_precip_col: true,
+        show_gust_col: false,
+        column_spacing: 1,
+    };
+    const MEDIUM_SPEC: BarLayoutSpec = BarLayoutSpec {
+        reserve: 4 + 3 + 5 + 5 + 6,
+        min_bar: 10,
+        max_bar: 24,
+        show_icon: true,
+        show_precip_col: false,
+        show_gust_col: false,
+        column_spacing: 1,
+    };
+    const COMPACT_SPEC: BarLayoutSpec = BarLayoutSpec {
+        reserve: 4 + 5 + 5 + 3,
+        min_bar: 6,
+        max_bar: 18,
+        show_icon: false,
+        show_precip_col: false,
+        show_gust_col: false,
+        column_spacing: 1,
+    };
+
     pub(super) fn for_area(area: Rect) -> Self {
         let inner_width = area.width.saturating_sub(2) as usize;
         if inner_width >= 112 {
-            return Self::wide(inner_width);
+            return Self::with_bar(inner_width, Self::WIDE_SPEC);
         } else if inner_width >= 86 {
-            return Self::medium_plus(inner_width);
+            return Self::with_bar(inner_width, Self::MEDIUM_PLUS_SPEC);
         } else if inner_width >= 56 {
-            return Self::medium(inner_width);
+            return Self::with_bar(inner_width, Self::MEDIUM_SPEC);
         } else if inner_width >= 36 {
-            return Self::compact(inner_width);
+            return Self::with_bar(inner_width, Self::COMPACT_SPEC);
         }
         Self::narrow()
     }
@@ -30,62 +78,6 @@ impl DailyLayout {
     pub(super) fn max_rows(self, inner_height: u16) -> usize {
         let reserved = u16::from(self.show_header);
         usize::from(inner_height.saturating_sub(reserved)).min(7)
-    }
-
-    fn wide(inner_width: usize) -> Self {
-        let bar_width = inner_width
-            .saturating_sub(4 + 3 + 5 + 5 + 5 + 4 + 10)
-            .clamp(18, 48);
-        Self {
-            show_icon: true,
-            show_bar: true,
-            show_header: true,
-            show_precip_col: true,
-            show_gust_col: true,
-            bar_width,
-            column_spacing: 2,
-        }
-    }
-
-    fn medium_plus(inner_width: usize) -> Self {
-        let bar_width = inner_width
-            .saturating_sub(4 + 3 + 5 + 5 + 5 + 8)
-            .clamp(14, 34);
-        Self {
-            show_icon: true,
-            show_bar: true,
-            show_header: true,
-            show_precip_col: true,
-            show_gust_col: false,
-            bar_width,
-            column_spacing: 1,
-        }
-    }
-
-    fn medium(inner_width: usize) -> Self {
-        let bar_width = inner_width.saturating_sub(4 + 3 + 5 + 5 + 6).clamp(10, 24);
-        Self {
-            show_icon: true,
-            show_bar: true,
-            show_header: true,
-            show_precip_col: false,
-            show_gust_col: false,
-            bar_width,
-            column_spacing: 1,
-        }
-    }
-
-    fn compact(inner_width: usize) -> Self {
-        let bar_width = inner_width.saturating_sub(4 + 5 + 5 + 3).clamp(6, 18);
-        Self {
-            show_icon: false,
-            show_bar: true,
-            show_header: true,
-            show_precip_col: false,
-            show_gust_col: false,
-            bar_width,
-            column_spacing: 1,
-        }
     }
 
     fn narrow() -> Self {
@@ -97,6 +89,20 @@ impl DailyLayout {
             show_gust_col: false,
             bar_width: 0,
             column_spacing: 1,
+        }
+    }
+
+    fn with_bar(inner_width: usize, spec: BarLayoutSpec) -> Self {
+        Self {
+            show_icon: spec.show_icon,
+            show_bar: true,
+            show_header: true,
+            show_precip_col: spec.show_precip_col,
+            show_gust_col: spec.show_gust_col,
+            bar_width: inner_width
+                .saturating_sub(spec.reserve)
+                .clamp(spec.min_bar, spec.max_bar),
+            column_spacing: spec.column_spacing,
         }
     }
 }

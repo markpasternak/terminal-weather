@@ -304,30 +304,27 @@ fn motion_flags(settings: &RuntimeSettings) -> (bool, bool) {
 }
 
 pub(crate) fn adjust_units_setting(state: &mut AppState, direction: i8) -> bool {
-    state.settings.units = cycle(
+    adjust_cycle_setting(
+        &mut state.settings.units,
         &[Units::Celsius, Units::Fahrenheit],
-        state.settings.units,
         direction,
-    );
-    true
+    )
 }
 
 pub(crate) fn adjust_theme_setting(state: &mut AppState, direction: i8) -> bool {
-    state.settings.theme = cycle(&THEME_OPTIONS, state.settings.theme, direction);
-    true
+    adjust_cycle_setting(&mut state.settings.theme, &THEME_OPTIONS, direction)
 }
 
 pub(crate) fn adjust_motion_setting(state: &mut AppState, direction: i8) -> bool {
-    state.settings.motion = cycle(
+    adjust_cycle_setting(
+        &mut state.settings.motion,
         &[
             MotionSetting::Full,
             MotionSetting::Reduced,
             MotionSetting::Off,
         ],
-        state.settings.motion,
         direction,
-    );
-    true
+    )
 }
 
 pub(crate) fn adjust_flash_setting(state: &mut AppState, _: i8) -> bool {
@@ -336,39 +333,40 @@ pub(crate) fn adjust_flash_setting(state: &mut AppState, _: i8) -> bool {
 }
 
 pub(crate) fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
-    state.settings.icon_mode = cycle(
+    adjust_cycle_setting(
+        &mut state.settings.icon_mode,
         &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
-        state.settings.icon_mode,
         direction,
-    );
-    true
+    )
 }
 
 pub(crate) fn adjust_hourly_view_setting(state: &mut AppState, direction: i8) -> bool {
-    state.settings.hourly_view = cycle(&HOURLY_VIEW_OPTIONS, state.hourly_view_mode, direction);
-    true
+    adjust_cycle_setting_from(
+        &mut state.settings.hourly_view,
+        state.hourly_view_mode,
+        &HOURLY_VIEW_OPTIONS,
+        direction,
+    )
 }
 
 pub(crate) fn adjust_hero_visual_setting(state: &mut AppState, direction: i8) -> bool {
-    state.settings.hero_visual = cycle(
+    adjust_cycle_setting(
+        &mut state.settings.hero_visual,
         &[
             HeroVisualArg::AtmosCanvas,
             HeroVisualArg::GaugeCluster,
             HeroVisualArg::SkyObservatory,
         ],
-        state.settings.hero_visual,
         direction,
-    );
-    true
+    )
 }
 
 pub(crate) fn adjust_refresh_interval_setting(state: &mut AppState, direction: i8) -> bool {
-    state.settings.refresh_interval_secs = cycle(
+    adjust_cycle_setting(
+        &mut state.settings.refresh_interval_secs,
         &REFRESH_OPTIONS,
-        state.settings.refresh_interval_secs,
         direction,
-    );
-    true
+    )
 }
 
 fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
@@ -385,6 +383,20 @@ fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
         idx - 1
     };
     values[next]
+}
+
+fn adjust_cycle_setting<T: Copy + Eq>(current: &mut T, values: &[T], direction: i8) -> bool {
+    adjust_cycle_setting_from(current, *current, values, direction)
+}
+
+fn adjust_cycle_setting_from<T: Copy + Eq>(
+    target: &mut T,
+    current: T,
+    values: &[T],
+    direction: i8,
+) -> bool {
+    *target = cycle(values, current, direction);
+    true
 }
 
 fn event_is_async(event: &AppEvent) -> bool {

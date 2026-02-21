@@ -140,62 +140,52 @@ fn select_scene(
 ) -> crate::ui::widgets::landmark::LandmarkScene {
     let scene_area = (area.width.saturating_sub(2), area.height.saturating_sub(2));
     match state.settings.hero_visual {
-        HeroVisualArg::AtmosCanvas => select_atmos_scene(state, area, is_day, scene_area),
-        HeroVisualArg::GaugeCluster => select_gauge_scene(state, area, is_day, scene_area),
-        HeroVisualArg::SkyObservatory => select_sky_scene(state, area, is_day, scene_area),
+        HeroVisualArg::AtmosCanvas => {
+            scene_or_loading(state, area, is_day, "Atmos Canvas", |bundle| {
+                scene_for_weather(
+                    bundle,
+                    state.units,
+                    state.frame_tick,
+                    state.animate_ui,
+                    scene_area.0,
+                    scene_area.1,
+                )
+            })
+        }
+        HeroVisualArg::GaugeCluster => {
+            scene_or_loading(state, area, is_day, "Gauge Cluster", |bundle| {
+                scene_for_gauge_cluster(bundle, state.units, scene_area.0, scene_area.1)
+            })
+        }
+        HeroVisualArg::SkyObservatory => {
+            scene_or_loading(state, area, is_day, "Sky Observatory", |bundle| {
+                scene_for_sky_observatory(
+                    bundle,
+                    state.frame_tick,
+                    state.animate_ui,
+                    scene_area.0,
+                    scene_area.1,
+                )
+            })
+        }
     }
 }
 
-fn select_atmos_scene(
+fn scene_or_loading<F>(
     state: &AppState,
     area: Rect,
     is_day: bool,
-    scene_area: (u16, u16),
-) -> crate::ui::widgets::landmark::LandmarkScene {
+    name: &str,
+    render_scene: F,
+) -> crate::ui::widgets::landmark::LandmarkScene
+where
+    F: FnOnce(
+        &crate::domain::weather::ForecastBundle,
+    ) -> crate::ui::widgets::landmark::LandmarkScene,
+{
     state.weather.as_ref().map_or_else(
-        || loading_scene("Atmos Canvas", area.width, area.height, is_day),
-        |bundle| {
-            scene_for_weather(
-                bundle,
-                state.units,
-                state.frame_tick,
-                state.animate_ui,
-                scene_area.0,
-                scene_area.1,
-            )
-        },
-    )
-}
-
-fn select_gauge_scene(
-    state: &AppState,
-    area: Rect,
-    is_day: bool,
-    scene_area: (u16, u16),
-) -> crate::ui::widgets::landmark::LandmarkScene {
-    state.weather.as_ref().map_or_else(
-        || loading_scene("Gauge Cluster", area.width, area.height, is_day),
-        |bundle| scene_for_gauge_cluster(bundle, state.units, scene_area.0, scene_area.1),
-    )
-}
-
-fn select_sky_scene(
-    state: &AppState,
-    area: Rect,
-    is_day: bool,
-    scene_area: (u16, u16),
-) -> crate::ui::widgets::landmark::LandmarkScene {
-    state.weather.as_ref().map_or_else(
-        || loading_scene("Sky Observatory", area.width, area.height, is_day),
-        |bundle| {
-            scene_for_sky_observatory(
-                bundle,
-                state.frame_tick,
-                state.animate_ui,
-                scene_area.0,
-                scene_area.1,
-            )
-        },
+        || loading_scene(name, area.width, area.height, is_day),
+        render_scene,
     )
 }
 
