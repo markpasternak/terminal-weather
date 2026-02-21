@@ -3,7 +3,8 @@
 mod common;
 
 use common::{
-    FixtureProfile, fixture_bundle as shared_fixture_bundle, state_with_weather, stockholm_cli,
+    FixtureProfile, assert_fixture_bundle_shape, assert_stockholm_cli_shape,
+    fixture_bundle as shared_fixture_bundle, state_with_weather, stockholm_cli,
 };
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use std::sync::atomic::Ordering;
@@ -12,7 +13,7 @@ use terminal_weather::{
         events::AppEvent,
         state::{AppState, SettingsSelection},
     },
-    cli::{HeroVisualArg, HourlyViewArg, ThemeArg},
+    cli::HourlyViewArg,
     domain::weather::{HourlyViewMode, Units},
     ui::layout::visible_hour_count,
 };
@@ -26,36 +27,42 @@ fn fixture_bundle() -> terminal_weather::domain::weather::ForecastBundle {
     shared_fixture_bundle(FixtureProfile::Flow, 61)
 }
 
+fn input_key(code: KeyCode, modifiers: KeyModifiers) -> AppEvent {
+    AppEvent::Input(Event::Key(KeyEvent::new(code, modifiers)))
+}
+
+async fn send_input(
+    state: &mut AppState,
+    tx: &mpsc::Sender<AppEvent>,
+    cli: &terminal_weather::cli::Cli,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+) {
+    state
+        .handle_event(input_key(code, modifiers), tx, cli)
+        .await
+        .expect("input event should be handled");
+}
+
+async fn send_key(
+    state: &mut AppState,
+    tx: &mpsc::Sender<AppEvent>,
+    cli: &terminal_weather::cli::Cli,
+    code: KeyCode,
+) {
+    send_input(state, tx, cli, code, KeyModifiers::NONE).await;
+}
+
 #[tokio::test]
 async fn flow_unit_toggle_changes_display_units() {
     let cli = cli();
     let mut state = state_with_weather(&cli, fixture_bundle());
     let (tx, _rx) = mpsc::channel(8);
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(
-                KeyCode::Char('f'),
-                KeyModifiers::NONE,
-            ))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::Char('f')).await;
     assert_eq!(state.units, Units::Fahrenheit);
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(
-                KeyCode::Char('c'),
-                KeyModifiers::NONE,
-            ))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::Char('c')).await;
     assert_eq!(state.units, Units::Celsius);
 }
 
@@ -66,17 +73,7 @@ async fn flow_hourly_scroll_clamps_bounds() {
     let (tx, _rx) = mpsc::channel(8);
 
     for _ in 0..50 {
-        state
-            .handle_event(
-                AppEvent::Input(Event::Key(KeyEvent::new(
-                    KeyCode::Right,
-                    KeyModifiers::NONE,
-                ))),
-                &tx,
-                &cli,
-            )
-            .await
-            .unwrap();
+        send_key(&mut state, &tx, &cli, KeyCode::Right).await;
     }
 
     let expected_max = state.weather.as_ref().map_or(0, |bundle| {
@@ -88,14 +85,7 @@ async fn flow_hourly_scroll_clamps_bounds() {
     assert!(state.hourly_offset <= expected_max);
 
     for _ in 0..50 {
-        state
-            .handle_event(
-                AppEvent::Input(Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE))),
-                &tx,
-                &cli,
-            )
-            .await
-            .unwrap();
+        send_key(&mut state, &tx, &cli, KeyCode::Left).await;
     }
 
     assert_eq!(state.hourly_offset, 0);
@@ -107,17 +97,14 @@ async fn flow_ctrl_c_quits_without_toggling_units() {
     let mut state = state_with_weather(&cli, fixture_bundle());
     let (tx, mut rx) = mpsc::channel(8);
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(
-                KeyCode::Char('c'),
-                KeyModifiers::CONTROL,
-            ))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_input(
+        &mut state,
+        &tx,
+        &cli,
+        KeyCode::Char('c'),
+        KeyModifiers::CONTROL,
+    )
+    .await;
 
     let event = rx.recv().await.expect("quit event");
     assert!(matches!(event, AppEvent::Quit));
@@ -131,17 +118,7 @@ async fn flow_city_picker_keeps_dialog_open_while_typing_l() {
     let (tx, _rx) = mpsc::channel(8);
     state.city_picker_open = true;
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(
-                KeyCode::Char('l'),
-                KeyModifiers::NONE,
-            ))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::Char('l')).await;
 
     assert!(state.city_picker_open);
     assert_eq!(state.city_query, "l");
@@ -153,17 +130,7 @@ async fn flow_question_mark_opens_help_overlay() {
     let mut state = AppState::new(&cli);
     let (tx, _rx) = mpsc::channel(8);
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(
-                KeyCode::Char('?'),
-                KeyModifiers::NONE,
-            ))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::Char('?')).await;
 
     assert!(state.help_open);
 }
@@ -177,17 +144,7 @@ async fn flow_refresh_interval_setting_updates_runtime_value_immediately() {
     state.settings_selected = SettingsSelection::RefreshInterval;
     let previous = state.settings.refresh_interval_secs;
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(
-                KeyCode::Right,
-                KeyModifiers::NONE,
-            ))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::Right).await;
 
     assert_ne!(state.settings.refresh_interval_secs, previous);
     assert_eq!(
@@ -202,24 +159,10 @@ async fn flow_f1_toggles_help_overlay() {
     let mut state = AppState::new(&cli);
     let (tx, _rx) = mpsc::channel(8);
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::F(1)).await;
     assert!(state.help_open);
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::F(1)).await;
     assert!(!state.help_open);
 }
 
@@ -230,14 +173,7 @@ async fn flow_esc_closes_help_before_quit() {
     let (tx, mut rx) = mpsc::channel(8);
     state.help_open = true;
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::Esc).await;
 
     assert!(!state.help_open);
     assert!(rx.try_recv().is_err());
@@ -249,17 +185,14 @@ async fn flow_ctrl_l_requests_force_redraw() {
     let mut state = AppState::new(&cli);
     let (tx, mut rx) = mpsc::channel(8);
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(
-                KeyCode::Char('l'),
-                KeyModifiers::CONTROL,
-            ))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_input(
+        &mut state,
+        &tx,
+        &cli,
+        KeyCode::Char('l'),
+        KeyModifiers::CONTROL,
+    )
+    .await;
 
     let event = rx.recv().await.expect("event expected");
     assert!(matches!(event, AppEvent::ForceRedraw));
@@ -272,17 +205,7 @@ async fn flow_help_shortcut_ignored_while_city_picker_typing() {
     let (tx, _rx) = mpsc::channel(8);
     state.city_picker_open = true;
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(
-                KeyCode::Char('?'),
-                KeyModifiers::NONE,
-            ))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::Char('?')).await;
 
     assert!(!state.help_open);
     assert!(state.city_picker_open);
@@ -300,17 +223,7 @@ async fn flow_v_cycles_hourly_view_and_wraps() {
         HourlyViewMode::Chart,
         HourlyViewMode::Table,
     ] {
-        state
-            .handle_event(
-                AppEvent::Input(Event::Key(KeyEvent::new(
-                    KeyCode::Char('v'),
-                    KeyModifiers::NONE,
-                ))),
-                &tx,
-                &cli,
-            )
-            .await
-            .unwrap();
+        send_key(&mut state, &tx, &cli, KeyCode::Char('v')).await;
         assert_eq!(state.hourly_view_mode, expected);
     }
 }
@@ -322,27 +235,10 @@ async fn flow_settings_hourly_view_updates_runtime_mode() {
     let (tx, _rx) = mpsc::channel(8);
     state.settings_open = true;
     for _ in 0..5 {
-        state
-            .handle_event(
-                AppEvent::Input(Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE))),
-                &tx,
-                &cli,
-            )
-            .await
-            .unwrap();
+        send_key(&mut state, &tx, &cli, KeyCode::Down).await;
     }
 
-    state
-        .handle_event(
-            AppEvent::Input(Event::Key(KeyEvent::new(
-                KeyCode::Right,
-                KeyModifiers::NONE,
-            ))),
-            &tx,
-            &cli,
-        )
-        .await
-        .unwrap();
+    send_key(&mut state, &tx, &cli, KeyCode::Right).await;
 
     assert_eq!(state.hourly_view_mode, HourlyViewMode::Hybrid);
     assert_eq!(state.settings.hourly_view, HourlyViewMode::Hybrid);
@@ -360,22 +256,11 @@ fn flow_cli_hourly_view_override_applies_at_runtime() {
 #[test]
 fn fixture_bundle_shape_contract() {
     let bundle = fixture_bundle();
-    assert_eq!(bundle.hourly.len(), 24);
-    assert_eq!(bundle.daily.len(), 7);
-    assert_eq!(
-        bundle.location.timezone.as_deref(),
-        Some("Europe/Stockholm")
-    );
-    assert_eq!(bundle.current.weather_code, 61);
+    assert_fixture_bundle_shape(&bundle, 24, 7, 61);
 }
 
 #[test]
 fn cli_shape_contract_for_flow_tests() {
     let cli = cli();
-    assert_eq!(cli.city.as_deref(), Some("Stockholm"));
-    assert_eq!(cli.refresh_interval, 600);
-    assert_eq!(cli.theme, ThemeArg::Auto);
-    assert_eq!(cli.hero_visual, HeroVisualArg::AtmosCanvas);
-    assert!(!cli.demo);
-    assert!(!cli.one_shot);
+    assert_stockholm_cli_shape(&cli);
 }

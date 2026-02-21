@@ -199,40 +199,35 @@ pub(super) fn paint_rain(
     if w == 0 || horizon_y < 3 {
         return;
     }
-    let density = rain_density(precip_mm);
-    let drops = rain_drops_per_column(precip_mm);
-    let ch = rain_glyph(precip_mm);
+    let profile = rain_profile(precip_mm);
     for x in 0..w {
-        if !(x + phase).is_multiple_of(density) {
+        if !(x + phase).is_multiple_of(profile.density) {
             continue;
         }
-        paint_rain_column(canvas, x, phase, horizon_y, drops, ch);
+        paint_rain_column(canvas, x, phase, horizon_y, profile.drops, profile.glyph);
     }
-    paint_rain_splashes(canvas, horizon_y, w, phase, density);
+    paint_rain_splashes(canvas, horizon_y, w, phase, profile.density);
 }
 
-fn rain_density(precip_mm: f32) -> usize {
-    if precip_mm >= 5.0 {
-        2
+struct RainProfile {
+    density: usize,
+    drops: usize,
+    glyph: char,
+}
+
+fn rain_profile(precip_mm: f32) -> RainProfile {
+    let (density, drops, glyph) = if precip_mm >= 5.0 {
+        (2, 3, '/')
     } else if precip_mm >= 1.0 {
-        3
+        (3, 2, '╱')
     } else {
-        5
+        (5, 1, '╱')
+    };
+    RainProfile {
+        density,
+        drops,
+        glyph,
     }
-}
-
-fn rain_drops_per_column(precip_mm: f32) -> usize {
-    if precip_mm >= 5.0 {
-        3
-    } else if precip_mm >= 1.0 {
-        2
-    } else {
-        1
-    }
-}
-
-fn rain_glyph(precip_mm: f32) -> char {
-    if precip_mm >= 3.0 { '/' } else { '╱' }
 }
 
 fn paint_rain_column(
@@ -332,15 +327,19 @@ pub(super) fn paint_heat_shimmer(
         if y >= canvas.len() {
             break;
         }
-        for (x, cell) in canvas[y].iter_mut().enumerate().take(w) {
-            let wave = ((x + phase) as f32 * 0.4).sin();
-            if wave > 0.6 && *cell == ' ' {
-                *cell = if (x + phase).is_multiple_of(3) {
-                    '.'
-                } else {
-                    ','
-                };
-            }
+        paint_heat_shimmer_row(&mut canvas[y], phase, w);
+    }
+}
+
+fn paint_heat_shimmer_row(row: &mut [char], phase: usize, width: usize) {
+    for (x, cell) in row.iter_mut().enumerate().take(width) {
+        let wave = ((x + phase) as f32 * 0.4).sin();
+        if wave > 0.6 && *cell == ' ' {
+            *cell = if (x + phase).is_multiple_of(3) {
+                '.'
+            } else {
+                ','
+            };
         }
     }
 }

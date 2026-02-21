@@ -4,17 +4,15 @@ mod common;
 
 use chrono::Utc;
 use common::{
-    FixtureProfile, fixture_bundle as shared_fixture_bundle,
+    FixtureProfile, assert_fixture_bundle_shape, assert_stockholm_cli_shape,
+    fixture_bundle as shared_fixture_bundle,
     fixture_bundle_with_aqi as shared_fixture_bundle_with_aqi, ready_state_with_weather,
     stockholm_cli,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use terminal_weather::{
-    app::state::AppState,
-    cli::{Cli, HeroVisualArg, ThemeArg},
-    domain::weather::HourlyViewMode,
-    resilience::freshness::FreshnessState,
-    ui,
+    app::state::AppState, cli::Cli, domain::weather::HourlyViewMode,
+    resilience::freshness::FreshnessState, ui,
 };
 
 fn cli() -> terminal_weather::cli::Cli {
@@ -129,24 +127,13 @@ fn render_help_to_string(width: u16, height: u16, weather_code: u8) -> String {
 #[test]
 fn fixture_bundle_shape_contract() {
     let bundle = fixture_bundle(61);
-    assert_eq!(bundle.hourly.len(), 12);
-    assert_eq!(bundle.daily.len(), 7);
-    assert_eq!(
-        bundle.location.timezone.as_deref(),
-        Some("Europe/Stockholm")
-    );
-    assert_eq!(bundle.current.weather_code, 61);
+    assert_fixture_bundle_shape(&bundle, 12, 7, 61);
 }
 
 #[test]
 fn cli_shape_contract_for_snapshot_tests() {
     let cli = cli();
-    assert_eq!(cli.city.as_deref(), Some("Stockholm"));
-    assert_eq!(cli.refresh_interval, 600);
-    assert_eq!(cli.theme, ThemeArg::Auto);
-    assert_eq!(cli.hero_visual, HeroVisualArg::AtmosCanvas);
-    assert!(!cli.demo);
-    assert!(!cli.one_shot);
+    assert_stockholm_cli_shape(&cli);
 }
 
 macro_rules! assert_weather_snapshot {

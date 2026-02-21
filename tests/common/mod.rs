@@ -95,6 +95,30 @@ pub fn ready_state_with_weather(cli: &Cli, bundle: ForecastBundle) -> AppState {
     state
 }
 
+pub fn assert_stockholm_cli_shape(cli: &Cli) {
+    assert_eq!(cli.city.as_deref(), Some("Stockholm"));
+    assert_eq!(cli.refresh_interval, 600);
+    assert_eq!(cli.theme, ThemeArg::Auto);
+    assert_eq!(cli.hero_visual, HeroVisualArg::AtmosCanvas);
+    assert!(!cli.demo);
+    assert!(!cli.one_shot);
+}
+
+pub fn assert_fixture_bundle_shape(
+    bundle: &ForecastBundle,
+    expected_hourly: usize,
+    expected_daily: usize,
+    expected_weather_code: u8,
+) {
+    assert_eq!(bundle.hourly.len(), expected_hourly);
+    assert_eq!(bundle.daily.len(), expected_daily);
+    assert_eq!(
+        bundle.location.timezone.as_deref(),
+        Some("Europe/Stockholm")
+    );
+    assert_eq!(bundle.current.weather_code, expected_weather_code);
+}
+
 fn fixture_current(profile: FixtureProfile, weather_code: u8) -> CurrentConditions {
     match profile {
         FixtureProfile::Snapshot => CurrentConditions {
@@ -192,62 +216,63 @@ fn fixture_daily(
 ) -> Vec<DailyForecast> {
     match profile {
         FixtureProfile::Snapshot => (0..7)
-            .map(|idx| DailyForecast {
-                date: base_date + chrono::Duration::days(i64::from(idx)),
-                weather_code: Some(weather_code),
-                temperature_max_c: Some(8.0 + idx as f32),
-                temperature_min_c: Some(1.0 + idx as f32 * 0.3),
-                sunrise: NaiveDateTime::parse_from_str(
-                    &format!(
-                        "{}T06:{:02}",
-                        (base_date + chrono::Duration::days(i64::from(idx))).format("%Y-%m-%d"),
-                        10 + idx
-                    ),
-                    "%Y-%m-%dT%H:%M",
-                )
-                .ok(),
-                sunset: NaiveDateTime::parse_from_str(
-                    &format!(
-                        "{}T17:{:02}",
-                        (base_date + chrono::Duration::days(i64::from(idx))).format("%Y-%m-%d"),
-                        40 + idx
-                    ),
-                    "%Y-%m-%dT%H:%M",
-                )
-                .ok(),
-                uv_index_max: Some(2.0),
-                precipitation_probability_max: Some(40.0),
-                precipitation_sum_mm: Some(2.5 + idx as f32 * 0.6),
-                rain_sum_mm: Some(2.0 + idx as f32 * 0.5),
-                snowfall_sum_cm: Some(if weather_code >= 71 {
-                    1.2 + idx as f32 * 0.2
-                } else {
-                    0.0
-                }),
-                precipitation_hours: Some(2.0 + idx as f32 * 0.3),
-                wind_gusts_10m_max: Some(22.0 + idx as f32 * 1.1),
-                daylight_duration_s: Some(9.2 * 3600.0 + idx as f32 * 140.0),
-                sunshine_duration_s: Some(4.1 * 3600.0 + idx as f32 * 190.0),
-            })
+            .map(|idx| snapshot_daily_forecast(base_date, idx, weather_code))
             .collect::<Vec<_>>(),
         FixtureProfile::Flow => (0..7)
-            .map(|idx| DailyForecast {
-                date: base_date + chrono::Duration::days(i64::from(idx)),
-                weather_code: Some(weather_code),
-                temperature_max_c: Some(8.0 + idx as f32),
-                temperature_min_c: Some(1.0 + idx as f32 * 0.3),
-                sunrise: None,
-                sunset: None,
-                uv_index_max: Some(2.0),
-                precipitation_probability_max: Some(40.0),
-                precipitation_sum_mm: Some(2.2),
-                rain_sum_mm: Some(2.0),
-                snowfall_sum_cm: Some(0.0),
-                precipitation_hours: Some(2.5),
-                wind_gusts_10m_max: Some(24.0),
-                daylight_duration_s: Some(9.0 * 3600.0),
-                sunshine_duration_s: Some(4.0 * 3600.0),
-            })
+            .map(|idx| flow_daily_forecast(base_date, idx, weather_code))
             .collect::<Vec<_>>(),
     }
+}
+
+fn snapshot_daily_forecast(base_date: NaiveDate, idx: u32, weather_code: u8) -> DailyForecast {
+    let date = base_date + chrono::Duration::days(i64::from(idx));
+    DailyForecast {
+        date,
+        weather_code: Some(weather_code),
+        temperature_max_c: Some(8.0 + idx as f32),
+        temperature_min_c: Some(1.0 + idx as f32 * 0.3),
+        sunrise: fixture_time(date, 6, 10 + idx),
+        sunset: fixture_time(date, 17, 40 + idx),
+        uv_index_max: Some(2.0),
+        precipitation_probability_max: Some(40.0),
+        precipitation_sum_mm: Some(2.5 + idx as f32 * 0.6),
+        rain_sum_mm: Some(2.0 + idx as f32 * 0.5),
+        snowfall_sum_cm: Some(if weather_code >= 71 {
+            1.2 + idx as f32 * 0.2
+        } else {
+            0.0
+        }),
+        precipitation_hours: Some(2.0 + idx as f32 * 0.3),
+        wind_gusts_10m_max: Some(22.0 + idx as f32 * 1.1),
+        daylight_duration_s: Some(9.2 * 3600.0 + idx as f32 * 140.0),
+        sunshine_duration_s: Some(4.1 * 3600.0 + idx as f32 * 190.0),
+    }
+}
+
+fn flow_daily_forecast(base_date: NaiveDate, idx: u32, weather_code: u8) -> DailyForecast {
+    DailyForecast {
+        date: base_date + chrono::Duration::days(i64::from(idx)),
+        weather_code: Some(weather_code),
+        temperature_max_c: Some(8.0 + idx as f32),
+        temperature_min_c: Some(1.0 + idx as f32 * 0.3),
+        sunrise: None,
+        sunset: None,
+        uv_index_max: Some(2.0),
+        precipitation_probability_max: Some(40.0),
+        precipitation_sum_mm: Some(2.2),
+        rain_sum_mm: Some(2.0),
+        snowfall_sum_cm: Some(0.0),
+        precipitation_hours: Some(2.5),
+        wind_gusts_10m_max: Some(24.0),
+        daylight_duration_s: Some(9.0 * 3600.0),
+        sunshine_duration_s: Some(4.0 * 3600.0),
+    }
+}
+
+fn fixture_time(date: NaiveDate, hour: u32, minute: u32) -> Option<NaiveDateTime> {
+    NaiveDateTime::parse_from_str(
+        &format!("{}T{hour:02}:{minute:02}", date.format("%Y-%m-%d")),
+        "%Y-%m-%dT%H:%M",
+    )
+    .ok()
 }

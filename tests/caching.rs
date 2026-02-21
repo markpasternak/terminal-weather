@@ -67,57 +67,69 @@ async fn setup_mock_server() -> MockServer {
 
 fn mock_forecast_payload() -> serde_json::Value {
     serde_json::json!({
-        "current": {
-            "temperature_2m": 20.0,
-            "relative_humidity_2m": 50.0,
-            "apparent_temperature": 20.0,
-            "dew_point_2m": 10.0,
-            "weather_code": 0,
-            "precipitation": 0.0,
-            "cloud_cover": 0.0,
-            "pressure_msl": 1013.0,
-            "visibility": 10000.0,
-            "wind_speed_10m": 5.0,
-            "wind_gusts_10m": 10.0,
-            "wind_direction_10m": 180.0,
-            "is_day": 1
-        },
-        "hourly": {
-            "time": ["2024-01-01T00:00"],
-            "temperature_2m": [20.0],
-            "weather_code": [0],
-            "is_day": [1],
-            "relative_humidity_2m": [50.0],
-            "precipitation_probability": [0.0],
-            "precipitation": [0.0],
-            "rain": [0.0],
-            "snowfall": [0.0],
-            "wind_speed_10m": [5.0],
-            "wind_gusts_10m": [10.0],
-            "pressure_msl": [1013.0],
-            "visibility": [10000.0],
-            "cloud_cover": [0.0],
-            "cloud_cover_low": [0.0],
-            "cloud_cover_mid": [0.0],
-            "cloud_cover_high": [0.0]
-        },
-        "daily": {
-            "time": ["2024-01-01"],
-            "weather_code": [0],
-            "temperature_2m_max": [25.0],
-            "temperature_2m_min": [15.0],
-            "sunrise": ["2024-01-01T06:00"],
-            "sunset": ["2024-01-01T18:00"],
-            "uv_index_max": [5.0],
-            "precipitation_probability_max": [0.0],
-            "precipitation_sum": [0.0],
-            "rain_sum": [0.0],
-            "snowfall_sum": [0.0],
-            "precipitation_hours": [0.0],
-            "wind_gusts_10m_max": [10.0],
-            "daylight_duration": [43200.0],
-            "sunshine_duration": [43200.0]
-        }
+        "current": mock_current_payload(),
+        "hourly": mock_hourly_payload(),
+        "daily": mock_daily_payload(),
+    })
+}
+
+fn mock_current_payload() -> serde_json::Value {
+    serde_json::json!({
+        "temperature_2m": 20.0,
+        "relative_humidity_2m": 50.0,
+        "apparent_temperature": 20.0,
+        "dew_point_2m": 10.0,
+        "weather_code": 0,
+        "precipitation": 0.0,
+        "cloud_cover": 0.0,
+        "pressure_msl": 1013.0,
+        "visibility": 10000.0,
+        "wind_speed_10m": 5.0,
+        "wind_gusts_10m": 10.0,
+        "wind_direction_10m": 180.0,
+        "is_day": 1
+    })
+}
+
+fn mock_hourly_payload() -> serde_json::Value {
+    serde_json::json!({
+        "time": ["2024-01-01T00:00"],
+        "temperature_2m": [20.0],
+        "weather_code": [0],
+        "is_day": [1],
+        "relative_humidity_2m": [50.0],
+        "precipitation_probability": [0.0],
+        "precipitation": [0.0],
+        "rain": [0.0],
+        "snowfall": [0.0],
+        "wind_speed_10m": [5.0],
+        "wind_gusts_10m": [10.0],
+        "pressure_msl": [1013.0],
+        "visibility": [10000.0],
+        "cloud_cover": [0.0],
+        "cloud_cover_low": [0.0],
+        "cloud_cover_mid": [0.0],
+        "cloud_cover_high": [0.0]
+    })
+}
+
+fn mock_daily_payload() -> serde_json::Value {
+    serde_json::json!({
+        "time": ["2024-01-01"],
+        "weather_code": [0],
+        "temperature_2m_max": [25.0],
+        "temperature_2m_min": [15.0],
+        "sunrise": ["2024-01-01T06:00"],
+        "sunset": ["2024-01-01T18:00"],
+        "uv_index_max": [5.0],
+        "precipitation_probability_max": [0.0],
+        "precipitation_sum": [0.0],
+        "rain_sum": [0.0],
+        "snowfall_sum": [0.0],
+        "precipitation_hours": [0.0],
+        "wind_gusts_10m_max": [10.0],
+        "daylight_duration": [43200.0],
+        "sunshine_duration": [43200.0]
     })
 }
 

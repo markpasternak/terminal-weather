@@ -245,19 +245,26 @@ impl AppState {
         key: KeyEvent,
         tx: &mpsc::Sender<AppEvent>,
     ) -> Result<bool> {
-        if matches!(key.code, KeyCode::Char('c' | 'C'))
-            && key.modifiers.contains(KeyModifiers::CONTROL)
-        {
-            tx.send(AppEvent::Quit).await?;
-            return Ok(true);
+        if !key.modifiers.contains(KeyModifiers::CONTROL) {
+            return Ok(false);
         }
-        if matches!(key.code, KeyCode::Char('l' | 'L'))
-            && key.modifiers.contains(KeyModifiers::CONTROL)
-        {
-            tx.send(AppEvent::ForceRedraw).await?;
-            return Ok(true);
+        match key.code {
+            KeyCode::Char('c' | 'C') => {
+                tx.send(AppEvent::Quit).await?;
+                Ok(true)
+            }
+            KeyCode::Char('l' | 'L') => {
+                tx.send(AppEvent::ForceRedraw).await?;
+                Ok(true)
+            }
+            _ => Ok(false),
         }
-        Ok(false)
+    }
+
+    fn open_modal_if_available(&mut self, open_modal: fn(&mut AppState)) {
+        if self.mode != AppMode::SelectingLocation {
+            open_modal(self);
+        }
     }
 
     pub(crate) async fn handle_modal_key_press(
@@ -369,15 +376,11 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> Result<bool> {
-        if matches!(action, KeyCommand::Quit) {
-            self.command_quit(tx).await?;
-            return Ok(true);
+        match action {
+            KeyCommand::Quit => self.command_quit(tx).await?,
+            KeyCommand::Refresh => self.command_refresh(tx, cli).await?,
+            _ => self.execute_sync_key_command(action),
         }
-        if matches!(action, KeyCommand::Refresh) {
-            self.command_refresh(tx, cli).await?;
-            return Ok(true);
-        }
-        self.execute_sync_key_command(action);
         Ok(true)
     }
 
@@ -398,15 +401,11 @@ impl AppState {
     }
 
     fn command_open_settings(&mut self) {
-        if self.mode != AppMode::SelectingLocation {
-            self.open_settings_panel();
-        }
+        self.open_modal_if_available(Self::open_settings_panel);
     }
 
     fn command_open_city_picker(&mut self) {
-        if self.mode != AppMode::SelectingLocation {
-            self.open_city_picker();
-        }
+        self.open_modal_if_available(Self::open_city_picker);
     }
 
     async fn command_refresh(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<()> {

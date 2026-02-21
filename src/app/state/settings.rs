@@ -67,38 +67,40 @@ pub enum SettingsSelection {
 impl SettingsSelection {
     #[must_use]
     pub fn next(&self) -> Self {
-        match self {
-            Self::Units => Self::Theme,
-            Self::Theme => Self::Motion,
-            Self::Motion => Self::Flash,
-            Self::Flash => Self::Icons,
-            Self::Icons => Self::HourlyView,
-            Self::HourlyView => Self::HeroVisual,
-            Self::HeroVisual => Self::RefreshInterval,
-            Self::RefreshInterval => Self::RefreshNow,
-            Self::RefreshNow | Self::Close => Self::Close,
-        }
+        let idx = selection_index(*self);
+        SETTINGS_ORDER[(idx + 1).min(SETTINGS_ORDER.len() - 1)]
     }
 
     #[must_use]
     pub fn prev(&self) -> Self {
-        match self {
-            Self::Units | Self::Theme => Self::Units,
-            Self::Motion => Self::Theme,
-            Self::Flash => Self::Motion,
-            Self::Icons => Self::Flash,
-            Self::HourlyView => Self::Icons,
-            Self::HeroVisual => Self::HourlyView,
-            Self::RefreshInterval => Self::HeroVisual,
-            Self::RefreshNow => Self::RefreshInterval,
-            Self::Close => Self::RefreshNow,
-        }
+        let idx = selection_index(*self);
+        SETTINGS_ORDER[idx.saturating_sub(1)]
     }
 
     #[must_use]
     pub fn to_usize(&self) -> usize {
         *self as usize
     }
+}
+
+const SETTINGS_ORDER: [SettingsSelection; 10] = [
+    SettingsSelection::Units,
+    SettingsSelection::Theme,
+    SettingsSelection::Motion,
+    SettingsSelection::Flash,
+    SettingsSelection::Icons,
+    SettingsSelection::HourlyView,
+    SettingsSelection::HeroVisual,
+    SettingsSelection::RefreshInterval,
+    SettingsSelection::RefreshNow,
+    SettingsSelection::Close,
+];
+
+fn selection_index(selection: SettingsSelection) -> usize {
+    SETTINGS_ORDER
+        .iter()
+        .position(|candidate| *candidate == selection)
+        .unwrap_or(0)
 }
 
 impl AppState {
@@ -144,55 +146,102 @@ pub(crate) fn adjust_setting_selection(
     selection: SettingsSelection,
     direction: i8,
 ) -> bool {
-    match selection {
-        SettingsSelection::Units => adjust_cycle_setting(
-            &mut state.settings.units,
-            &[Units::Celsius, Units::Fahrenheit],
-            direction,
-        ),
-        SettingsSelection::Theme => {
-            adjust_cycle_setting(&mut state.settings.theme, &THEME_OPTIONS, direction)
-        }
-        SettingsSelection::Motion => adjust_cycle_setting(
-            &mut state.settings.motion,
-            &[
-                MotionSetting::Full,
-                MotionSetting::Reduced,
-                MotionSetting::Off,
-            ],
-            direction,
-        ),
-        SettingsSelection::Flash => {
-            state.settings.no_flash = !state.settings.no_flash;
-            true
-        }
-        SettingsSelection::Icons => adjust_cycle_setting(
-            &mut state.settings.icon_mode,
-            &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
-            direction,
-        ),
-        SettingsSelection::HourlyView => adjust_cycle_setting_from(
-            &mut state.settings.hourly_view,
-            state.hourly_view_mode,
-            &HOURLY_VIEW_OPTIONS,
-            direction,
-        ),
-        SettingsSelection::HeroVisual => adjust_cycle_setting(
-            &mut state.settings.hero_visual,
-            &[
-                HeroVisualArg::AtmosCanvas,
-                HeroVisualArg::GaugeCluster,
-                HeroVisualArg::SkyObservatory,
-            ],
-            direction,
-        ),
-        SettingsSelection::RefreshInterval => adjust_cycle_setting(
-            &mut state.settings.refresh_interval_secs,
-            &REFRESH_OPTIONS,
-            direction,
-        ),
-        SettingsSelection::RefreshNow | SettingsSelection::Close => false,
+    if matches!(
+        selection,
+        SettingsSelection::RefreshNow | SettingsSelection::Close
+    ) {
+        return false;
     }
+    if selection == SettingsSelection::Flash {
+        state.settings.no_flash = !state.settings.no_flash;
+        return true;
+    }
+    apply_adjuster(state, selection, direction)
+}
+
+type SettingAdjuster = fn(&mut AppState, i8) -> bool;
+
+const SETTING_ADJUSTERS: [(SettingsSelection, SettingAdjuster); 7] = [
+    (SettingsSelection::Units, adjust_units_setting),
+    (SettingsSelection::Theme, adjust_theme_setting),
+    (SettingsSelection::Motion, adjust_motion_setting),
+    (SettingsSelection::Icons, adjust_icon_setting),
+    (SettingsSelection::HourlyView, adjust_hourly_view_setting),
+    (SettingsSelection::HeroVisual, adjust_hero_visual_setting),
+    (
+        SettingsSelection::RefreshInterval,
+        adjust_refresh_interval_setting,
+    ),
+];
+
+fn apply_adjuster(state: &mut AppState, selection: SettingsSelection, direction: i8) -> bool {
+    for (candidate, adjuster) in SETTING_ADJUSTERS {
+        if selection == candidate {
+            return adjuster(state, direction);
+        }
+    }
+    false
+}
+
+fn adjust_units_setting(state: &mut AppState, direction: i8) -> bool {
+    adjust_cycle_setting(
+        &mut state.settings.units,
+        &[Units::Celsius, Units::Fahrenheit],
+        direction,
+    )
+}
+
+fn adjust_theme_setting(state: &mut AppState, direction: i8) -> bool {
+    adjust_cycle_setting(&mut state.settings.theme, &THEME_OPTIONS, direction)
+}
+
+fn adjust_motion_setting(state: &mut AppState, direction: i8) -> bool {
+    adjust_cycle_setting(
+        &mut state.settings.motion,
+        &[
+            MotionSetting::Full,
+            MotionSetting::Reduced,
+            MotionSetting::Off,
+        ],
+        direction,
+    )
+}
+
+fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
+    adjust_cycle_setting(
+        &mut state.settings.icon_mode,
+        &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
+        direction,
+    )
+}
+
+fn adjust_hourly_view_setting(state: &mut AppState, direction: i8) -> bool {
+    adjust_cycle_setting_from(
+        &mut state.settings.hourly_view,
+        state.hourly_view_mode,
+        &HOURLY_VIEW_OPTIONS,
+        direction,
+    )
+}
+
+fn adjust_hero_visual_setting(state: &mut AppState, direction: i8) -> bool {
+    adjust_cycle_setting(
+        &mut state.settings.hero_visual,
+        &[
+            HeroVisualArg::AtmosCanvas,
+            HeroVisualArg::GaugeCluster,
+            HeroVisualArg::SkyObservatory,
+        ],
+        direction,
+    )
+}
+
+fn adjust_refresh_interval_setting(state: &mut AppState, direction: i8) -> bool {
+    adjust_cycle_setting(
+        &mut state.settings.refresh_interval_secs,
+        &REFRESH_OPTIONS,
+        direction,
+    )
 }
 
 pub(super) fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {
