@@ -144,75 +144,73 @@ fn current_from_payload(payload: &ForecastResponse, daily: &[DailyForecast]) -> 
 }
 
 fn parse_hourly(hourly: &HourlyBlock) -> Vec<HourlyForecast> {
-    let mut out = Vec::new();
-    for idx in 0..hourly.time.len() {
-        let Some(time) = parse_datetime(&hourly.time[idx]) else {
-            continue;
-        };
-
-        out.push(HourlyForecast {
-            time,
-            temperature_2m_c: hourly.temperature_2m.get(idx).copied().flatten(),
-            weather_code: hourly.weather_code.get(idx).copied().flatten(),
-            is_day: hourly
-                .is_day
-                .get(idx)
-                .copied()
-                .flatten()
-                .map(|value| value == 1),
-            relative_humidity_2m: hourly.relative_humidity_2m.get(idx).copied().flatten(),
-            precipitation_probability: hourly.precipitation_probability.get(idx).copied().flatten(),
-            precipitation_mm: hourly.precipitation.get(idx).copied().flatten(),
-            rain_mm: hourly.rain.get(idx).copied().flatten(),
-            snowfall_cm: hourly.snowfall.get(idx).copied().flatten(),
-            wind_speed_10m: hourly.wind_speed_10m.get(idx).copied().flatten(),
-            wind_gusts_10m: hourly.wind_gusts_10m.get(idx).copied().flatten(),
-            pressure_msl_hpa: hourly.pressure_msl.get(idx).copied().flatten(),
-            visibility_m: hourly.visibility.get(idx).copied().flatten(),
-            cloud_cover: hourly.cloud_cover.get(idx).copied().flatten(),
-            cloud_cover_low: hourly.cloud_cover_low.get(idx).copied().flatten(),
-            cloud_cover_mid: hourly.cloud_cover_mid.get(idx).copied().flatten(),
-            cloud_cover_high: hourly.cloud_cover_high.get(idx).copied().flatten(),
-        });
-    }
-    out
+    parse_time_series(&hourly.time, parse_datetime, |idx, time| HourlyForecast {
+        time,
+        temperature_2m_c: hourly.temperature_2m.get(idx).copied().flatten(),
+        weather_code: hourly.weather_code.get(idx).copied().flatten(),
+        is_day: hourly
+            .is_day
+            .get(idx)
+            .copied()
+            .flatten()
+            .map(|value| value == 1),
+        relative_humidity_2m: hourly.relative_humidity_2m.get(idx).copied().flatten(),
+        precipitation_probability: hourly.precipitation_probability.get(idx).copied().flatten(),
+        precipitation_mm: hourly.precipitation.get(idx).copied().flatten(),
+        rain_mm: hourly.rain.get(idx).copied().flatten(),
+        snowfall_cm: hourly.snowfall.get(idx).copied().flatten(),
+        wind_speed_10m: hourly.wind_speed_10m.get(idx).copied().flatten(),
+        wind_gusts_10m: hourly.wind_gusts_10m.get(idx).copied().flatten(),
+        pressure_msl_hpa: hourly.pressure_msl.get(idx).copied().flatten(),
+        visibility_m: hourly.visibility.get(idx).copied().flatten(),
+        cloud_cover: hourly.cloud_cover.get(idx).copied().flatten(),
+        cloud_cover_low: hourly.cloud_cover_low.get(idx).copied().flatten(),
+        cloud_cover_mid: hourly.cloud_cover_mid.get(idx).copied().flatten(),
+        cloud_cover_high: hourly.cloud_cover_high.get(idx).copied().flatten(),
+    })
 }
 
 fn parse_daily(daily: &DailyBlock) -> Vec<DailyForecast> {
-    let mut out = Vec::new();
-    for idx in 0..daily.time.len() {
-        let Some(date) = parse_date(&daily.time[idx]) else {
-            continue;
-        };
-
-        out.push(DailyForecast {
-            date,
-            weather_code: daily.weather_code.get(idx).copied().flatten(),
-            temperature_max_c: daily.temperature_2m_max.get(idx).copied().flatten(),
-            temperature_min_c: daily.temperature_2m_min.get(idx).copied().flatten(),
-            sunrise: daily.sunrise.get(idx).and_then(|v| parse_datetime(v)),
-            sunset: daily.sunset.get(idx).and_then(|v| parse_datetime(v)),
-            uv_index_max: daily.uv_index_max.get(idx).copied().flatten(),
-            precipitation_probability_max: daily
-                .precipitation_probability_max
-                .get(idx)
-                .copied()
-                .flatten(),
-            precipitation_sum_mm: daily.precipitation_sum.get(idx).copied().flatten(),
-            rain_sum_mm: daily.rain_sum.get(idx).copied().flatten(),
-            snowfall_sum_cm: daily.snowfall_sum.get(idx).copied().flatten(),
-            precipitation_hours: daily.precipitation_hours.get(idx).copied().flatten(),
-            wind_gusts_10m_max: daily.wind_gusts_10m_max.get(idx).copied().flatten(),
-            daylight_duration_s: daily.daylight_duration.get(idx).copied().flatten(),
-            sunshine_duration_s: daily.sunshine_duration.get(idx).copied().flatten(),
-        });
-    }
-    out
+    parse_time_series(&daily.time, parse_date, |idx, date| DailyForecast {
+        date,
+        weather_code: daily.weather_code.get(idx).copied().flatten(),
+        temperature_max_c: daily.temperature_2m_max.get(idx).copied().flatten(),
+        temperature_min_c: daily.temperature_2m_min.get(idx).copied().flatten(),
+        sunrise: daily.sunrise.get(idx).and_then(|v| parse_datetime(v)),
+        sunset: daily.sunset.get(idx).and_then(|v| parse_datetime(v)),
+        uv_index_max: daily.uv_index_max.get(idx).copied().flatten(),
+        precipitation_probability_max: daily
+            .precipitation_probability_max
+            .get(idx)
+            .copied()
+            .flatten(),
+        precipitation_sum_mm: daily.precipitation_sum.get(idx).copied().flatten(),
+        rain_sum_mm: daily.rain_sum.get(idx).copied().flatten(),
+        snowfall_sum_cm: daily.snowfall_sum.get(idx).copied().flatten(),
+        precipitation_hours: daily.precipitation_hours.get(idx).copied().flatten(),
+        wind_gusts_10m_max: daily.wind_gusts_10m_max.get(idx).copied().flatten(),
+        daylight_duration_s: daily.daylight_duration.get(idx).copied().flatten(),
+        sunshine_duration_s: daily.sunshine_duration.get(idx).copied().flatten(),
+    })
 }
 
 fn parse_air_quality(current: Option<&AirQualityCurrentBlock>) -> Option<AirQualityReading> {
     let current = current?;
     AirQualityReading::from_indices(current.us_aqi, current.european_aqi)
+}
+
+fn parse_time_series<T, R>(
+    time_strings: &[String],
+    parse_time: impl Fn(&str) -> Option<T>,
+    map_fn: impl Fn(usize, T) -> R,
+) -> Vec<R> {
+    let mut out = Vec::with_capacity(time_strings.len());
+    for (idx, time_str) in time_strings.iter().enumerate() {
+        if let Some(time) = parse_time(time_str) {
+            out.push(map_fn(idx, time));
+        }
+    }
+    out
 }
 
 #[derive(Debug, Deserialize)]
