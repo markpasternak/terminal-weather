@@ -5,6 +5,7 @@ UPLOAD="${TW_CODACY_UPLOAD:-0}"
 REPORT_PATH="${TW_CODACY_REPORT_PATH:-coverage/lcov.info}"
 LANGUAGE="${TW_CODACY_LANGUAGE:-rust}"
 BRANCH_COVERAGE="${TW_CODACY_BRANCH_COVERAGE:-1}"
+FAIL_ON_THRESHOLD="${TW_CODACY_FAIL_ON_THRESHOLD:-1}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 THRESHOLDS_FILE="${TW_CODACY_THRESHOLDS_FILE:-${SCRIPT_DIR}/coverage-thresholds.env}"
 
@@ -63,6 +64,16 @@ validate_threshold_value() {
   fi
 }
 
+validate_toggle_value() {
+  local name="$1"
+  local value="$2"
+
+  if [[ "$value" != "0" && "$value" != "1" ]]; then
+    echo "error: ${name} must be 0 or 1, got '${value}'"
+    exit 2
+  fi
+}
+
 load_coverage_thresholds() {
   if [[ -f "$THRESHOLDS_FILE" ]]; then
     # shellcheck disable=SC1090
@@ -76,6 +87,7 @@ load_coverage_thresholds() {
   validate_threshold_value "TW_CODACY_MIN_LINE" "$MIN_LINE"
   validate_threshold_value "TW_CODACY_MIN_FUNCTION" "$MIN_FUNCTION"
   validate_threshold_value "TW_CODACY_MIN_BRANCH" "$MIN_BRANCH"
+  validate_toggle_value "TW_CODACY_FAIL_ON_THRESHOLD" "$FAIL_ON_THRESHOLD"
 }
 
 is_less_than() {
@@ -110,6 +122,11 @@ print_coverage_summary() {
 
 enforce_coverage_thresholds() {
   local failed=0
+  local issue_prefix="error"
+
+  if [[ "$FAIL_ON_THRESHOLD" -eq 0 ]]; then
+    issue_prefix="warning"
+  fi
 
   echo "Coverage thresholds:"
   printf "  line coverage: >= %.2f%%\n" "$MIN_LINE"
@@ -117,32 +134,37 @@ enforce_coverage_thresholds() {
   printf "  branch coverage: >= %.2f%%\n" "$MIN_BRANCH"
 
   if [[ "$COVERAGE_LF" -eq 0 ]]; then
-    echo "error: line coverage data is missing from ${REPORT_PATH}"
+    echo "${issue_prefix}: line coverage data is missing from ${REPORT_PATH}"
     failed=1
   elif is_less_than "$COVERAGE_LINE_PCT" "$MIN_LINE"; then
-    printf "error: line coverage %.2f%% is below threshold %.2f%%\n" "$COVERAGE_LINE_PCT" "$MIN_LINE"
+    printf "%s: line coverage %.2f%% is below threshold %.2f%%\n" "$issue_prefix" "$COVERAGE_LINE_PCT" "$MIN_LINE"
     failed=1
   fi
 
   if [[ "$COVERAGE_FNF" -eq 0 ]]; then
-    echo "error: function coverage data is missing from ${REPORT_PATH}"
+    echo "${issue_prefix}: function coverage data is missing from ${REPORT_PATH}"
     failed=1
   elif is_less_than "$COVERAGE_FUNCTION_PCT" "$MIN_FUNCTION"; then
-    printf "error: function coverage %.2f%% is below threshold %.2f%%\n" "$COVERAGE_FUNCTION_PCT" "$MIN_FUNCTION"
+    printf "%s: function coverage %.2f%% is below threshold %.2f%%\n" "$issue_prefix" "$COVERAGE_FUNCTION_PCT" "$MIN_FUNCTION"
     failed=1
   fi
 
   if [[ "$COVERAGE_BRF" -eq 0 ]]; then
-    echo "error: branch coverage data is missing from ${REPORT_PATH}"
+    echo "${issue_prefix}: branch coverage data is missing from ${REPORT_PATH}"
     failed=1
   elif is_less_than "$COVERAGE_BRANCH_PCT" "$MIN_BRANCH"; then
-    printf "error: branch coverage %.2f%% is below threshold %.2f%%\n" "$COVERAGE_BRANCH_PCT" "$MIN_BRANCH"
+    printf "%s: branch coverage %.2f%% is below threshold %.2f%%\n" "$issue_prefix" "$COVERAGE_BRANCH_PCT" "$MIN_BRANCH"
     failed=1
   fi
 
   if [[ "$failed" -eq 1 ]]; then
-    echo "error: coverage gate failed"
-    exit 1
+    if [[ "$FAIL_ON_THRESHOLD" -eq 1 ]]; then
+      echo "error: coverage gate failed"
+      exit 1
+    fi
+
+    echo "warning: coverage gate failed (non-blocking)"
+    return
   fi
 
   echo "Coverage gate passed."
