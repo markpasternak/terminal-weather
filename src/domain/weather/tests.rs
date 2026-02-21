@@ -161,6 +161,55 @@ fn summarize_precip_window_includes_12h_boundary() {
     assert!((summary.first_amount_mm - 0.4).abs() < 0.001);
 }
 
+#[test]
+fn high_low_calculation() {
+    // Case 1: Both high and low available
+    let bundle = minimal_bundle(Some(25.4), Some(10.6));
+
+    // Celsius: 25.4 -> 25, 10.6 -> 11
+    assert_eq!(bundle.high_low(Units::Celsius), Some((25, 11)));
+
+    // Fahrenheit:
+    // 25.4 * 1.8 + 32 = 45.72 + 32 = 77.72 -> 78
+    // 10.6 * 1.8 + 32 = 19.08 + 32 = 51.08 -> 51
+    assert_eq!(bundle.high_low(Units::Fahrenheit), Some((78, 51)));
+
+    // Case 2: Missing high
+    let bundle = minimal_bundle(None, Some(10.6));
+    assert_eq!(bundle.high_low(Units::Celsius), None);
+
+    // Case 3: Missing low
+    let bundle = minimal_bundle(Some(25.4), None);
+    assert_eq!(bundle.high_low(Units::Celsius), None);
+}
+
+fn minimal_bundle(high_c: Option<f32>, low_c: Option<f32>) -> ForecastBundle {
+    ForecastBundle {
+        location: Location::from_coords(0.0, 0.0),
+        current: CurrentConditions {
+            temperature_2m_c: 20.0,
+            relative_humidity_2m: 50.0,
+            apparent_temperature_c: 20.0,
+            dew_point_2m_c: 10.0,
+            weather_code: 0,
+            precipitation_mm: 0.0,
+            cloud_cover: 0.0,
+            pressure_msl_hpa: 1013.0,
+            visibility_m: 10000.0,
+            wind_speed_10m: 10.0,
+            wind_gusts_10m: 15.0,
+            wind_direction_10m: 180.0,
+            is_day: true,
+            high_today_c: high_c,
+            low_today_c: low_c,
+        },
+        hourly: vec![],
+        daily: vec![],
+        air_quality: None,
+        fetched_at: Utc::now(),
+    }
+}
+
 fn sample_hour(
     time: NaiveDateTime,
     temp_c: f32,
