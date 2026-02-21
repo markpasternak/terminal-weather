@@ -1,5 +1,6 @@
 pub mod background;
 pub mod landmark_panel;
+mod shared;
 pub mod weather;
 pub mod weather_expanded;
 
