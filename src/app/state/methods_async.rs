@@ -498,3 +498,6 @@ fn command_from_char(cmd: char) -> Option<KeyCommand> {
         .iter()
         .find_map(|(target, action)| (*target == cmd).then_some(*action))
 }
+
+#[cfg(test)]
+mod tests;

@@ -245,3 +245,91 @@ fn demo_city(
         population: None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::mpsc;
+    use tokio::time::{Duration, timeout};
+
+    #[test]
+    fn demo_script_contains_expected_flow_markers() {
+        let steps = demo_script();
+        assert!(!steps.is_empty());
+
+        assert!(matches!(
+            steps.first(),
+            Some((_, DemoAction::OpenCityPicker(query))) if query == "New York"
+        ));
+        assert!(matches!(steps.last(), Some((_, DemoAction::Quit))));
+
+        let close_count = steps
+            .iter()
+            .filter(|(_, action)| matches!(action, DemoAction::CloseSettings))
+            .count();
+        assert!(close_count >= 3);
+    }
+
+    #[test]
+    fn demo_city_stops_are_stable() {
+        let stops = demo_city_stops();
+        assert_eq!(stops.len(), 4);
+        assert_eq!(stops[0].1, "New York");
+        assert_eq!(stops[1].1, "Miami");
+        assert_eq!(stops[2].1, "Sydney");
+        assert_eq!(stops[3].1, "Peking");
+        assert_eq!(stops[0].2.timezone.as_deref(), Some("America/New_York"));
+    }
+
+    #[test]
+    fn push_city_demo_step_adds_open_and_switch_actions() {
+        let mut steps = Vec::new();
+        let location = demo_city("Test", 10.0, 20.0, "Country", "Admin", "Etc/UTC");
+        push_city_demo_step(&mut steps, 3, "Test", location.clone());
+
+        assert_eq!(steps.len(), 2);
+        assert!(matches!(
+            &steps[0],
+            (delay, DemoAction::OpenCityPicker(query))
+                if *delay == Duration::from_secs(3) && query == "Test"
+        ));
+        assert!(matches!(
+            &steps[1],
+            (delay, DemoAction::SwitchCity(loc))
+                if *delay == Duration::from_secs(2) && loc.name == location.name
+        ));
+    }
+
+    #[tokio::test]
+    async fn schedule_retry_sends_tick_refresh() {
+        let (tx, mut rx) = mpsc::channel(2);
+        schedule_retry(tx, 0);
+        let event = timeout(Duration::from_secs(2), rx.recv())
+            .await
+            .expect("retry event should arrive")
+            .expect("channel event");
+        assert!(matches!(event, AppEvent::TickRefresh));
+    }
+
+    #[tokio::test]
+    async fn start_frame_task_emits_tick_frame() {
+        let (tx, mut rx) = mpsc::channel(4);
+        start_frame_task(tx, 60);
+        let event = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("frame event should arrive")
+            .expect("channel event");
+        assert!(matches!(event, AppEvent::TickFrame));
+    }
+
+    #[tokio::test]
+    async fn start_frame_task_clamps_fps_to_minimum() {
+        let (tx, mut rx) = mpsc::channel(4);
+        start_frame_task(tx, 5);
+        let event = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("frame event should arrive with clamped fps")
+            .expect("channel event");
+        assert!(matches!(event, AppEvent::TickFrame));
+    }
+}

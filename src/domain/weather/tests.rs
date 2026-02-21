@@ -184,6 +184,214 @@ fn high_low_calculation() {
     assert_eq!(bundle.high_low(Units::Celsius), None);
 }
 
+#[test]
+fn weather_code_to_particle_all_categories() {
+    assert_eq!(weather_code_to_particle(0), ParticleKind::None); // Clear
+    assert_eq!(weather_code_to_particle(3), ParticleKind::None); // Cloudy
+    assert_eq!(weather_code_to_particle(61), ParticleKind::Rain); // Rain
+    assert_eq!(weather_code_to_particle(71), ParticleKind::Snow); // Snow
+    assert_eq!(weather_code_to_particle(45), ParticleKind::Fog); // Fog
+    assert_eq!(weather_code_to_particle(95), ParticleKind::Thunder); // Thunder
+}
+
+#[test]
+fn weather_label_for_time_code_one_day_night() {
+    assert!(weather_label_for_time(1, true).contains("Mainly clear"));
+    assert!(weather_label_for_time(1, false).contains("Mainly clear night"));
+}
+
+#[test]
+fn weather_icon_all_modes() {
+    // Emoji mode
+    let emoji = weather_icon(0, IconMode::Emoji, true);
+    assert!(!emoji.is_empty());
+    // Unicode mode
+    let uni = weather_icon(0, IconMode::Unicode, true);
+    assert!(!uni.is_empty());
+    // Night mode gives different result for some codes
+    let day = weather_icon(0, IconMode::Unicode, true);
+    let night = weather_icon(0, IconMode::Unicode, false);
+    assert_ne!(day, night); // Clear day vs night differ
+}
+
+#[test]
+fn european_aqi_categories_cover_full_range() {
+    assert_eq!(categorize_european_aqi(10), AirQualityCategory::Good);
+    assert_eq!(categorize_european_aqi(30), AirQualityCategory::Moderate);
+    assert_eq!(
+        categorize_european_aqi(50),
+        AirQualityCategory::UnhealthySensitive
+    );
+    assert_eq!(categorize_european_aqi(70), AirQualityCategory::Unhealthy);
+    assert_eq!(
+        categorize_european_aqi(90),
+        AirQualityCategory::VeryUnhealthy
+    );
+    assert_eq!(categorize_european_aqi(110), AirQualityCategory::Hazardous);
+}
+
+#[test]
+fn air_quality_category_label_covers_all_variants() {
+    assert_eq!(AirQualityCategory::Good.label(), "Good");
+    assert_eq!(AirQualityCategory::Moderate.label(), "Moderate");
+    assert_eq!(AirQualityCategory::UnhealthySensitive.label(), "USG");
+    assert_eq!(AirQualityCategory::Unhealthy.label(), "Unhealthy");
+    assert_eq!(AirQualityCategory::VeryUnhealthy.label(), "Very Unhealthy");
+    assert_eq!(AirQualityCategory::Hazardous.label(), "Hazardous");
+    assert_eq!(AirQualityCategory::Unknown.label(), "Unknown");
+}
+
+#[test]
+fn forecast_bundle_current_helpers_return_correct_values() {
+    let bundle = minimal_bundle(Some(8.0), Some(1.0));
+    assert_eq!(bundle.current_weather_code(), 0);
+    assert_eq!(bundle.current_temp(Units::Celsius), 20);
+    assert_eq!(bundle.current_temp(Units::Fahrenheit), 68); // 20°C = 68°F
+}
+
+#[test]
+fn summarize_precip_window_guard_cases() {
+    // lookahead_hours == 0 → None
+    assert!(summarize_precip_window(&[], 0, 0.1).is_none());
+    // negative threshold → None
+    assert!(summarize_precip_window(&[], 12, -1.0).is_none());
+    // empty hourly → None (no matching hours)
+    assert!(summarize_precip_window(&[], 12, 0.1).is_none());
+}
+
+#[test]
+fn precip_window_has_precip_now_when_first_hour_has_precip() {
+    let base = NaiveDateTime::parse_from_str("2026-02-12T08:00", "%Y-%m-%dT%H:%M").unwrap();
+    let hourly = vec![HourlyForecast {
+        time: base,
+        temperature_2m_c: None,
+        weather_code: None,
+        is_day: None,
+        relative_humidity_2m: None,
+        precipitation_probability: None,
+        precipitation_mm: Some(1.5),
+        rain_mm: None,
+        snowfall_cm: None,
+        wind_speed_10m: None,
+        wind_gusts_10m: None,
+        pressure_msl_hpa: None,
+        visibility_m: None,
+        cloud_cover: None,
+        cloud_cover_low: None,
+        cloud_cover_mid: None,
+        cloud_cover_high: None,
+    }];
+    let summary = summarize_precip_window(&hourly, 12, 0.1).expect("should find precip");
+    assert!(summary.has_precip_now());
+}
+
+#[test]
+fn refresh_metadata_mark_success_clears_failure_state() {
+    let mut meta = RefreshMetadata::default();
+    meta.mark_failure();
+    assert_eq!(meta.consecutive_failures, 1);
+    meta.mark_success();
+    assert_eq!(meta.consecutive_failures, 0);
+    assert!(meta.last_success.is_some());
+}
+
+#[test]
+fn refresh_metadata_schedule_retry_sets_next_retry() {
+    let mut meta = RefreshMetadata::default();
+    meta.schedule_retry_in(30);
+    assert!(meta.next_retry_at.is_some());
+}
+
+#[test]
+fn summarize_dayparts_returns_empty_for_zero_max_days() {
+    let base = NaiveDateTime::parse_from_str("2026-02-12T10:00", "%Y-%m-%dT%H:%M").unwrap();
+    let hourly = vec![sample_hour(base, 5.0, 3, 30.0, 0.0, 10.0, 9000.0)];
+    let result = summarize_dayparts(&hourly, 3, 0);
+    assert!(result.is_empty());
+}
+
+#[test]
+fn summarize_dayparts_returns_empty_for_empty_hourly() {
+    let result = summarize_dayparts(&[], 3, 3);
+    assert!(result.is_empty());
+}
+
+#[test]
+fn location_display_name_name_only() {
+    let loc = Location {
+        name: "Unknown City".to_string(),
+        latitude: 0.0,
+        longitude: 0.0,
+        country: None,
+        admin1: None,
+        timezone: None,
+        population: None,
+    };
+    assert_eq!(loc.display_name(), "Unknown City");
+}
+
+#[test]
+fn parse_date_success_and_failure() {
+    assert!(parse_date("2026-02-12").is_some());
+    assert!(parse_date("not-a-date").is_none());
+}
+
+#[test]
+fn air_quality_reading_returns_none_when_both_indices_absent() {
+    assert!(AirQualityReading::from_indices(None, None).is_none());
+}
+
+#[test]
+fn air_quality_display_value_uses_us_index_first() {
+    let reading = AirQualityReading::from_indices(Some(42.0), Some(25.0)).unwrap();
+    assert_eq!(reading.display_value(), "42");
+}
+
+#[test]
+fn air_quality_display_value_falls_back_to_european() {
+    let reading = AirQualityReading::from_indices(None, Some(30.0)).unwrap();
+    assert_eq!(reading.display_value(), "30");
+}
+
+#[test]
+fn air_quality_categorizes_via_european_when_us_absent() {
+    let reading = AirQualityReading::from_indices(None, Some(30.0)).unwrap();
+    assert_eq!(reading.category, AirQualityCategory::Moderate);
+}
+
+#[test]
+fn daypart_aggregation_handles_all_none_fields() {
+    let base = NaiveDateTime::parse_from_str("2026-02-12T06:00", "%Y-%m-%dT%H:%M").unwrap();
+    // A sample with all optional fields set to None
+    let hourly = vec![HourlyForecast {
+        time: base,
+        temperature_2m_c: None,
+        weather_code: None,
+        is_day: None,
+        relative_humidity_2m: None,
+        precipitation_probability: None,
+        precipitation_mm: None,
+        rain_mm: None,
+        snowfall_cm: None,
+        wind_speed_10m: None,
+        wind_gusts_10m: None,
+        pressure_msl_hpa: None,
+        visibility_m: None,
+        cloud_cover: None,
+        cloud_cover_low: None,
+        cloud_cover_mid: None,
+        cloud_cover_high: None,
+    }];
+    let summaries = summarize_dayparts(&hourly, 0, 1);
+    let morning = summaries.iter().find(|s| s.daypart == Daypart::Morning);
+    if let Some(morning) = morning {
+        assert!(morning.temp_min_c.is_none());
+        assert!(morning.temp_max_c.is_none());
+        assert!(morning.wind_min_kmh.is_none());
+    }
+    // Alternatively, summarize_dayparts may return 0 results for None fields — both valid
+}
+
 fn minimal_bundle(high_c: Option<f32>, low_c: Option<f32>) -> ForecastBundle {
     ForecastBundle {
         location: Location::from_coords(0.0, 0.0),

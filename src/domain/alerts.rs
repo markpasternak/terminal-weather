@@ -297,6 +297,67 @@ mod tests {
             .collect()
     }
 
+    #[test]
+    fn wind_gust_warning_level_fires_between_50_and_79() {
+        let mut bundle = sample_bundle();
+        bundle.hourly[0].wind_gusts_10m = Some(65.0);
+
+        let alerts = scan_alerts(&bundle, Units::Celsius);
+        let wind = alerts.iter().find(|a| a.message.contains("gusts"));
+        assert!(wind.is_some(), "expected a wind gust alert");
+        assert_eq!(wind.unwrap().severity, AlertSeverity::Warning);
+    }
+
+    #[test]
+    fn uv_warning_fires_between_6_and_7() {
+        let mut bundle = sample_bundle();
+        bundle.daily[0].uv_index_max = Some(7.0);
+
+        let alerts = scan_alerts(&bundle, Units::Celsius);
+        let uv = alerts.iter().find(|a| a.message.contains("UV"));
+        assert!(uv.is_some(), "expected a UV alert");
+        assert_eq!(uv.unwrap().severity, AlertSeverity::Warning);
+    }
+
+    #[test]
+    fn freezing_rain_alert_fires_for_code_56() {
+        let mut bundle = sample_bundle();
+        bundle.hourly[0].weather_code = Some(56);
+
+        let alerts = scan_alerts(&bundle, Units::Celsius);
+        assert!(alerts.iter().any(|a| a.message.contains("Freezing")));
+    }
+
+    #[test]
+    fn heavy_precip_alert_fires_when_total_above_25mm() {
+        let mut bundle = sample_bundle();
+        for h in &mut bundle.hourly {
+            h.precipitation_mm = Some(2.0); // 24 * 2 = 48 mm total
+        }
+
+        let alerts = scan_alerts(&bundle, Units::Celsius);
+        assert!(alerts.iter().any(|a| a.message.contains("precipitation")));
+    }
+
+    #[test]
+    fn low_visibility_alert_fires_below_1000m() {
+        let mut bundle = sample_bundle();
+        bundle.hourly[0].visibility_m = Some(500.0);
+
+        let alerts = scan_alerts(&bundle, Units::Celsius);
+        assert!(alerts.iter().any(|a| a.message.contains("visibility")));
+    }
+
+    #[test]
+    fn no_alerts_for_benign_conditions() {
+        let bundle = sample_bundle();
+        let alerts = scan_alerts(&bundle, Units::Celsius);
+        assert!(
+            alerts.is_empty(),
+            "benign conditions should produce no alerts"
+        );
+    }
+
     fn sample_daily_forecast() -> DailyForecast {
         DailyForecast {
             date: NaiveDate::from_ymd_opt(2026, 2, 20).expect("valid date"),

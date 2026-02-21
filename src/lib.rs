@@ -244,3 +244,173 @@ fn install_panic_hook() {
         existing(panic);
     }));
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::{IconMode, UnitsArg};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    fn one_shot_cli() -> Cli {
+        let mut cli = crate::test_support::settings_default_test_cli();
+        cli.one_shot = true;
+        cli
+    }
+
+    #[test]
+    fn one_shot_units_maps_cli_arg() {
+        assert_eq!(
+            one_shot_units(UnitsArg::Celsius),
+            (crate::domain::weather::Units::Celsius, "C")
+        );
+        assert_eq!(
+            one_shot_units(UnitsArg::Fahrenheit),
+            (crate::domain::weather::Units::Fahrenheit, "F")
+        );
+    }
+
+    #[test]
+    fn one_shot_icon_mode_has_expected_precedence() {
+        let mut cli = one_shot_cli();
+        assert_eq!(one_shot_icon_mode(&cli), IconMode::Unicode);
+
+        cli.emoji_icons = true;
+        assert_eq!(one_shot_icon_mode(&cli), IconMode::Emoji);
+
+        cli.ascii_icons = true;
+        assert_eq!(one_shot_icon_mode(&cli), IconMode::Ascii);
+    }
+
+    #[tokio::test]
+    async fn resolve_one_shot_location_prefers_coordinates_when_present() {
+        let mut cli = one_shot_cli();
+        cli.lat = Some(59.3293);
+        cli.lon = Some(18.0686);
+        let geocoder = crate::data::geocode::GeocodeClient::new();
+        let location = resolve_one_shot_location(&cli, &geocoder)
+            .await
+            .expect("coords resolve");
+        assert_eq!(location.name, "59.3293, 18.0686");
+    }
+
+    #[tokio::test]
+    async fn resolve_one_shot_location_uses_geocoder_selection() {
+        let server = MockServer::start().await;
+        let payload = serde_json::json!({
+            "results": [{
+                "name": "Stockholm",
+                "latitude": 59.3293,
+                "longitude": 18.0686,
+                "country": "Sweden",
+                "country_code": "SE",
+                "admin1": "Stockholm",
+                "timezone": "Europe/Stockholm",
+                "population": 975_000
+            }]
+        });
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
+            .mount(&server)
+            .await;
+
+        let mut cli = one_shot_cli();
+        cli.city = Some("Stockholm".to_string());
+        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(server.uri());
+        let location = resolve_one_shot_location(&cli, &geocoder)
+            .await
+            .expect("selection resolve");
+        assert_eq!(location.name, "Stockholm");
+    }
+
+    #[tokio::test]
+    async fn resolve_one_shot_location_errors_on_not_found() {
+        let server = MockServer::start().await;
+        let payload = serde_json::json!({ "results": [] });
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
+            .mount(&server)
+            .await;
+
+        let mut cli = one_shot_cli();
+        cli.city = Some("Missing".to_string());
+        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(server.uri());
+        let err = resolve_one_shot_location(&cli, &geocoder)
+            .await
+            .expect_err("not found should error");
+        assert!(format!("{err}").contains("City not found"));
+    }
+
+    #[tokio::test]
+    async fn resolve_one_shot_location_disambiguation_picks_first() {
+        let server = MockServer::start().await;
+        let payload = serde_json::json!({
+            "results": [
+                {
+                    "name": "Springfield",
+                    "latitude": 39.78,
+                    "longitude": -89.65,
+                    "country": "United States",
+                    "country_code": "US",
+                    "admin1": "Illinois",
+                    "timezone": "America/Chicago",
+                    "population": 100_000
+                },
+                {
+                    "name": "Springfield",
+                    "latitude": 37.21,
+                    "longitude": -93.29,
+                    "country": "United States",
+                    "country_code": "US",
+                    "admin1": "Missouri",
+                    "timezone": "America/Chicago",
+                    "population": 105_000
+                }
+            ]
+        });
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
+            .mount(&server)
+            .await;
+
+        let mut cli = one_shot_cli();
+        cli.city = Some("Springfield".to_string());
+        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(server.uri());
+        let location = resolve_one_shot_location(&cli, &geocoder)
+            .await
+            .expect("disambiguation should pick first");
+        assert_eq!(location.name, "Springfield");
+        assert!((location.latitude - 37.21).abs() < 0.01);
+    }
+
+    #[test]
+    fn print_helpers_execute_for_sample_bundle() {
+        let bundle = crate::test_support::sample_bundle();
+        print_one_shot_current(
+            &bundle,
+            "Stockholm, Sweden",
+            crate::domain::weather::Units::Celsius,
+            "C",
+        );
+        print_daily_line("Thu 12", "☀", Some(1), Some(8), Some(2.4));
+        print_daily_line("Fri 13", "--", None, None, None);
+        print_one_shot_daily(
+            &bundle,
+            crate::domain::weather::Units::Celsius,
+            IconMode::Unicode,
+        );
+    }
+
+    #[test]
+    fn one_shot_icon_mode_ascii_takes_precedence() {
+        let mut cli = one_shot_cli();
+        cli.ascii_icons = true;
+        cli.emoji_icons = true;
+        assert_eq!(one_shot_icon_mode(&cli), IconMode::Ascii);
+    }
+}

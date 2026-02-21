@@ -180,7 +180,8 @@ impl AppState {
 }
 
 fn load_or_reset_settings(cli: &Cli) -> (RuntimeSettings, Option<PathBuf>) {
-    let (mut settings, settings_path) = load_runtime_settings(cli, std::io::stdout().is_terminal());
+    let enable_disk = !cfg!(test) && std::io::stdout().is_terminal();
+    let (mut settings, settings_path) = load_runtime_settings(cli, enable_disk);
     if cli.demo {
         if let Some(path) = settings_path.as_deref() {
             let _ = clear_runtime_settings(path);

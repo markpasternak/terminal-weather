@@ -42,3 +42,15 @@ fn freshness_transitions_and_recovery() {
     let recovered = evaluate_freshness(Some(now - Duration::minutes(1)), 0);
     assert_eq!(recovered, FreshnessState::Fresh);
 }
+
+#[test]
+fn freshness_none_last_success_with_few_failures_is_stale() {
+    let state = evaluate_freshness(None, 0);
+    assert_eq!(state, FreshnessState::Stale);
+}
+
+#[test]
+fn freshness_none_last_success_with_many_failures_is_offline() {
+    let state = evaluate_freshness(None, 3);
+    assert_eq!(state, FreshnessState::Offline);
+}
