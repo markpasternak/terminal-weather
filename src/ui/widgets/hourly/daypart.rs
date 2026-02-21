@@ -261,3 +261,18 @@ fn truncate(value: &str, max_chars: usize) -> String {
         .chain(std::iter::once('…'))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::daypart_visibility;
+
+    #[test]
+    fn daypart_visibility_correct_for_all_height_bands() {
+        assert_eq!(daypart_visibility(0), (false, false, false));
+        assert_eq!(daypart_visibility(3), (false, false, false));
+        assert_eq!(daypart_visibility(4), (false, false, true));
+        assert_eq!(daypart_visibility(5), (false, true, true));
+        assert_eq!(daypart_visibility(6), (true, true, true));
+        assert_eq!(daypart_visibility(99), (true, true, true));
+    }
+}

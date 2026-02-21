@@ -23,6 +23,47 @@ fn width_below_70_forces_table() {
 }
 
 #[test]
+fn height_below_5_forces_table() {
+    let area = Rect::new(0, 0, 90, 4);
+    assert_eq!(
+        effective_hourly_mode(HourlyViewMode::Hybrid, area),
+        HourlyViewMode::Table
+    );
+    assert_eq!(
+        effective_hourly_mode(HourlyViewMode::Chart, area),
+        HourlyViewMode::Table
+    );
+}
+
+#[test]
+fn hybrid_mode_requires_height_6() {
+    let area_too_short = Rect::new(0, 0, 90, 7);
+    let area_ok = Rect::new(0, 0, 90, 8);
+    assert_eq!(
+        effective_hourly_mode(HourlyViewMode::Hybrid, area_too_short),
+        HourlyViewMode::Table
+    );
+    assert_eq!(
+        effective_hourly_mode(HourlyViewMode::Hybrid, area_ok),
+        HourlyViewMode::Hybrid
+    );
+}
+
+#[test]
+fn chart_mode_requires_height_8() {
+    let area_too_short = Rect::new(0, 0, 90, 9);
+    let area_ok = Rect::new(0, 0, 90, 10);
+    assert_eq!(
+        effective_hourly_mode(HourlyViewMode::Chart, area_too_short),
+        HourlyViewMode::Table
+    );
+    assert_eq!(
+        effective_hourly_mode(HourlyViewMode::Chart, area_ok),
+        HourlyViewMode::Chart
+    );
+}
+
+#[test]
 fn chart_mode_requires_more_height_than_hybrid() {
     let hybrid_ok = Rect::new(0, 0, 90, 10);
     let chart_too_short = Rect::new(0, 0, 90, 9);
@@ -34,6 +75,29 @@ fn chart_mode_requires_more_height_than_hybrid() {
         effective_hourly_mode(HourlyViewMode::Chart, chart_too_short),
         HourlyViewMode::Table
     );
+}
+
+#[test]
+fn hourly_panel_title_same_day() {
+    let hours = [
+        sample_hour(dt(2026, 2, 20, 9)),
+        sample_hour(dt(2026, 2, 20, 15)),
+    ];
+    let slice: Vec<&HourlyForecast> = hours.iter().collect();
+    let title = hourly_panel_title(HourlyViewMode::Table, &slice);
+    assert!(title.contains("Fri 20 Feb"));
+    assert!(!title.contains("→"));
+}
+
+#[test]
+fn hourly_panel_title_multi_day() {
+    let hours = [
+        sample_hour(dt(2026, 2, 20, 9)),
+        sample_hour(dt(2026, 2, 21, 15)),
+    ];
+    let slice: Vec<&HourlyForecast> = hours.iter().collect();
+    let title = hourly_panel_title(HourlyViewMode::Table, &slice);
+    assert!(title.contains("→"));
 }
 
 #[test]

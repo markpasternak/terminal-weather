@@ -233,3 +233,57 @@ fn append_metric(spans: &mut Vec<Span<'static>>, descriptor: MetricDescriptor, t
 fn aqi_color(data: &WeatherMetricsData, theme: Theme) -> Color {
     super::hero_shared::aqi_color(theme, data.aqi_category, data.aqi_available)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        cli::ThemeArg,
+        domain::weather::{AirQualityCategory, WeatherCategory},
+        ui::theme::{ColorCapability, theme_for},
+    };
+
+    fn sample_theme() -> Theme {
+        theme_for(
+            WeatherCategory::Clear,
+            true,
+            ColorCapability::TrueColor,
+            ThemeArg::Auto,
+        )
+    }
+
+    fn sample_data() -> WeatherMetricsData {
+        WeatherMetricsData {
+            feels: -3,
+            humidity: 72,
+            dew: -8,
+            wind_dir: "NW",
+            wind: 15,
+            gust: 28,
+            visibility: "10 km".to_string(),
+            pressure: 1012,
+            pressure_trend: "→",
+            uv_today: "3".to_string(),
+            cloud_total: 40,
+            cloud_split: "40%".to_string(),
+            precip_probability: "20%".to_string(),
+            aqi: "—".to_string(),
+            aqi_category: AirQualityCategory::Good,
+            aqi_available: false,
+        }
+    }
+
+    #[test]
+    fn push_metric_lines_standard_produces_five_rows() {
+        let mut lines: Vec<Line<'static>> = Vec::new();
+        push_metric_lines(&mut lines, &sample_data(), sample_theme(), "  ", false);
+        assert_eq!(lines.len(), STANDARD_ROWS.len());
+    }
+
+    #[test]
+    fn push_metric_lines_compact_produces_four_rows() {
+        let mut lines: Vec<Line<'static>> = Vec::new();
+        push_metric_lines(&mut lines, &sample_data(), sample_theme(), "  ", true);
+        assert_eq!(lines.len(), COMPACT_ROWS.len());
+    }
+}

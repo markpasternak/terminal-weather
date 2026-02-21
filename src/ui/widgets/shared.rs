@@ -40,3 +40,37 @@ pub(super) fn sparkline_blocks(values: &[f32], width: usize) -> String {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::sparkline_blocks;
+
+    #[test]
+    fn sparkline_blocks_empty_values_returns_empty() {
+        assert_eq!(sparkline_blocks(&[], 8), String::new());
+    }
+
+    #[test]
+    fn sparkline_blocks_zero_width_returns_empty() {
+        assert_eq!(sparkline_blocks(&[1.0, 2.0], 0), String::new());
+    }
+
+    #[test]
+    fn sparkline_blocks_uniform_values_returns_mid_bar() {
+        // All same value → norm=0 everywhere → '▁'
+        let out = sparkline_blocks(&[5.0, 5.0, 5.0], 3);
+        assert_eq!(out.chars().count(), 3);
+        assert!(out.chars().all(|c| c == '▁'), "got: {out}");
+    }
+
+    #[test]
+    fn sparkline_blocks_rising_values_end_with_full_bar() {
+        let values: Vec<f32> = (0u8..8).map(f32::from).collect();
+        let out = sparkline_blocks(&values, 8);
+        assert_eq!(out.chars().count(), 8);
+        // Last position should be '█' (max)
+        assert_eq!(out.chars().last().unwrap(), '█');
+        // First position should be '▁' (min)
+        assert_eq!(out.chars().next().unwrap(), '▁');
+    }
+}

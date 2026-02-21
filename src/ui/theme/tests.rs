@@ -270,3 +270,69 @@ fn detect_color_capability_respects_mode_and_env_overrides() {
         assert_eq!(capability, expected);
     }
 }
+
+#[test]
+fn temp_color_covers_all_five_bands() {
+    let theme = theme_for(
+        WeatherCategory::Clear,
+        true,
+        ColorCapability::TrueColor,
+        ThemeArg::Nord,
+    );
+    // Each branch: <= -8, <= 2, <= 16, <= 28, > 28
+    let freezing = temp_color(&theme, -10.0);
+    let cold = temp_color(&theme, 0.0);
+    let mild = temp_color(&theme, 10.0);
+    let warm = temp_color(&theme, 22.0);
+    let hot = temp_color(&theme, 35.0);
+
+    // All should return a Color (just verify they differ)
+    assert_ne!(freezing, hot);
+    assert_ne!(cold, warm);
+    assert_ne!(mild, hot);
+    // Boundary checks — result should equal the expected field
+    assert_eq!(freezing, theme.temp_freezing);
+    assert_eq!(cold, theme.temp_cold);
+    assert_eq!(mild, theme.temp_mild);
+    assert_eq!(warm, theme.temp_warm);
+    assert_eq!(hot, theme.temp_hot);
+}
+
+#[test]
+fn quantize_basic16_covers_achromatic_and_hue_paths() {
+    // Very dark color → Black (achromatic, light < 0.20)
+    assert_eq!(
+        quantize(Color::Rgb(10, 10, 10), ColorCapability::Basic16),
+        Color::Black
+    );
+    // Dark-gray range (light 0.20..0.40)
+    assert_eq!(
+        quantize(Color::Rgb(70, 70, 70), ColorCapability::Basic16),
+        Color::DarkGray
+    );
+    // Gray range (light 0.40..0.72)
+    assert_eq!(
+        quantize(Color::Rgb(140, 140, 140), ColorCapability::Basic16),
+        Color::Gray
+    );
+    // White (light >= 0.72)
+    assert_eq!(
+        quantize(Color::Rgb(220, 220, 220), ColorCapability::Basic16),
+        Color::White
+    );
+    // Red hue (max=R, hue near 0)
+    let red = quantize(Color::Rgb(200, 50, 50), ColorCapability::Basic16);
+    assert!(matches!(red, Color::Red | Color::LightRed));
+    // Green hue (max=G)
+    let green = quantize(Color::Rgb(50, 200, 50), ColorCapability::Basic16);
+    assert!(matches!(green, Color::Green | Color::LightGreen));
+    // Blue hue (max=B)
+    let blue = quantize(Color::Rgb(50, 50, 200), ColorCapability::Basic16);
+    assert!(matches!(blue, Color::Blue | Color::LightBlue));
+}
+
+#[test]
+fn quantize_truecolor_passes_through() {
+    let color = Color::Rgb(123, 45, 67);
+    assert_eq!(quantize(color, ColorCapability::TrueColor), color);
+}

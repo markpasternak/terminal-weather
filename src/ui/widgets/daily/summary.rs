@@ -510,3 +510,6 @@ fn append_compact_profiles(
         slots_left = slots_left.saturating_sub(1);
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -162,3 +162,94 @@ fn indeterminate_bar(frame_tick: u64, width: usize) -> String {
     }
     format!("[{}]", chars.into_iter().collect::<String>())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── loading_spinner ──────────────────────────────────────────────────────
+
+    #[test]
+    fn loading_spinner_cycles_through_eight_frames() {
+        let frames: Vec<_> = (0u64..8).map(loading_spinner).collect();
+        assert_eq!(frames.len(), 8);
+        // After 8 ticks it wraps
+        assert_eq!(loading_spinner(0), loading_spinner(8));
+        assert_eq!(loading_spinner(3), loading_spinner(11));
+    }
+
+    // ── loading_stage_index ──────────────────────────────────────────────────
+
+    #[test]
+    fn loading_stage_index_cycles_zero_one_two() {
+        // Stage advances every 14 ticks
+        assert_eq!(loading_stage_index(0), 0);
+        assert_eq!(loading_stage_index(14), 1);
+        assert_eq!(loading_stage_index(28), 2);
+        assert_eq!(loading_stage_index(42), 0); // wraps
+    }
+
+    // ── indeterminate_bar ────────────────────────────────────────────────────
+
+    #[test]
+    fn indeterminate_bar_returns_empty_for_zero_width() {
+        assert_eq!(indeterminate_bar(0, 0), String::new());
+    }
+
+    #[test]
+    fn indeterminate_bar_has_brackets_and_head_block() {
+        let bar = indeterminate_bar(0, 10);
+        assert!(bar.starts_with('['));
+        assert!(bar.ends_with(']'));
+        assert!(bar.contains('█'));
+    }
+
+    #[test]
+    fn indeterminate_bar_head_wraps_around() {
+        // head = tick % width, so at tick=5, width=5 → head=0 (█ at position 0)
+        let bar = indeterminate_bar(5, 5);
+        let inner: String = bar.chars().skip(1).take(5).collect();
+        assert_eq!(inner.chars().next().unwrap(), '█');
+    }
+
+    // ── loading_skeleton_row ─────────────────────────────────────────────────
+
+    #[test]
+    fn loading_skeleton_row_empty_for_zero_width() {
+        assert_eq!(loading_skeleton_row(0, 0, 0), String::new());
+    }
+
+    #[test]
+    fn loading_skeleton_row_contains_active_head() {
+        let row = loading_skeleton_row(0, 12, 0);
+        assert_eq!(row.chars().count(), 12);
+        assert!(row.contains('█'), "expected block head in: {row}");
+        assert!(row.contains('▓'), "expected trail in: {row}");
+    }
+
+    #[test]
+    fn loading_skeleton_row_lane_offset_shifts_head() {
+        // Lane 0 and lane 1 should produce different patterns
+        let lane0 = loading_skeleton_row(0, 20, 0);
+        let lane1 = loading_skeleton_row(0, 20, 1);
+        assert_ne!(lane0, lane1);
+    }
+
+    // ── loading_stage_marker_color ───────────────────────────────────────────
+
+    #[test]
+    fn loading_stage_marker_color_past_current_future() {
+        let theme = crate::ui::theme::theme_for(
+            crate::domain::weather::WeatherCategory::Clear,
+            true,
+            crate::ui::theme::ColorCapability::TrueColor,
+            crate::cli::ThemeArg::Auto,
+        );
+        let (past_marker, _) = loading_stage_marker_color(0, 2, theme);
+        let (cur_marker, _) = loading_stage_marker_color(2, 2, theme);
+        let (future_marker, _) = loading_stage_marker_color(3, 2, theme);
+        assert_eq!(past_marker, "● ");
+        assert_eq!(cur_marker, "◉ ");
+        assert_eq!(future_marker, "○ ");
+    }
+}

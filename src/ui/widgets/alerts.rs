@@ -83,3 +83,101 @@ fn push_alert_span(
 pub fn alert_row_height(alerts: &[WeatherAlert]) -> u16 {
     u16::from(!alerts.is_empty())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{alert_color, alert_row_height, push_alert_span};
+    use crate::domain::alerts::{AlertSeverity, WeatherAlert};
+
+    fn dummy_alert() -> WeatherAlert {
+        WeatherAlert {
+            icon: "⚡",
+            message: "Test alert".to_string(),
+            severity: AlertSeverity::Info,
+        }
+    }
+
+    fn make_theme() -> crate::ui::theme::Theme {
+        crate::ui::theme::resolved_theme(&crate::app::state::AppState::new(
+            &crate::test_support::state_test_cli(),
+        ))
+    }
+
+    #[test]
+    fn alert_row_height_zero_for_empty() {
+        assert_eq!(alert_row_height(&[]), 0);
+    }
+
+    #[test]
+    fn alert_row_height_one_for_non_empty() {
+        assert_eq!(alert_row_height(&[dummy_alert()]), 1);
+        assert_eq!(alert_row_height(&[dummy_alert(), dummy_alert()]), 1);
+    }
+
+    #[test]
+    fn push_alert_span_returns_false_on_width_overflow() {
+        let theme = make_theme();
+        let mut spans = Vec::new();
+        let mut current_width = 0usize;
+        let available_width = 5;
+        let alert = WeatherAlert {
+            icon: "⚡",
+            message: "This is a very long alert message".to_string(),
+            severity: AlertSeverity::Warning,
+        };
+
+        let result = push_alert_span(
+            &mut spans,
+            &mut current_width,
+            available_width,
+            1,
+            &alert,
+            theme,
+        );
+        assert!(!result);
+    }
+
+    #[test]
+    fn push_alert_span_returns_true_when_fits() {
+        let theme = make_theme();
+        let mut spans = Vec::new();
+        let mut current_width = 0usize;
+        let available_width = 100;
+        let alert = WeatherAlert {
+            icon: "⚡",
+            message: "Test".to_string(),
+            severity: AlertSeverity::Warning,
+        };
+
+        let result = push_alert_span(
+            &mut spans,
+            &mut current_width,
+            available_width,
+            0,
+            &alert,
+            theme,
+        );
+        assert!(result);
+    }
+
+    #[test]
+    fn alert_color_danger() {
+        let theme = make_theme();
+        let color = alert_color(theme, AlertSeverity::Danger);
+        assert_eq!(color, theme.danger);
+    }
+
+    #[test]
+    fn alert_color_warning() {
+        let theme = make_theme();
+        let color = alert_color(theme, AlertSeverity::Warning);
+        assert_eq!(color, theme.warning);
+    }
+
+    #[test]
+    fn alert_color_info() {
+        let theme = make_theme();
+        let color = alert_color(theme, AlertSeverity::Info);
+        assert_eq!(color, theme.info);
+    }
+}

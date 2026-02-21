@@ -267,3 +267,98 @@ pub(super) fn pressure_span_summary(values: &[f32]) -> String {
         |(min, max)| format!("{min:.0}..{max:.0}hPa"),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::weather::HourlyForecast;
+    use chrono::NaiveDate;
+
+    fn blank_hour() -> HourlyForecast {
+        let time = NaiveDate::from_ymd_opt(2026, 2, 12)
+            .unwrap()
+            .and_hms_opt(8, 0, 0)
+            .unwrap();
+        HourlyForecast {
+            time,
+            temperature_2m_c: None,
+            weather_code: None,
+            is_day: None,
+            relative_humidity_2m: None,
+            precipitation_probability: None,
+            precipitation_mm: None,
+            rain_mm: None,
+            snowfall_cm: None,
+            wind_speed_10m: None,
+            wind_gusts_10m: None,
+            pressure_msl_hpa: None,
+            visibility_m: None,
+            cloud_cover: None,
+            cloud_cover_low: None,
+            cloud_cover_mid: None,
+            cloud_cover_high: None,
+        }
+    }
+
+    #[test]
+    fn sparkline_zero_width_returns_empty() {
+        assert_eq!(sparkline(&[1.0, 2.0, 3.0], 0), String::new());
+    }
+
+    #[test]
+    fn sparkline_empty_values_returns_dots() {
+        let out = sparkline(&[], 5);
+        assert_eq!(out.chars().count(), 5);
+        assert!(out.chars().all(|c| c == '·'));
+    }
+
+    #[test]
+    fn sparkline_with_data_produces_correct_length() {
+        let out = sparkline(&[1.0, 2.0, 3.0], 8);
+        assert_eq!(out.chars().count(), 8);
+    }
+
+    #[test]
+    fn value_span_empty_returns_none() {
+        assert!(value_span(&[]).is_none());
+    }
+
+    #[test]
+    fn value_span_single_returns_same_min_max() {
+        let (min, max) = value_span(&[5.0]).unwrap();
+        assert!((min - 5.0).abs() < f32::EPSILON);
+        assert!((max - 5.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn pressure_span_summary_returns_placeholder_for_empty() {
+        assert_eq!(pressure_span_summary(&[]), "--");
+    }
+
+    #[test]
+    fn pressure_span_summary_formats_range() {
+        let out = pressure_span_summary(&[1000.0, 1010.0]);
+        assert!(out.contains("1000"));
+        assert!(out.contains("1010"));
+    }
+
+    #[test]
+    fn peak_gust_summary_returns_placeholder_when_no_gusts() {
+        let hourly = vec![blank_hour()];
+        assert_eq!(peak_gust_summary(&hourly), "--");
+    }
+
+    #[test]
+    fn peak_gust_summary_formats_max_gust() {
+        let mut h = blank_hour();
+        h.wind_gusts_10m = Some(72.0);
+        let out = peak_gust_summary(&[h]);
+        assert!(out.contains("m/s"));
+    }
+
+    #[test]
+    fn next_precip_summary_returns_none_message_for_empty() {
+        let out = next_precip_summary(&[]);
+        assert!(out.contains("none"));
+    }
+}

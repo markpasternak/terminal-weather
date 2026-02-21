@@ -318,3 +318,118 @@ fn loading_scene(
         context_line: None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::HeroVisualArg;
+    use crate::domain::weather::WeatherCategory;
+    use crate::ui::theme::{ColorCapability, Theme, theme_for};
+
+    fn make_theme() -> Theme {
+        theme_for(
+            WeatherCategory::Clear,
+            true,
+            ColorCapability::TrueColor,
+            crate::cli::ThemeArg::Auto,
+        )
+    }
+
+    #[test]
+    fn loading_scene_height_below_2_no_center_message() {
+        let scene = loading_scene("Test", 20, 1, true);
+        assert_eq!(scene.lines.len(), 1);
+        assert!(!scene.lines[0].contains("Loading"));
+    }
+
+    #[test]
+    fn loading_scene_height_2_or_more_has_center_message() {
+        let scene = loading_scene("Test", 20, 4, true);
+        assert_eq!(scene.lines.len(), 4);
+        assert!(scene.lines[2].contains("Loading"));
+    }
+
+    #[test]
+    fn tint_color_warm() {
+        let theme = make_theme();
+        let color = tint_color(LandmarkTint::Warm, theme);
+        assert_eq!(color, theme.landmark_warm);
+    }
+
+    #[test]
+    fn tint_color_cool() {
+        let theme = make_theme();
+        let color = tint_color(LandmarkTint::Cool, theme);
+        assert_eq!(color, theme.landmark_cool);
+    }
+
+    #[test]
+    fn tint_color_neutral() {
+        let theme = make_theme();
+        let color = tint_color(LandmarkTint::Neutral, theme);
+        assert_eq!(color, theme.landmark_neutral);
+    }
+
+    #[test]
+    fn scene_char_color_atmos_matches_various_chars() {
+        let theme = make_theme();
+        let base = theme.landmark_neutral;
+
+        assert_eq!(scene_char_color_atmos('█', theme, base), theme.accent);
+        assert_eq!(scene_char_color_atmos('◉', theme, base), theme.warning);
+        assert_eq!(scene_char_color_atmos('v', theme, base), theme.info);
+        assert_eq!(
+            scene_char_color_atmos('░', theme, base),
+            theme.landmark_neutral
+        );
+        assert_eq!(
+            scene_char_color_atmos('❆', theme, base),
+            theme.landmark_cool
+        );
+        assert_eq!(scene_char_color_atmos('·', theme, base), theme.muted_text);
+        assert_eq!(scene_char_color_atmos('X', theme, base), base);
+    }
+
+    #[test]
+    fn scene_char_color_gauge_matches_various_chars() {
+        let theme = make_theme();
+        let base = theme.landmark_neutral;
+
+        assert_eq!(scene_char_color_gauge('█', theme, base), theme.accent);
+        assert_eq!(scene_char_color_gauge('[', theme, base), theme.info);
+        assert_eq!(scene_char_color_gauge('↑', theme, base), theme.warning);
+        assert_eq!(scene_char_color_gauge('5', theme, base), theme.text);
+        assert_eq!(scene_char_color_gauge('A', theme, base), theme.muted_text);
+        assert_eq!(scene_char_color_gauge('X', theme, base), base);
+    }
+
+    #[test]
+    fn scene_char_color_sky_matches_various_chars() {
+        let theme = make_theme();
+        let base = theme.landmark_neutral;
+
+        assert_eq!(scene_char_color_sky('◉', theme, base), theme.warning);
+        assert_eq!(scene_char_color_sky('█', theme, base), theme.info);
+        assert_eq!(scene_char_color_sky('*', theme, base), theme.landmark_cool);
+        assert_eq!(scene_char_color_sky('5', theme, base), theme.text);
+        assert_eq!(scene_char_color_sky('X', theme, base), base);
+    }
+
+    #[test]
+    fn colorize_scene_line_single_color_no_transition() {
+        let theme = make_theme();
+        let base = theme.landmark_neutral;
+        let line = "XXXXXXXXX";
+        let result = colorize_scene_line(line, theme, base, HeroVisualArg::AtmosCanvas);
+        assert_eq!(result.spans.len(), 1);
+    }
+
+    #[test]
+    fn colorize_scene_line_produces_output() {
+        let theme = make_theme();
+        let base = theme.landmark_neutral;
+        let line = "█◉v░·";
+        let result = colorize_scene_line(line, theme, base, HeroVisualArg::AtmosCanvas);
+        assert!(!result.spans.is_empty());
+    }
+}
