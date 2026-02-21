@@ -3,25 +3,24 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Clear, Paragraph, Wrap},
 };
 
 use crate::{
     app::state::AppState,
     cli::{Cli, ColorArg},
-    domain::weather::{WeatherCategory, weather_code_to_category},
-    ui::theme::{Theme, detect_color_capability, theme_for},
+    ui::theme::{Theme, resolved_theme},
 };
+
+use super::shared::{popup_block, popup_panel_style};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
     frame.render_widget(Clear, area);
 
-    let theme = help_theme(state);
+    let theme = resolved_theme(state);
 
-    let panel_style = Style::default()
-        .fg(theme.popup_text)
-        .bg(theme.popup_surface);
-    let block = help_block(theme, panel_style);
+    let panel_style = popup_panel_style(theme);
+    let block = popup_block("Help", theme, panel_style);
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -31,37 +30,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
         .style(panel_style)
         .wrap(Wrap { trim: true });
     frame.render_widget(text, inner);
-}
-
-fn help_theme(state: &AppState) -> Theme {
-    let (category, is_day) =
-        state
-            .weather
-            .as_ref()
-            .map_or((WeatherCategory::Unknown, false), |w| {
-                (
-                    weather_code_to_category(w.current.weather_code),
-                    w.current.is_day,
-                )
-            });
-    theme_for(
-        category,
-        is_day,
-        detect_color_capability(state.color_mode),
-        state.settings.theme,
-    )
-}
-
-fn help_block(theme: Theme, panel_style: Style) -> Block<'static> {
-    Block::default()
-        .title("Help")
-        .borders(Borders::ALL)
-        .style(panel_style)
-        .border_style(
-            Style::default()
-                .fg(theme.popup_border)
-                .bg(theme.popup_surface),
-        )
 }
 
 fn help_lines(theme: Theme, color_mode: ColorArg) -> Vec<Line<'static>> {

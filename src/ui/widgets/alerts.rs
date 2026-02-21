@@ -11,15 +11,14 @@ use ratatui::{
 use crate::{
     app::state::AppState,
     domain::alerts::{AlertSeverity, WeatherAlert},
-    domain::weather::{WeatherCategory, weather_code_to_category},
-    ui::theme::{detect_color_capability, theme_for},
+    ui::theme::resolved_theme,
 };
 
 pub fn render(frame: &mut Frame, area: Rect, alerts: &[WeatherAlert], state: &AppState) {
     if alerts.is_empty() || area.height == 0 || area.width < 10 {
         return;
     }
-    let theme = alert_theme(state);
+    let theme = resolved_theme(state);
 
     let available_width = area.width as usize;
     let mut spans = Vec::new();
@@ -41,21 +40,6 @@ pub fn render(frame: &mut Frame, area: Rect, alerts: &[WeatherAlert], state: &Ap
     let line = Line::from(spans);
     let paragraph = Paragraph::new(line).style(Style::default().bg(theme.surface_alt));
     frame.render_widget(paragraph, area);
-}
-
-fn alert_theme(state: &AppState) -> crate::ui::theme::Theme {
-    let capability = detect_color_capability(state.color_mode);
-    let (category, is_day) =
-        state
-            .weather
-            .as_ref()
-            .map_or((WeatherCategory::Unknown, false), |w| {
-                (
-                    weather_code_to_category(w.current.weather_code),
-                    w.current.is_day,
-                )
-            });
-    theme_for(category, is_day, capability, state.settings.theme)
 }
 
 fn alert_color(theme: crate::ui::theme::Theme, severity: AlertSeverity) -> ratatui::style::Color {

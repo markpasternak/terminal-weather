@@ -3,23 +3,23 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::Line,
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
+    widgets::{Clear, List, ListItem, ListState, Paragraph},
 };
 
 use crate::{
     app::state::AppState,
-    ui::theme::{Theme, detect_color_capability, theme_for},
+    ui::theme::{Theme, resolved_theme},
 };
+
+use super::shared::{popup_block, popup_panel_style};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(Clear, area);
 
-    let theme = settings_theme(state);
-    let panel_style = Style::default()
-        .fg(theme.popup_text)
-        .bg(theme.popup_surface);
+    let theme = resolved_theme(state);
+    let panel_style = popup_panel_style(theme);
 
-    let block = settings_block(theme, panel_style);
+    let block = popup_block("Settings", theme, panel_style);
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -39,36 +39,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 
     render_controls(frame, chunks[1], theme);
     render_hint(frame, chunks[2], state, theme);
-}
-
-fn settings_theme(state: &AppState) -> Theme {
-    let (category, is_day) = state.weather.as_ref().map_or(
-        (crate::domain::weather::WeatherCategory::Unknown, false),
-        |w| {
-            (
-                crate::domain::weather::weather_code_to_category(w.current.weather_code),
-                w.current.is_day,
-            )
-        },
-    );
-    theme_for(
-        category,
-        is_day,
-        detect_color_capability(state.color_mode),
-        state.settings.theme,
-    )
-}
-
-fn settings_block(theme: Theme, panel_style: Style) -> Block<'static> {
-    Block::default()
-        .title("Settings")
-        .borders(Borders::ALL)
-        .style(panel_style)
-        .border_style(
-            Style::default()
-                .fg(theme.popup_border)
-                .bg(theme.popup_surface),
-        )
 }
 
 fn settings_items(state: &AppState) -> Vec<ListItem<'static>> {

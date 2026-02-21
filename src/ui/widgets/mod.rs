@@ -7,3 +7,4 @@ pub mod hourly;
 pub mod landmark;
 pub mod selector;
 pub mod settings;
+pub(super) mod shared;

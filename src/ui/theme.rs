@@ -13,8 +13,9 @@
 use ratatui::style::Color;
 
 use crate::{
+    app::state::AppState,
     cli::{ColorArg, ThemeArg},
-    domain::weather::WeatherCategory,
+    domain::weather::{WeatherCategory, weather_code_to_category},
 };
 
 mod capability;
@@ -76,6 +77,21 @@ pub fn detect_color_capability(mode: ColorArg) -> ColorCapability {
         colorterm.as_deref(),
         no_color.as_deref(),
     )
+}
+
+pub fn resolved_theme(state: &AppState) -> Theme {
+    let capability = detect_color_capability(state.color_mode);
+    let (category, is_day) =
+        state
+            .weather
+            .as_ref()
+            .map_or((WeatherCategory::Unknown, false), |w| {
+                (
+                    weather_code_to_category(w.current.weather_code),
+                    w.current.is_day,
+                )
+            });
+    theme_for(category, is_day, capability, state.settings.theme)
 }
 
 pub fn theme_for(

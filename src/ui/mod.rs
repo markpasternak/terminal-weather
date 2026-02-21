@@ -16,9 +16,9 @@ use ratatui::{
 use crate::{
     app::state::{AppMode, AppState},
     cli::Cli,
-    domain::weather::{HourlyViewMode, WeatherCategory, weather_code_to_category},
+    domain::weather::HourlyViewMode,
     resilience::freshness::FreshnessState,
-    ui::theme::{detect_color_capability, theme_for},
+    ui::theme::resolved_theme,
 };
 
 const MIN_RENDER_WIDTH: u16 = 20;
@@ -26,7 +26,7 @@ const MIN_RENDER_HEIGHT: u16 = 10;
 
 pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     let area = frame.area();
-    let theme = theme_for_state(state);
+    let theme = resolved_theme(state);
 
     if area.width < MIN_RENDER_WIDTH || area.height < MIN_RENDER_HEIGHT {
         render_small_terminal_hint(frame, area, theme);
@@ -42,21 +42,6 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     render_main_panels(frame, content_area, state, cli, &alerts);
     render_status_badge(frame, content_area, state);
     render_modal_overlay(frame, area, state, cli);
-}
-
-fn theme_for_state(state: &AppState) -> crate::ui::theme::Theme {
-    let capability = detect_color_capability(state.color_mode);
-    let (category, is_day) =
-        state
-            .weather
-            .as_ref()
-            .map_or((WeatherCategory::Unknown, false), |w| {
-                (
-                    weather_code_to_category(w.current.weather_code),
-                    w.current.is_day,
-                )
-            });
-    theme_for(category, is_day, capability, state.settings.theme)
 }
 
 fn render_small_terminal_hint(frame: &mut Frame, area: Rect, theme: crate::ui::theme::Theme) {
@@ -167,18 +152,7 @@ fn compact_logo_lines(inner_width: u16) -> Vec<&'static str> {
 }
 
 fn render_status_badge(frame: &mut Frame, area: Rect, state: &AppState) {
-    let capability = detect_color_capability(state.color_mode);
-    let (category, is_day) =
-        state
-            .weather
-            .as_ref()
-            .map_or((WeatherCategory::Unknown, false), |w| {
-                (
-                    weather_code_to_category(w.current.weather_code),
-                    w.current.is_day,
-                )
-            });
-    let theme = theme_for(category, is_day, capability, state.settings.theme);
+    let theme = resolved_theme(state);
 
     let label = match state.refresh_meta.state {
         FreshnessState::Offline => Some((freshness_badge_text("⚠ offline", state), theme.danger)),
@@ -215,18 +189,7 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
         return;
     }
 
-    let capability = detect_color_capability(state.color_mode);
-    let (category, is_day) =
-        state
-            .weather
-            .as_ref()
-            .map_or((WeatherCategory::Unknown, false), |w| {
-                (
-                    weather_code_to_category(w.current.weather_code),
-                    w.current.is_day,
-                )
-            });
-    let theme = theme_for(category, is_day, capability, state.settings.theme);
+    let theme = resolved_theme(state);
     let text = footer_text_for_width(area.width);
     let footer = Paragraph::new(Line::from(vec![
         Span::styled(text, Style::default().fg(theme.muted_text)),

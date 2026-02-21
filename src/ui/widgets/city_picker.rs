@@ -10,18 +10,18 @@ use ratatui::{
 
 use crate::{
     app::{settings::RecentLocation, state::AppState},
-    ui::theme::{Theme, detect_color_capability, theme_for},
+    ui::theme::{Theme, resolved_theme},
 };
+
+use super::shared::{popup_block, popup_panel_style};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(Clear, area);
 
-    let theme = city_picker_theme(state);
-    let panel_style = Style::default()
-        .fg(theme.popup_text)
-        .bg(theme.popup_surface);
+    let theme = resolved_theme(state);
+    let panel_style = popup_panel_style(theme);
 
-    let block = city_picker_block(theme, panel_style);
+    let block = popup_block("Locations", theme, panel_style);
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -40,36 +40,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_stateful_widget(list, chunks[1], &mut list_state);
 
     render_status_line(frame, chunks[2], state, theme);
-}
-
-fn city_picker_theme(state: &AppState) -> Theme {
-    let (category, is_day) = state.weather.as_ref().map_or(
-        (crate::domain::weather::WeatherCategory::Unknown, false),
-        |w| {
-            (
-                crate::domain::weather::weather_code_to_category(w.current.weather_code),
-                w.current.is_day,
-            )
-        },
-    );
-    theme_for(
-        category,
-        is_day,
-        detect_color_capability(state.color_mode),
-        state.settings.theme,
-    )
-}
-
-fn city_picker_block(theme: Theme, panel_style: Style) -> Block<'static> {
-    Block::default()
-        .title("Locations")
-        .borders(Borders::ALL)
-        .style(panel_style)
-        .border_style(
-            Style::default()
-                .fg(theme.popup_border)
-                .bg(theme.popup_surface),
-        )
 }
 
 fn render_query_line(frame: &mut Frame, area: Rect, state: &AppState, theme: Theme) {
