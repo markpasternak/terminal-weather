@@ -19,8 +19,8 @@ CYCLOMATIC_MEDIUM_MAX="${TW_CYCLOMATIC_MEDIUM_MAX:-8}"
 CYCLOMATIC_CRITICAL_MAX="${TW_CYCLOMATIC_CRITICAL_MAX:-12}"
 PARAM_MEDIUM_MAX="${TW_PARAM_MEDIUM_MAX:-8}"
 PARAM_CRITICAL_MAX="${TW_PARAM_CRITICAL_MAX:-12}"
-FAIL_ON_CRITICAL="${TW_FAIL_ON_CRITICAL:-1}"
-FAIL_ON_MEDIUM="${TW_FAIL_ON_MEDIUM:-0}"
+FAIL_ON_CRITICAL="${TW_COMPLEXITY_FAIL_ON_CRITICAL:-1}"
+FAIL_ON_MEDIUM="${TW_COMPLEXITY_FAIL_ON_MEDIUM:-0}"
 
 tmp_dir="$(mktemp -d)"
 file_metrics_tsv="$(mktemp)"
@@ -74,7 +74,7 @@ param_medium_violations="$(awk -F'\t' -v max="$PARAM_MEDIUM_MAX" '$6+0 > max {co
 critical_total=$((file_critical_violations + function_nloc_critical_violations + cyclomatic_critical_violations + param_critical_violations))
 medium_total=$((file_medium_violations + function_nloc_medium_violations + cyclomatic_medium_violations + param_medium_violations))
 
-echo "Codacy complexity parity summary:"
+echo "Complexity audit summary:"
 echo "  scope: src/ + tests/"
 echo "  analyzed: ${total_files} files, ${total_functions} function blocks"
 echo "  critical thresholds: file NLOC <= ${FILE_NLOC_CRITICAL_MAX}, function NLOC <= ${FUNCTION_NLOC_CRITICAL_MAX}, cyclomatic <= ${CYCLOMATIC_CRITICAL_MAX}, params <= ${PARAM_CRITICAL_MAX}"
@@ -120,14 +120,14 @@ fi
 
 if [[ "$critical_total" -gt 0 && "$FAIL_ON_CRITICAL" -eq 1 ]]; then
   echo
-  echo "Codacy complexity parity gate failed on critical thresholds."
+  echo "Complexity audit gate failed on critical thresholds."
   exit 1
 fi
 
 if [[ "$medium_total" -gt 0 && "$FAIL_ON_MEDIUM" -eq 1 ]]; then
   echo
-  echo "Codacy complexity parity gate failed on medium thresholds."
+  echo "Complexity audit gate failed on medium thresholds."
   exit 1
 fi
 
-echo "Codacy complexity parity gate passed for configured fail policy."
+echo "Complexity audit gate passed for configured fail policy."
