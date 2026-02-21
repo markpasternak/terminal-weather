@@ -149,15 +149,21 @@ fn cli_shape_contract_for_snapshot_tests() {
     assert!(!cli.one_shot);
 }
 
-#[test]
-fn snapshot_120x40_clear() {
-    insta::assert_snapshot!("120x40_clear", render_to_string(120, 40, 0));
+macro_rules! assert_weather_snapshot {
+    ($fn_name:ident, $snapshot:literal, $width:expr, $height:expr, $code:expr) => {
+        #[test]
+        fn $fn_name() {
+            insta::assert_snapshot!($snapshot, render_to_string($width, $height, $code));
+        }
+    };
 }
 
-#[test]
-fn snapshot_80x24_rain() {
-    insta::assert_snapshot!("80x24_rain", render_to_string(80, 24, 61));
-}
+assert_weather_snapshot!(snapshot_120x40_clear, "120x40_clear", 120, 40, 0);
+assert_weather_snapshot!(snapshot_80x24_rain, "80x24_rain", 80, 24, 61);
+assert_weather_snapshot!(snapshot_60x20_snow, "60x20_snow", 60, 20, 71);
+assert_weather_snapshot!(snapshot_40x15_fog, "40x15_fog", 40, 15, 45);
+assert_weather_snapshot!(snapshot_80x24_thunder, "80x24_thunder", 80, 24, 95);
+assert_weather_snapshot!(snapshot_19x9_tiny_fallback, "19x9_tiny_fallback", 19, 9, 0);
 
 #[test]
 fn snapshot_80x24_rain_with_aqi() {
@@ -168,26 +174,6 @@ fn snapshot_80x24_rain_with_aqi() {
         "80x24_rain_with_aqi",
         render_state_to_string(80, 24, &state, &cli)
     );
-}
-
-#[test]
-fn snapshot_60x20_snow() {
-    insta::assert_snapshot!("60x20_snow", render_to_string(60, 20, 71));
-}
-
-#[test]
-fn snapshot_40x15_fog() {
-    insta::assert_snapshot!("40x15_fog", render_to_string(40, 15, 45));
-}
-
-#[test]
-fn snapshot_80x24_thunder() {
-    insta::assert_snapshot!("80x24_thunder", render_to_string(80, 24, 95));
-}
-
-#[test]
-fn snapshot_19x9_tiny_fallback() {
-    insta::assert_snapshot!("19x9_tiny_fallback", render_to_string(19, 9, 0));
 }
 
 #[test]
@@ -254,69 +240,74 @@ fn regular_layout_renders_footer_shortcuts() {
     assert!(rendered.contains("F1/? Help"));
 }
 
-#[test]
-fn snapshot_120x40_hybrid() {
-    insta::assert_snapshot!(
-        "120x40_hybrid",
-        render_with_hourly_mode_to_string(120, 40, 61, HourlyViewMode::Hybrid)
-    );
+macro_rules! assert_hourly_mode_snapshot {
+    ($fn_name:ident, $snapshot:literal, $width:expr, $height:expr, $mode:expr) => {
+        #[test]
+        fn $fn_name() {
+            insta::assert_snapshot!(
+                $snapshot,
+                render_with_hourly_mode_to_string($width, $height, 61, $mode)
+            );
+        }
+    };
 }
 
-#[test]
-fn snapshot_100x30_hybrid() {
-    insta::assert_snapshot!(
-        "100x30_hybrid",
-        render_with_hourly_mode_to_string(100, 30, 61, HourlyViewMode::Hybrid)
-    );
-}
-
-#[test]
-fn snapshot_80x24_hybrid() {
-    insta::assert_snapshot!(
-        "80x24_hybrid",
-        render_with_hourly_mode_to_string(80, 24, 61, HourlyViewMode::Hybrid)
-    );
-}
-
-#[test]
-fn snapshot_60x20_hybrid() {
-    insta::assert_snapshot!(
-        "60x20_hybrid",
-        render_with_hourly_mode_to_string(60, 20, 61, HourlyViewMode::Hybrid)
-    );
-}
-
-#[test]
-fn snapshot_120x40_chart() {
-    insta::assert_snapshot!(
-        "120x40_chart",
-        render_with_hourly_mode_to_string(120, 40, 61, HourlyViewMode::Chart)
-    );
-}
-
-#[test]
-fn snapshot_100x30_chart() {
-    insta::assert_snapshot!(
-        "100x30_chart",
-        render_with_hourly_mode_to_string(100, 30, 61, HourlyViewMode::Chart)
-    );
-}
-
-#[test]
-fn snapshot_80x24_chart() {
-    insta::assert_snapshot!(
-        "80x24_chart",
-        render_with_hourly_mode_to_string(80, 24, 61, HourlyViewMode::Chart)
-    );
-}
-
-#[test]
-fn snapshot_60x20_chart() {
-    insta::assert_snapshot!(
-        "60x20_chart",
-        render_with_hourly_mode_to_string(60, 20, 61, HourlyViewMode::Chart)
-    );
-}
+assert_hourly_mode_snapshot!(
+    snapshot_120x40_hybrid,
+    "120x40_hybrid",
+    120,
+    40,
+    HourlyViewMode::Hybrid
+);
+assert_hourly_mode_snapshot!(
+    snapshot_100x30_hybrid,
+    "100x30_hybrid",
+    100,
+    30,
+    HourlyViewMode::Hybrid
+);
+assert_hourly_mode_snapshot!(
+    snapshot_80x24_hybrid,
+    "80x24_hybrid",
+    80,
+    24,
+    HourlyViewMode::Hybrid
+);
+assert_hourly_mode_snapshot!(
+    snapshot_60x20_hybrid,
+    "60x20_hybrid",
+    60,
+    20,
+    HourlyViewMode::Hybrid
+);
+assert_hourly_mode_snapshot!(
+    snapshot_120x40_chart,
+    "120x40_chart",
+    120,
+    40,
+    HourlyViewMode::Chart
+);
+assert_hourly_mode_snapshot!(
+    snapshot_100x30_chart,
+    "100x30_chart",
+    100,
+    30,
+    HourlyViewMode::Chart
+);
+assert_hourly_mode_snapshot!(
+    snapshot_80x24_chart,
+    "80x24_chart",
+    80,
+    24,
+    HourlyViewMode::Chart
+);
+assert_hourly_mode_snapshot!(
+    snapshot_60x20_chart,
+    "60x20_chart",
+    60,
+    20,
+    HourlyViewMode::Chart
+);
 
 #[test]
 fn narrow_layout_forces_table_for_hybrid_mode() {
