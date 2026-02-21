@@ -20,3 +20,4 @@
 /assets/screenshots/generated-*.png
 /assets/screenshots/generated-*.jpg
 /demo.cast
+*.snap.new
