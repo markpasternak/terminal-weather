@@ -354,7 +354,9 @@ mod tests {
 
         impl Drop for EnvVarGuard {
             fn drop(&mut self) {
-                unsafe { std::env::remove_var(self.key); }
+                unsafe {
+                    std::env::remove_var(self.key);
+                }
             }
         }
 
@@ -367,10 +369,14 @@ mod tests {
         // Note: this modifies process state which may affect other tests running in parallel
         // however, these env vars are specific to this test case.
         // We use RAII guards to ensure cleanup even if assertions fail.
-        unsafe { std::env::set_var(key_forecast, custom_forecast); }
+        unsafe {
+            std::env::set_var(key_forecast, custom_forecast);
+        }
         let _guard_forecast = EnvVarGuard { key: key_forecast };
 
-        unsafe { std::env::set_var(key_aq, custom_aq); }
+        unsafe {
+            std::env::set_var(key_aq, custom_aq);
+        }
         let _guard_aq = EnvVarGuard { key: key_aq };
 
         let client = ForecastClient::new();
