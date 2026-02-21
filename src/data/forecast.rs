@@ -44,6 +44,12 @@ impl ForecastClient {
         }
     }
 
+    #[must_use]
+    pub fn with_air_quality_url(mut self, url: impl Into<String>) -> Self {
+        self.air_quality_url = url.into();
+        self
+    }
+
     pub async fn fetch(&self, location: Location) -> Result<ForecastBundle> {
         let response = self
             .client
