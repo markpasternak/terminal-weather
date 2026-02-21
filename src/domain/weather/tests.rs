@@ -161,6 +161,19 @@ fn summarize_precip_window_includes_12h_boundary() {
     assert!((summary.first_amount_mm - 0.4).abs() < 0.001);
 }
 
+#[test]
+fn location_from_coords_formats_name_correctly() {
+    let location = Location::from_coords(51.5074, -0.1278);
+
+    assert!((location.latitude - 51.5074).abs() < f64::EPSILON);
+    assert!((location.longitude - -0.1278).abs() < f64::EPSILON);
+    assert_eq!(location.name, "51.5074, -0.1278");
+    assert!(location.country.is_none());
+    assert!(location.admin1.is_none());
+    assert!(location.timezone.is_none());
+    assert!(location.population.is_none());
+}
+
 fn sample_hour(
     time: NaiveDateTime,
     temp_c: f32,
