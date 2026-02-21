@@ -45,3 +45,4 @@ lto = "thin"
 [package.metadata.dev-tools]
 rust_code_analysis_cli = "0.0.25"
 jq = "1.6"
+cargo_dupes = "0.2.1"
