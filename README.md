@@ -139,7 +139,7 @@ Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (yo
 
 ---
 
-## What's New in v0.5.1
+## What's New in v0.5.2
 
 - **Faster runtime path** — improved refresh/render efficiency with tighter terminal sizing logic, concurrent fetches, and forecast caching.
 - **Hardening pass** — strengthened settings-file safety (Unix `0600` permissions and defensive size checks) to reduce local risk.
