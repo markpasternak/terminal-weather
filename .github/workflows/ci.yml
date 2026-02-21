@@ -45,7 +45,7 @@ jobs:
         run: ./scripts/check.sh --verbose
 
       - name: Upload coverage to Codacy
-        if: env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '')
+        if: github.ref == 'refs/heads/main' && (env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != ''))
         env:
           TW_CODACY_UPLOAD: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '0' }}
           TW_COVERAGE_FAIL_ON_THRESHOLD: "0"
