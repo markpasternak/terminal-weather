@@ -63,6 +63,39 @@ fn fetch_context_line_shows_retry_when_available() {
     assert!(line.contains("retry in"));
 }
 
+#[test]
+fn last_updated_label_without_success_uses_placeholder() {
+    let state = AppState::new(&test_cli());
+    let weather = sample_bundle();
+    let label = last_updated_label(&state, &weather);
+    assert!(label.starts_with("Last updated: --:-- local"));
+    assert!(label.ends_with("City TZ Europe/Stockholm"));
+}
+
+#[test]
+fn fetch_context_line_is_suppressed_when_fresh() {
+    let mut state = AppState::new(&test_cli());
+    state.refresh_meta.state = FreshnessState::Fresh;
+    state.last_error = Some("transient error".to_string());
+    assert!(fetch_context_line(&state).is_none());
+}
+
+#[test]
+fn fetch_context_line_truncates_long_multiline_errors() {
+    let mut state = AppState::new(&test_cli());
+    state.refresh_meta.state = FreshnessState::Offline;
+    state.last_error = Some(format!(
+        "{}\n{}",
+        "x".repeat(120),
+        "this second line should not appear"
+    ));
+
+    let line = fetch_context_line(&state).expect("fetch context line");
+    assert!(line.starts_with("Last fetch failed: "));
+    assert!(!line.contains("second line"));
+    assert!(line.contains('…'));
+}
+
 fn test_cli() -> Cli {
     Cli {
         city: Some("Stockholm".to_string()),

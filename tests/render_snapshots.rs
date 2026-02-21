@@ -270,6 +270,29 @@ fn render_help_to_string(width: u16, height: u16, weather_code: u8) -> String {
 }
 
 #[test]
+fn fixture_bundle_shape_contract() {
+    let bundle = fixture_bundle(61);
+    assert_eq!(bundle.hourly.len(), 12);
+    assert_eq!(bundle.daily.len(), 7);
+    assert_eq!(
+        bundle.location.timezone.as_deref(),
+        Some("Europe/Stockholm")
+    );
+    assert_eq!(bundle.current.weather_code, 61);
+}
+
+#[test]
+fn cli_shape_contract_for_snapshot_tests() {
+    let cli = cli();
+    assert_eq!(cli.city.as_deref(), Some("Stockholm"));
+    assert_eq!(cli.refresh_interval, 600);
+    assert_eq!(cli.theme, ThemeArg::Auto);
+    assert_eq!(cli.hero_visual, HeroVisualArg::AtmosCanvas);
+    assert!(!cli.demo);
+    assert!(!cli.one_shot);
+}
+
+#[test]
 fn snapshot_120x40_clear() {
     insta::assert_snapshot!("120x40_clear", render_to_string(120, 40, 0));
 }

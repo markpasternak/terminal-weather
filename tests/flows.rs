@@ -467,3 +467,26 @@ fn flow_cli_hourly_view_override_applies_at_runtime() {
     assert_eq!(state.hourly_view_mode, HourlyViewMode::Chart);
     assert_eq!(state.settings.hourly_view, HourlyViewMode::Table);
 }
+
+#[test]
+fn fixture_bundle_shape_contract() {
+    let bundle = fixture_bundle();
+    assert_eq!(bundle.hourly.len(), 24);
+    assert_eq!(bundle.daily.len(), 7);
+    assert_eq!(
+        bundle.location.timezone.as_deref(),
+        Some("Europe/Stockholm")
+    );
+    assert_eq!(bundle.current.weather_code, 61);
+}
+
+#[test]
+fn cli_shape_contract_for_flow_tests() {
+    let cli = cli();
+    assert_eq!(cli.city.as_deref(), Some("Stockholm"));
+    assert_eq!(cli.refresh_interval, 600);
+    assert_eq!(cli.theme, ThemeArg::Auto);
+    assert_eq!(cli.hero_visual, HeroVisualArg::AtmosCanvas);
+    assert!(!cli.demo);
+    assert!(!cli.one_shot);
+}

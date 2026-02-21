@@ -100,3 +100,71 @@ impl DailyLayout {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn for_area_selects_expected_layout_breakpoints() {
+        let wide = DailyLayout::for_area(area_with_inner_width(112));
+        assert!(wide.show_icon);
+        assert!(wide.show_bar);
+        assert!(wide.show_header);
+        assert!(wide.show_precip_col);
+        assert!(wide.show_gust_col);
+        assert_eq!(wide.column_spacing, 2);
+        assert!((18..=48).contains(&wide.bar_width));
+
+        let medium_plus = DailyLayout::for_area(area_with_inner_width(86));
+        assert!(medium_plus.show_icon);
+        assert!(medium_plus.show_bar);
+        assert!(medium_plus.show_header);
+        assert!(medium_plus.show_precip_col);
+        assert!(!medium_plus.show_gust_col);
+        assert_eq!(medium_plus.column_spacing, 1);
+        assert!((14..=34).contains(&medium_plus.bar_width));
+
+        let medium = DailyLayout::for_area(area_with_inner_width(56));
+        assert!(medium.show_icon);
+        assert!(medium.show_bar);
+        assert!(medium.show_header);
+        assert!(!medium.show_precip_col);
+        assert!(!medium.show_gust_col);
+        assert_eq!(medium.column_spacing, 1);
+        assert!((10..=24).contains(&medium.bar_width));
+
+        let compact = DailyLayout::for_area(area_with_inner_width(36));
+        assert!(!compact.show_icon);
+        assert!(compact.show_bar);
+        assert!(compact.show_header);
+        assert!(!compact.show_precip_col);
+        assert!(!compact.show_gust_col);
+        assert_eq!(compact.column_spacing, 1);
+        assert!((6..=18).contains(&compact.bar_width));
+
+        let narrow = DailyLayout::for_area(area_with_inner_width(35));
+        assert!(!narrow.show_icon);
+        assert!(!narrow.show_bar);
+        assert!(!narrow.show_header);
+        assert!(!narrow.show_precip_col);
+        assert!(!narrow.show_gust_col);
+        assert_eq!(narrow.bar_width, 0);
+        assert_eq!(narrow.column_spacing, 1);
+    }
+
+    #[test]
+    fn max_rows_respects_header_and_seven_day_cap() {
+        let wide = DailyLayout::for_area(area_with_inner_width(112));
+        assert_eq!(wide.max_rows(20), 7);
+        assert_eq!(wide.max_rows(3), 2);
+
+        let narrow = DailyLayout::for_area(area_with_inner_width(35));
+        assert_eq!(narrow.max_rows(20), 7);
+        assert_eq!(narrow.max_rows(3), 3);
+    }
+
+    fn area_with_inner_width(inner_width: u16) -> Rect {
+        Rect::new(0, 0, inner_width + 2, 12)
+    }
+}

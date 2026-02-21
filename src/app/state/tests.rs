@@ -1,7 +1,10 @@
-use super::{AppState, initial_selected_location, is_city_char};
+use super::{
+    AppState, adjust_hero_visual_setting, adjust_icon_setting, adjust_motion_setting,
+    initial_selected_location, is_city_char,
+};
 use crate::{
-    app::settings::{RecentLocation, RuntimeSettings},
-    cli::{Cli, ColorArg, HeroVisualArg, ThemeArg, UnitsArg},
+    app::settings::{MotionSetting, RecentLocation, RuntimeSettings},
+    cli::{Cli, ColorArg, HeroVisualArg, IconMode, ThemeArg, UnitsArg},
 };
 use std::sync::atomic::Ordering;
 
@@ -68,6 +71,51 @@ fn apply_runtime_settings_updates_refresh_interval_runtime() {
         state.refresh_interval_secs_runtime.load(Ordering::Relaxed),
         300
     );
+}
+
+#[test]
+fn adjust_motion_setting_cycles_forward_and_backward() {
+    let mut state = AppState::new(&test_cli());
+    assert_eq!(state.settings.motion, MotionSetting::Off);
+
+    assert!(adjust_motion_setting(&mut state, 1));
+    assert_eq!(state.settings.motion, MotionSetting::Full);
+
+    assert!(adjust_motion_setting(&mut state, 1));
+    assert_eq!(state.settings.motion, MotionSetting::Reduced);
+
+    assert!(adjust_motion_setting(&mut state, -1));
+    assert_eq!(state.settings.motion, MotionSetting::Full);
+}
+
+#[test]
+fn adjust_icon_setting_cycles_forward_and_backward() {
+    let mut state = AppState::new(&test_cli());
+    assert_eq!(state.settings.icon_mode, IconMode::Unicode);
+
+    assert!(adjust_icon_setting(&mut state, 1));
+    assert_eq!(state.settings.icon_mode, IconMode::Ascii);
+
+    assert!(adjust_icon_setting(&mut state, 1));
+    assert_eq!(state.settings.icon_mode, IconMode::Emoji);
+
+    assert!(adjust_icon_setting(&mut state, -1));
+    assert_eq!(state.settings.icon_mode, IconMode::Ascii);
+}
+
+#[test]
+fn adjust_hero_visual_setting_cycles_forward_and_backward() {
+    let mut state = AppState::new(&test_cli());
+    assert_eq!(state.settings.hero_visual, HeroVisualArg::AtmosCanvas);
+
+    assert!(adjust_hero_visual_setting(&mut state, 1));
+    assert_eq!(state.settings.hero_visual, HeroVisualArg::GaugeCluster);
+
+    assert!(adjust_hero_visual_setting(&mut state, 1));
+    assert_eq!(state.settings.hero_visual, HeroVisualArg::SkyObservatory);
+
+    assert!(adjust_hero_visual_setting(&mut state, -1));
+    assert_eq!(state.settings.hero_visual, HeroVisualArg::GaugeCluster);
 }
 
 fn test_cli() -> Cli {
