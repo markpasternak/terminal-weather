@@ -139,13 +139,12 @@ Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (yo
 
 ---
 
-## What's New in v0.5.0
+## What's New in v0.5.1
 
-- **Homebrew** — `brew tap markpasternak/tap && brew install markpasternak/tap/terminal-weather`
-- **Accurate weather descriptions** — fixed misleading messages across all conditions
-- **Landmark panel** — title bar, context lines, and cleaner layout
-- **Reliable auto-theme** — hardened capability detection across more terminals
-- **Consistent wind units** — m/s shown uniformly across all panels
+- **Faster runtime path** — improved refresh/render efficiency with tighter terminal sizing logic, concurrent fetches, and forecast caching.
+- **Hardening pass** — strengthened settings-file safety (Unix `0600` permissions and defensive size checks) to reduce local risk.
+- **Better operator controls** — forecast and air-quality API endpoints are now overrideable via CLI flags and environment variables.
+- **Quality and maintainability uplift** — substantial deduplication/refactoring plus expanded tests and stricter complexity/coverage gates.
 
 ---
 
