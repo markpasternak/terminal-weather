@@ -11,6 +11,7 @@ use crate::ui::widgets::landmark::shared::{
     compass_arrow, compass_short, fit_lines, fit_lines_centered,
 };
 use crate::ui::widgets::landmark::{LandmarkScene, scene_name, tint_for_category};
+use crate::ui::widgets::shared::sparkline_blocks as shared_sparkline_blocks;
 
 #[derive(Debug)]
 struct GaugeData {
@@ -344,7 +345,7 @@ fn meter_with_threshold(norm: f32, width: usize, threshold: Option<f32>) -> Stri
 }
 
 fn sparkline_annotated(values: &[f32], width: usize, _suffix: &str) -> String {
-    sparkline_blocks(values, width)
+    shared_sparkline_blocks(values, width)
 }
 
 fn temp_range_label(values: &[f32]) -> String {
@@ -376,21 +377,4 @@ fn range_label(values: &[f32], suffix: &str) -> String {
     let min = values.iter().copied().fold(f32::INFINITY, f32::min);
     let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
     format!("{min:.0}{suffix}–{max:.0}{suffix}")
-}
-
-fn sparkline_blocks(values: &[f32], width: usize) -> String {
-    const BARS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-    if values.is_empty() || width == 0 {
-        return String::new();
-    }
-    let min = values.iter().copied().fold(f32::INFINITY, f32::min);
-    let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-    let span = (max - min).max(0.001);
-    (0..width)
-        .map(|idx| {
-            let src = (idx * values.len() / width).min(values.len().saturating_sub(1));
-            let norm = ((values[src] - min) / span).clamp(0.0, 1.0);
-            BARS[(norm * (BARS.len() - 1) as f32).round() as usize]
-        })
-        .collect()
 }

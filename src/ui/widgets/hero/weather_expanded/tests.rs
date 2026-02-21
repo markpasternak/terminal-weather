@@ -1,11 +1,13 @@
-use super::super::test_support::{sample_bundle, test_cli};
+use super::super::test_support::{
+    assert_fetch_context_suppressed_when_fresh,
+    assert_fetch_context_truncates_long_multiline_errors, assert_last_updated_placeholder,
+    sample_bundle, test_cli,
+};
 use super::{
     expanded_fetch_context, last_updated_label, trends::next_precip_summary,
     trends::pressure_span_summary,
 };
-use crate::{
-    app::state::AppState, domain::weather::HourlyForecast, resilience::freshness::FreshnessState,
-};
+use crate::{app::state::AppState, domain::weather::HourlyForecast};
 use chrono::{Duration, NaiveDate, NaiveDateTime, Utc};
 
 #[test]
@@ -38,11 +40,7 @@ fn pressure_span_summary_handles_empty_and_non_empty() {
 
 #[test]
 fn last_updated_label_without_success_uses_placeholder() {
-    let state = AppState::new(&test_cli());
-    let weather = sample_bundle();
-    let label = last_updated_label(&state, &weather);
-    assert!(label.starts_with("Last updated --:-- local"));
-    assert!(label.ends_with("City TZ Europe/Stockholm"));
+    assert_last_updated_placeholder(last_updated_label, "Last updated --:-- local");
 }
 
 #[test]
@@ -57,26 +55,12 @@ fn last_updated_label_includes_age_and_timezone() {
 
 #[test]
 fn expanded_fetch_context_is_suppressed_when_fresh() {
-    let mut state = AppState::new(&test_cli());
-    state.refresh_meta.state = FreshnessState::Fresh;
-    state.last_error = Some("transient error".to_string());
-    assert!(expanded_fetch_context(&state).is_none());
+    assert_fetch_context_suppressed_when_fresh(expanded_fetch_context);
 }
 
 #[test]
 fn expanded_fetch_context_truncates_long_multiline_errors() {
-    let mut state = AppState::new(&test_cli());
-    state.refresh_meta.state = FreshnessState::Offline;
-    state.last_error = Some(format!(
-        "{}\n{}",
-        "x".repeat(120),
-        "this second line should not appear"
-    ));
-
-    let line = expanded_fetch_context(&state).expect("fetch context line");
-    assert!(line.starts_with("Last fetch failed: "));
-    assert!(!line.contains("second line"));
-    assert!(line.contains('…'));
+    assert_fetch_context_truncates_long_multiline_errors(expanded_fetch_context);
 }
 
 fn dt(hour: u32) -> NaiveDateTime {

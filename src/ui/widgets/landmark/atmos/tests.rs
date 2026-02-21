@@ -13,22 +13,25 @@ fn ambient_marks(canvas: &[Vec<char>]) -> usize {
         .count()
 }
 
+fn base_ctx() -> AmbientSkyLifeContext {
+    AmbientSkyLifeContext {
+        category: WeatherCategory::Clear,
+        is_day: true,
+        cloud_pct: 30.0,
+        wind_speed: 10.0,
+        phase: 24,
+        animate: true,
+        horizon_y: 10,
+        width: 40,
+    }
+}
+
 #[test]
 fn ambient_sky_life_not_rendered_at_night() {
     let mut canvas = blank_canvas(40, 16);
-    paint_ambient_sky_life(
-        &mut canvas,
-        AmbientSkyLifeContext {
-            category: WeatherCategory::Clear,
-            is_day: false,
-            cloud_pct: 30.0,
-            wind_speed: 10.0,
-            phase: 24,
-            animate: true,
-            horizon_y: 10,
-            width: 40,
-        },
-    );
+    let mut ctx = base_ctx();
+    ctx.is_day = false;
+    paint_ambient_sky_life(&mut canvas, ctx);
     assert_eq!(ambient_marks(&canvas), 0);
 }
 
@@ -36,19 +39,9 @@ fn ambient_sky_life_not_rendered_at_night() {
 fn ambient_sky_life_not_rendered_in_rain_or_thunder() {
     for category in [WeatherCategory::Rain, WeatherCategory::Thunder] {
         let mut canvas = blank_canvas(40, 16);
-        paint_ambient_sky_life(
-            &mut canvas,
-            AmbientSkyLifeContext {
-                category,
-                is_day: true,
-                cloud_pct: 30.0,
-                wind_speed: 10.0,
-                phase: 24,
-                animate: true,
-                horizon_y: 10,
-                width: 40,
-            },
-        );
+        let mut ctx = base_ctx();
+        ctx.category = category;
+        paint_ambient_sky_life(&mut canvas, ctx);
         assert_eq!(ambient_marks(&canvas), 0);
     }
 }
@@ -56,19 +49,12 @@ fn ambient_sky_life_not_rendered_in_rain_or_thunder() {
 #[test]
 fn ambient_sky_life_renders_when_clear_day_and_phase_nonzero() {
     let mut canvas = blank_canvas(48, 16);
-    paint_ambient_sky_life(
-        &mut canvas,
-        AmbientSkyLifeContext {
-            category: WeatherCategory::Clear,
-            is_day: true,
-            cloud_pct: 28.0,
-            wind_speed: 12.0,
-            phase: 20,
-            animate: true,
-            horizon_y: 10,
-            width: 48,
-        },
-    );
+    let mut ctx = base_ctx();
+    ctx.cloud_pct = 28.0;
+    ctx.wind_speed = 12.0;
+    ctx.phase = 20;
+    ctx.width = 48;
+    paint_ambient_sky_life(&mut canvas, ctx);
     assert!(ambient_marks(&canvas) > 0);
 }
 
@@ -76,31 +62,13 @@ fn ambient_sky_life_renders_when_clear_day_and_phase_nonzero() {
 fn ambient_sky_life_deterministic_for_same_inputs() {
     let mut first = blank_canvas(48, 16);
     let mut second = blank_canvas(48, 16);
-    paint_ambient_sky_life(
-        &mut first,
-        AmbientSkyLifeContext {
-            category: WeatherCategory::Cloudy,
-            is_day: true,
-            cloud_pct: 35.0,
-            wind_speed: 14.0,
-            phase: 37,
-            animate: true,
-            horizon_y: 10,
-            width: 48,
-        },
-    );
-    paint_ambient_sky_life(
-        &mut second,
-        AmbientSkyLifeContext {
-            category: WeatherCategory::Cloudy,
-            is_day: true,
-            cloud_pct: 35.0,
-            wind_speed: 14.0,
-            phase: 37,
-            animate: true,
-            horizon_y: 10,
-            width: 48,
-        },
-    );
+    let mut ctx = base_ctx();
+    ctx.category = WeatherCategory::Cloudy;
+    ctx.cloud_pct = 35.0;
+    ctx.wind_speed = 14.0;
+    ctx.phase = 37;
+    ctx.width = 48;
+    paint_ambient_sky_life(&mut first, ctx);
+    paint_ambient_sky_life(&mut second, ctx);
     assert_eq!(first, second);
 }

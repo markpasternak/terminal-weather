@@ -3,7 +3,7 @@ use super::{
 };
 use crate::{
     app::settings::{MotionSetting, RecentLocation, RuntimeSettings},
-    cli::{Cli, ColorArg, HeroVisualArg, IconMode, ThemeArg, UnitsArg},
+    cli::{HeroVisualArg, IconMode},
 };
 use std::fmt::Debug;
 use std::sync::atomic::Ordering;
@@ -23,16 +23,9 @@ fn city_input_rejects_control_chars() {
 
 #[test]
 fn initial_selected_location_uses_recent_when_no_cli_location() {
-    let cli = test_cli();
+    let cli = crate::test_support::state_test_cli();
     let mut settings = RuntimeSettings::default();
-    settings.recent_locations.push(RecentLocation {
-        name: "Stockholm".to_string(),
-        latitude: 59.3293,
-        longitude: 18.0686,
-        country: Some("Sweden".to_string()),
-        admin1: Some("Stockholm".to_string()),
-        timezone: Some("Europe/Stockholm".to_string()),
-    });
+    settings.recent_locations.push(stockholm_recent_location());
 
     let selected = initial_selected_location(&cli, &settings).expect("selected location");
     assert_eq!(selected.name, "Stockholm");
@@ -40,31 +33,24 @@ fn initial_selected_location_uses_recent_when_no_cli_location() {
 
 #[test]
 fn initial_selected_location_respects_cli_city_override() {
-    let mut cli = test_cli();
+    let mut cli = crate::test_support::state_test_cli();
     cli.city = Some("Berlin".to_string());
     let mut settings = RuntimeSettings::default();
-    settings.recent_locations.push(RecentLocation {
-        name: "Stockholm".to_string(),
-        latitude: 59.3293,
-        longitude: 18.0686,
-        country: Some("Sweden".to_string()),
-        admin1: Some("Stockholm".to_string()),
-        timezone: Some("Europe/Stockholm".to_string()),
-    });
+    settings.recent_locations.push(stockholm_recent_location());
 
     assert!(initial_selected_location(&cli, &settings).is_none());
 }
 
 #[test]
 fn settings_hint_explains_hero_visual() {
-    let mut state = AppState::new(&test_cli());
+    let mut state = AppState::new(&crate::test_support::state_test_cli());
     state.settings_selected = super::SettingsSelection::HeroVisual;
     assert!(state.settings_hint().contains("Current panel right side"));
 }
 
 #[test]
 fn apply_runtime_settings_updates_refresh_interval_runtime() {
-    let mut state = AppState::new(&test_cli());
+    let mut state = AppState::new(&crate::test_support::state_test_cli());
     state.settings.refresh_interval_secs = 300;
     state.apply_runtime_settings();
     assert_eq!(
@@ -75,7 +61,8 @@ fn apply_runtime_settings_updates_refresh_interval_runtime() {
 
 #[test]
 fn adjust_setting_cycles_forward_and_backward() {
-    let mut state = AppState::new(&test_cli());
+    let mut state = AppState::new(&crate::test_support::state_test_cli());
+    state.settings.motion = MotionSetting::Off;
     assert_cycle(
         &mut state,
         SettingsSelection::Motion,
@@ -85,6 +72,7 @@ fn adjust_setting_cycles_forward_and_backward() {
         MotionSetting::Full,
         |s| s.settings.motion,
     );
+    state.settings.icon_mode = IconMode::Unicode;
     assert_cycle(
         &mut state,
         SettingsSelection::Icons,
@@ -94,6 +82,7 @@ fn adjust_setting_cycles_forward_and_backward() {
         IconMode::Ascii,
         |s| s.settings.icon_mode,
     );
+    state.settings.hero_visual = HeroVisualArg::AtmosCanvas;
     assert_cycle(
         &mut state,
         SettingsSelection::HeroVisual,
@@ -126,28 +115,6 @@ fn assert_cycle<T, F>(
     assert_eq!(read(state), previous);
 }
 
-fn test_cli() -> Cli {
-    Cli {
-        city: None,
-        units: UnitsArg::Celsius,
-        fps: 30,
-        no_animation: true,
-        reduced_motion: false,
-        no_flash: true,
-        ascii_icons: false,
-        emoji_icons: false,
-        color: ColorArg::Auto,
-        no_color: false,
-        hourly_view: None,
-        theme: ThemeArg::Auto,
-        hero_visual: HeroVisualArg::AtmosCanvas,
-        country_code: None,
-        lat: None,
-        lon: None,
-        forecast_url: None,
-        air_quality_url: None,
-        refresh_interval: 600,
-        demo: false,
-        one_shot: false,
-    }
+fn stockholm_recent_location() -> RecentLocation {
+    RecentLocation::from_location(&crate::test_support::stockholm_location())
 }

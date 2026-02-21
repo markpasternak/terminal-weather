@@ -6,35 +6,18 @@ pub(super) fn format_duration_hm(seconds: f32) -> String {
 }
 
 pub(super) fn profile_bar(values: &[f32], width: usize) -> String {
-    const BARS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-    if values.is_empty() || width == 0 {
+    if values.is_empty() {
         return String::new();
     }
-    let min = values.iter().copied().fold(f32::INFINITY, f32::min);
-    let max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-    let span = (max - min).max(0.001);
-    (0..width)
-        .map(|idx| {
-            let src = (idx * values.len() / width).min(values.len().saturating_sub(1));
-            let norm = ((values[src] - min) / span).clamp(0.0, 1.0);
-            BARS[(norm * (BARS.len() - 1) as f32).round() as usize]
-        })
-        .collect()
+    crate::ui::widgets::shared::sparkline_blocks(values, width)
 }
 
 pub(super) fn precipitation_cue(day: &crate::domain::weather::DailyForecast) -> String {
     let precip = day.precipitation_sum_mm.unwrap_or(0.0);
     let snow = day.snowfall_sum_cm.unwrap_or(0.0);
-    if snow >= 1.0 {
-        return format!("snow {snow:.1}cm");
-    }
-    if precip >= 6.0 {
-        return format!("wet {precip:.1}mm");
-    }
-    if precip >= 1.0 {
-        return format!("light rain {precip:.1}mm");
-    }
-    "mostly dry".to_string()
+    snow_cue(snow)
+        .or_else(|| rain_cue(precip))
+        .unwrap_or_else(|| "mostly dry".to_string())
 }
 
 pub(super) fn gust_cue(gust: f32) -> Option<String> {
@@ -103,4 +86,18 @@ pub(super) fn day_cue(day: &crate::domain::weather::DailyForecast) -> String {
         parts.push(sunlight.to_string());
     }
     parts.join(", ")
+}
+
+fn snow_cue(snow: f32) -> Option<String> {
+    (snow >= 1.0).then(|| format!("snow {snow:.1}cm"))
+}
+
+fn rain_cue(precip: f32) -> Option<String> {
+    if precip >= 6.0 {
+        Some(format!("wet {precip:.1}mm"))
+    } else if precip >= 1.0 {
+        Some(format!("light rain {precip:.1}mm"))
+    } else {
+        None
+    }
 }

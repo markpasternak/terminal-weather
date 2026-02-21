@@ -32,165 +32,202 @@ pub(super) fn push_metric_lines(
     metric_gap: &'static str,
     compact: bool,
 ) {
-    if compact {
-        push_compact_metric_lines(lines, data, theme, metric_gap);
+    let rows: &[MetricRow] = if compact {
+        &COMPACT_ROWS
     } else {
-        push_standard_metric_lines(lines, data, theme, metric_gap);
+        &STANDARD_ROWS
+    };
+    lines.extend(
+        rows.iter()
+            .copied()
+            .map(|row| build_metric_row(data, theme, metric_gap, row)),
+    );
+}
+
+#[derive(Clone, Copy)]
+enum MetricSlot {
+    Feels,
+    DewCompact,
+    DewStandard,
+    Wind,
+    Visibility,
+    PressureCompact,
+    PressureStandard,
+    Humidity,
+    Cloud,
+    Uv,
+    RainChance,
+    Aqi,
+}
+
+#[derive(Clone, Copy)]
+enum MetricRow {
+    Pair(MetricSlot, MetricSlot),
+    Single(MetricSlot),
+    CloudUv,
+}
+
+const COMPACT_ROWS: [MetricRow; 4] = [
+    MetricRow::Pair(MetricSlot::Wind, MetricSlot::Visibility),
+    MetricRow::Single(MetricSlot::PressureCompact),
+    MetricRow::Pair(MetricSlot::DewCompact, MetricSlot::Humidity),
+    MetricRow::Pair(MetricSlot::RainChance, MetricSlot::Aqi),
+];
+
+const STANDARD_ROWS: [MetricRow; 5] = [
+    MetricRow::Pair(MetricSlot::Feels, MetricSlot::DewStandard),
+    MetricRow::Pair(MetricSlot::Wind, MetricSlot::Visibility),
+    MetricRow::Pair(MetricSlot::PressureStandard, MetricSlot::Humidity),
+    MetricRow::CloudUv,
+    MetricRow::Pair(MetricSlot::RainChance, MetricSlot::Aqi),
+];
+
+fn build_metric_row(
+    data: &WeatherMetricsData,
+    theme: Theme,
+    metric_gap: &'static str,
+    row: MetricRow,
+) -> Line<'static> {
+    let mut spans = Vec::new();
+    match row {
+        MetricRow::Pair(left, right) => {
+            append_metric(&mut spans, descriptor(data, theme, left), theme);
+            spans.push(Span::raw(metric_gap));
+            append_metric(&mut spans, descriptor(data, theme, right), theme);
+        }
+        MetricRow::Single(slot) => {
+            append_metric(&mut spans, descriptor(data, theme, slot), theme);
+        }
+        MetricRow::CloudUv => {
+            append_metric(
+                &mut spans,
+                descriptor(data, theme, MetricSlot::Cloud),
+                theme,
+            );
+            spans.push(Span::raw(" "));
+            spans.push(Span::styled(
+                data.cloud_split.clone(),
+                Style::default().fg(theme.muted_text),
+            ));
+            spans.push(Span::raw(metric_gap));
+            append_metric(&mut spans, descriptor(data, theme, MetricSlot::Uv), theme);
+        }
+    }
+    Line::from(spans)
+}
+
+struct MetricDescriptor {
+    label: &'static str,
+    value: String,
+    color: Color,
+}
+
+fn descriptor(data: &WeatherMetricsData, theme: Theme, slot: MetricSlot) -> MetricDescriptor {
+    match slot {
+        MetricSlot::Feels
+        | MetricSlot::DewCompact
+        | MetricSlot::DewStandard
+        | MetricSlot::Wind
+        | MetricSlot::Visibility
+        | MetricSlot::PressureCompact => descriptor_primary(data, theme, slot),
+        MetricSlot::PressureStandard
+        | MetricSlot::Humidity
+        | MetricSlot::Cloud
+        | MetricSlot::Uv
+        | MetricSlot::RainChance
+        | MetricSlot::Aqi => descriptor_secondary(data, theme, slot),
     }
 }
 
-fn push_compact_metric_lines(
-    lines: &mut Vec<Line<'static>>,
+fn descriptor_primary(
     data: &WeatherMetricsData,
     theme: Theme,
-    metric_gap: &'static str,
-) {
-    lines.push(Line::from(vec![
-        Span::styled("Wind ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}/{} m/s {}", data.wind, data.gust, data.wind_dir),
-            Style::default().fg(theme.success),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("Visibility ", Style::default().fg(theme.muted_text)),
-        Span::styled(data.visibility.clone(), Style::default().fg(theme.accent)),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}{}", data.pressure, data.pressure_trend),
-            Style::default().fg(theme.warning),
-        ),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("Dew ", Style::default().fg(theme.muted_text)),
-        Span::styled(format!("{}°", data.dew), Style::default().fg(theme.text)),
-        Span::raw(metric_gap),
-        Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}%", data.humidity),
-            Style::default().fg(theme.info),
-        ),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("Rain chance ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            data.precip_probability.clone(),
-            Style::default().fg(theme.info),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("AQI ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            data.aqi.clone(),
-            Style::default().fg(aqi_color(data, theme)),
-        ),
-    ]));
+    slot: MetricSlot,
+) -> MetricDescriptor {
+    match slot {
+        MetricSlot::Feels => MetricDescriptor {
+            label: "Feels ",
+            value: format!("{}°", data.feels),
+            color: theme.text,
+        },
+        MetricSlot::DewCompact => MetricDescriptor {
+            label: "Dew ",
+            value: format!("{}°", data.dew),
+            color: theme.text,
+        },
+        MetricSlot::DewStandard => MetricDescriptor {
+            label: "Dew ",
+            value: format!("{}°", data.dew),
+            color: theme.info,
+        },
+        MetricSlot::Wind => MetricDescriptor {
+            label: "Wind ",
+            value: format!("{}/{} m/s {}", data.wind, data.gust, data.wind_dir),
+            color: theme.success,
+        },
+        MetricSlot::Visibility => MetricDescriptor {
+            label: "Visibility ",
+            value: data.visibility.clone(),
+            color: theme.accent,
+        },
+        MetricSlot::PressureCompact => MetricDescriptor {
+            label: "Pressure ",
+            value: format!("{}{}", data.pressure, data.pressure_trend),
+            color: theme.warning,
+        },
+        _ => unreachable!("unsupported slot in descriptor_primary"),
+    }
 }
 
-fn push_standard_metric_lines(
-    lines: &mut Vec<Line<'static>>,
+fn descriptor_secondary(
     data: &WeatherMetricsData,
     theme: Theme,
-    metric_gap: &'static str,
-) {
-    lines.push(standard_metric_feels_line(data, theme, metric_gap));
-    lines.push(standard_metric_wind_line(data, theme, metric_gap));
-    lines.push(standard_metric_pressure_line(data, theme, metric_gap));
-    lines.push(standard_metric_cloud_line(data, theme, metric_gap));
-    lines.push(standard_metric_risk_line(data, theme, metric_gap));
+    slot: MetricSlot,
+) -> MetricDescriptor {
+    match slot {
+        MetricSlot::PressureStandard => MetricDescriptor {
+            label: "Pressure ",
+            value: format!("{}hPa{}", data.pressure, data.pressure_trend),
+            color: theme.warning,
+        },
+        MetricSlot::Humidity => MetricDescriptor {
+            label: "Humidity ",
+            value: format!("{}%", data.humidity),
+            color: theme.info,
+        },
+        MetricSlot::Cloud => MetricDescriptor {
+            label: "Cloud ",
+            value: format!("{}%", data.cloud_total),
+            color: theme.landmark_neutral,
+        },
+        MetricSlot::Uv => MetricDescriptor {
+            label: "UV ",
+            value: data.uv_today.clone(),
+            color: theme.warning,
+        },
+        MetricSlot::RainChance => MetricDescriptor {
+            label: "Rain chance ",
+            value: data.precip_probability.clone(),
+            color: theme.info,
+        },
+        MetricSlot::Aqi => MetricDescriptor {
+            label: "AQI ",
+            value: data.aqi.clone(),
+            color: aqi_color(data, theme),
+        },
+        _ => unreachable!("unsupported slot in descriptor_secondary"),
+    }
 }
 
-fn standard_metric_feels_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Feels ", Style::default().fg(theme.muted_text)),
-        Span::styled(format!("{}°", data.feels), Style::default().fg(theme.text)),
-        Span::raw(metric_gap),
-        Span::styled("Dew ", Style::default().fg(theme.muted_text)),
-        Span::styled(format!("{}°", data.dew), Style::default().fg(theme.info)),
-    ])
-}
-
-fn standard_metric_wind_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Wind ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}/{} m/s {}", data.wind, data.gust, data.wind_dir),
-            Style::default().fg(theme.success),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("Visibility ", Style::default().fg(theme.muted_text)),
-        Span::styled(data.visibility.clone(), Style::default().fg(theme.accent)),
-    ])
-}
-
-fn standard_metric_pressure_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}hPa{}", data.pressure, data.pressure_trend),
-            Style::default().fg(theme.warning),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("Humidity ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}%", data.humidity),
-            Style::default().fg(theme.info),
-        ),
-    ])
-}
-
-fn standard_metric_cloud_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Cloud ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            format!("{}%", data.cloud_total),
-            Style::default().fg(theme.landmark_neutral),
-        ),
-        Span::raw(" "),
-        Span::styled(
-            data.cloud_split.clone(),
-            Style::default().fg(theme.muted_text),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("UV ", Style::default().fg(theme.muted_text)),
-        Span::styled(data.uv_today.clone(), Style::default().fg(theme.warning)),
-    ])
-}
-
-fn standard_metric_risk_line(
-    data: &WeatherMetricsData,
-    theme: Theme,
-    metric_gap: &'static str,
-) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("Rain chance ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            data.precip_probability.clone(),
-            Style::default().fg(theme.info),
-        ),
-        Span::raw(metric_gap),
-        Span::styled("AQI ", Style::default().fg(theme.muted_text)),
-        Span::styled(
-            data.aqi.clone(),
-            Style::default().fg(aqi_color(data, theme)),
-        ),
-    ])
+fn append_metric(spans: &mut Vec<Span<'static>>, descriptor: MetricDescriptor, theme: Theme) {
+    spans.push(Span::styled(
+        descriptor.label,
+        Style::default().fg(theme.muted_text),
+    ));
+    spans.push(Span::styled(
+        descriptor.value,
+        Style::default().fg(descriptor.color),
+    ));
 }
 
 fn aqi_color(data: &WeatherMetricsData, theme: Theme) -> Color {

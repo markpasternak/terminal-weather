@@ -5,6 +5,8 @@ pub mod cli;
 pub mod data;
 pub mod domain;
 pub mod resilience;
+#[cfg(test)]
+mod test_support;
 pub mod ui;
 
 use std::io::{self, IsTerminal, Stdout};

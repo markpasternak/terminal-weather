@@ -277,41 +277,15 @@ fn settings_path() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use crate::cli::{Cli, ColorArg, HeroVisualArg, HourlyViewArg, IconMode, ThemeArg, UnitsArg};
+    use crate::cli::{HeroVisualArg, HourlyViewArg, IconMode, ThemeArg, UnitsArg};
     use crate::domain::weather::HourlyViewMode;
     use tempfile::NamedTempFile;
 
     use super::{MotionSetting, RecentLocation, RuntimeSettings, save_runtime_settings};
 
-    fn default_test_cli() -> Cli {
-        Cli {
-            city: None,
-            units: UnitsArg::Celsius,
-            fps: 30,
-            no_animation: false,
-            reduced_motion: false,
-            no_flash: false,
-            ascii_icons: false,
-            emoji_icons: false,
-            color: ColorArg::Auto,
-            no_color: false,
-            hourly_view: None,
-            theme: ThemeArg::Auto,
-            hero_visual: HeroVisualArg::AtmosCanvas,
-            country_code: None,
-            lat: None,
-            lon: None,
-            forecast_url: None,
-            air_quality_url: None,
-            refresh_interval: 600,
-            demo: false,
-            one_shot: false,
-        }
-    }
-
     #[test]
     fn from_cli_defaults_basic_mapping() {
-        let mut cli = default_test_cli();
+        let mut cli = crate::test_support::settings_default_test_cli();
         cli.units = UnitsArg::Fahrenheit;
         cli.theme = ThemeArg::Nord;
         cli.no_flash = true;
@@ -327,7 +301,7 @@ mod tests {
         assert_eq!(settings.refresh_interval_secs, 300);
 
         // Also check defaults
-        let cli_default = default_test_cli();
+        let cli_default = crate::test_support::settings_default_test_cli();
         let settings_default = RuntimeSettings::from_cli_defaults(&cli_default);
         assert_eq!(
             settings_default.units,
@@ -338,14 +312,14 @@ mod tests {
     #[test]
     fn from_cli_defaults_motion_logic() {
         // Default -> Full
-        let cli = default_test_cli();
+        let cli = crate::test_support::settings_default_test_cli();
         assert_eq!(
             RuntimeSettings::from_cli_defaults(&cli).motion,
             MotionSetting::Full
         );
 
         // reduced_motion -> Reduced
-        let mut cli = default_test_cli();
+        let mut cli = crate::test_support::settings_default_test_cli();
         cli.reduced_motion = true;
         assert_eq!(
             RuntimeSettings::from_cli_defaults(&cli).motion,
@@ -353,7 +327,7 @@ mod tests {
         );
 
         // no_animation -> Off
-        let mut cli = default_test_cli();
+        let mut cli = crate::test_support::settings_default_test_cli();
         cli.no_animation = true;
         assert_eq!(
             RuntimeSettings::from_cli_defaults(&cli).motion,
@@ -361,7 +335,7 @@ mod tests {
         );
 
         // no_animation takes precedence over reduced_motion
-        let mut cli = default_test_cli();
+        let mut cli = crate::test_support::settings_default_test_cli();
         cli.no_animation = true;
         cli.reduced_motion = true;
         assert_eq!(
@@ -373,14 +347,14 @@ mod tests {
     #[test]
     fn from_cli_defaults_icon_mode_logic() {
         // Default -> Unicode
-        let cli = default_test_cli();
+        let cli = crate::test_support::settings_default_test_cli();
         assert_eq!(
             RuntimeSettings::from_cli_defaults(&cli).icon_mode,
             IconMode::Unicode
         );
 
         // emoji_icons -> Emoji
-        let mut cli = default_test_cli();
+        let mut cli = crate::test_support::settings_default_test_cli();
         cli.emoji_icons = true;
         assert_eq!(
             RuntimeSettings::from_cli_defaults(&cli).icon_mode,
@@ -388,7 +362,7 @@ mod tests {
         );
 
         // ascii_icons -> Ascii
-        let mut cli = default_test_cli();
+        let mut cli = crate::test_support::settings_default_test_cli();
         cli.ascii_icons = true;
         assert_eq!(
             RuntimeSettings::from_cli_defaults(&cli).icon_mode,
@@ -396,7 +370,7 @@ mod tests {
         );
 
         // ascii_icons takes precedence over emoji_icons
-        let mut cli = default_test_cli();
+        let mut cli = crate::test_support::settings_default_test_cli();
         cli.ascii_icons = true;
         cli.emoji_icons = true;
         assert_eq!(
@@ -407,7 +381,7 @@ mod tests {
 
     #[test]
     fn from_cli_defaults_hardcoded_fields() {
-        let mut cli = default_test_cli();
+        let mut cli = crate::test_support::settings_default_test_cli();
         // Even if we set hourly_view in CLI, the implementation currently hardcodes it to Table.
         cli.hourly_view = Some(HourlyViewArg::Chart);
 

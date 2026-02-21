@@ -1,4 +1,5 @@
 use clap::Parser;
+use serde_json::{Value, json};
 use terminal_weather::{
     app::{
         events::AppEvent,
@@ -20,61 +21,121 @@ async fn caching_reduces_network_calls() {
         "--air-quality-url".to_string(),
         server.uri(),
     ]);
-    let mut app = AppState::new(&cli);
-    let (tx, mut rx) = mpsc::channel(100);
+    let mut harness = CachingHarness::new(cli);
     let loc_a = Location::from_coords(10.0, 10.0);
     let loc_b = Location::from_coords(20.0, 20.0);
 
-    request_and_expect_fetch(
-        &mut app,
-        &cli,
-        &tx,
-        &mut rx,
-        loc_a.clone(),
-        10.0,
-        "Loc A (1st)",
-    )
-    .await;
-    request_and_expect_fetch(
-        &mut app,
-        &cli,
-        &tx,
-        &mut rx,
-        loc_b.clone(),
-        20.0,
-        "Loc B (1st)",
-    )
-    .await;
-    request_and_expect_ready_or_fetch(&mut app, &cli, &tx, &mut rx, loc_a, 10.0).await;
-    request_and_expect_ready_or_fetch(&mut app, &cli, &tx, &mut rx, loc_b, 20.0).await;
+    assert!(
+        harness
+            .resolve_location(loc_a.clone(), 10.0, Some("Loc A (1st)"))
+            .await
+    );
+    assert!(
+        harness
+            .resolve_location(loc_b.clone(), 20.0, Some("Loc B (1st)"))
+            .await
+    );
+    harness.resolve_location(loc_a, 10.0, None).await;
+    harness.resolve_location(loc_b, 20.0, None).await;
 
-    let requests = server.received_requests().await.unwrap();
-    let request_count = requests.len();
+    let request_count = server.received_requests().await.unwrap().len();
     assert_eq!(
         request_count, 4,
         "Expected 4 requests with cache, got {request_count}"
     );
 }
 
+struct CachingHarness {
+    app: AppState,
+    cli: Cli,
+    tx: mpsc::Sender<AppEvent>,
+    rx: mpsc::Receiver<AppEvent>,
+}
+
+impl CachingHarness {
+    fn new(cli: Cli) -> Self {
+        let app = AppState::new(&cli);
+        let (tx, rx) = mpsc::channel(100);
+        Self { app, cli, tx, rx }
+    }
+
+    async fn resolve_location(
+        &mut self,
+        location: Location,
+        expected_latitude: f64,
+        must_fetch_label: Option<&str>,
+    ) -> bool {
+        self.app
+            .handle_event(
+                AppEvent::GeocodeResolved(GeocodeResolution::Selected(location)),
+                &self.tx,
+                &self.cli,
+            )
+            .await
+            .unwrap();
+
+        if self.app.mode == AppMode::Ready {
+            let cached_latitude = self.app.weather.as_ref().unwrap().location.latitude;
+            assert_latitude(cached_latitude, expected_latitude);
+            assert!(
+                must_fetch_label.is_none(),
+                "Expected network fetch for {}",
+                must_fetch_label.unwrap_or("unknown location")
+            );
+            return false;
+        }
+
+        let bundle = wait_for_success(&mut self.rx).await;
+        self.app
+            .handle_event(
+                AppEvent::FetchSucceeded(bundle.clone()),
+                &self.tx,
+                &self.cli,
+            )
+            .await
+            .unwrap();
+        assert_latitude(bundle.location.latitude, expected_latitude);
+        true
+    }
+}
+
 async fn setup_mock_server() -> MockServer {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(mock_forecast_payload()))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(ForecastPayloadBuilder::new().build()),
+        )
         .mount(&server)
         .await;
     server
 }
 
-fn mock_forecast_payload() -> serde_json::Value {
-    serde_json::json!({
-        "current": mock_current_payload(),
-        "hourly": mock_hourly_payload(),
-        "daily": mock_daily_payload(),
-    })
+struct ForecastPayloadBuilder {
+    current: Value,
+    hourly: Value,
+    daily: Value,
 }
 
-fn mock_current_payload() -> serde_json::Value {
-    serde_json::json!({
+impl ForecastPayloadBuilder {
+    fn new() -> Self {
+        Self {
+            current: mock_current_payload(),
+            hourly: mock_hourly_payload(),
+            daily: mock_daily_payload(),
+        }
+    }
+
+    fn build(self) -> Value {
+        json!({
+            "current": self.current,
+            "hourly": self.hourly,
+            "daily": self.daily,
+        })
+    }
+}
+
+fn mock_current_payload() -> Value {
+    json!({
         "temperature_2m": 20.0,
         "relative_humidity_2m": 50.0,
         "apparent_temperature": 20.0,
@@ -91,8 +152,8 @@ fn mock_current_payload() -> serde_json::Value {
     })
 }
 
-fn mock_hourly_payload() -> serde_json::Value {
-    serde_json::json!({
+fn mock_hourly_payload() -> Value {
+    json!({
         "time": ["2024-01-01T00:00"],
         "temperature_2m": [20.0],
         "weather_code": [0],
@@ -113,8 +174,8 @@ fn mock_hourly_payload() -> serde_json::Value {
     })
 }
 
-fn mock_daily_payload() -> serde_json::Value {
-    serde_json::json!({
+fn mock_daily_payload() -> Value {
+    json!({
         "time": ["2024-01-01"],
         "weather_code": [0],
         "temperature_2m_max": [25.0],
@@ -131,62 +192,6 @@ fn mock_daily_payload() -> serde_json::Value {
         "daylight_duration": [43200.0],
         "sunshine_duration": [43200.0]
     })
-}
-
-async fn request_and_expect_fetch(
-    app: &mut AppState,
-    cli: &Cli,
-    tx: &mpsc::Sender<AppEvent>,
-    rx: &mut mpsc::Receiver<AppEvent>,
-    location: Location,
-    expected_latitude: f64,
-    label: &str,
-) {
-    app.handle_event(
-        AppEvent::GeocodeResolved(GeocodeResolution::Selected(location)),
-        tx,
-        cli,
-    )
-    .await
-    .unwrap();
-
-    if app.mode == AppMode::Loading {
-        let bundle = wait_for_success(rx).await;
-        app.handle_event(AppEvent::FetchSucceeded(bundle.clone()), tx, cli)
-            .await
-            .unwrap();
-        assert_latitude(bundle.location.latitude, expected_latitude);
-    } else {
-        panic!("Expected network fetch for {label}");
-    }
-}
-
-async fn request_and_expect_ready_or_fetch(
-    app: &mut AppState,
-    cli: &Cli,
-    tx: &mpsc::Sender<AppEvent>,
-    rx: &mut mpsc::Receiver<AppEvent>,
-    location: Location,
-    expected_latitude: f64,
-) {
-    app.handle_event(
-        AppEvent::GeocodeResolved(GeocodeResolution::Selected(location)),
-        tx,
-        cli,
-    )
-    .await
-    .unwrap();
-
-    if app.mode == AppMode::Ready {
-        let cached_latitude = app.weather.as_ref().unwrap().location.latitude;
-        assert_latitude(cached_latitude, expected_latitude);
-    } else {
-        let bundle = wait_for_success(rx).await;
-        app.handle_event(AppEvent::FetchSucceeded(bundle.clone()), tx, cli)
-            .await
-            .unwrap();
-        assert_latitude(bundle.location.latitude, expected_latitude);
-    }
 }
 
 fn assert_latitude(actual: f64, expected: f64) {
