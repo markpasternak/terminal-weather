@@ -29,7 +29,9 @@ impl Default for ForecastClient {
 impl ForecastClient {
     #[must_use]
     pub fn new() -> Self {
-        Self::with_base_url(FORECAST_URL)
+        let url = std::env::var("TERMINAL_WEATHER_FORECAST_URL")
+            .unwrap_or_else(|_| FORECAST_URL.to_string());
+        Self::with_base_url(url)
     }
 
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
@@ -37,10 +39,12 @@ impl ForecastClient {
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap_or_else(|_| Client::new());
+        let air_quality_url = std::env::var("TERMINAL_WEATHER_AIR_QUALITY_URL")
+            .unwrap_or_else(|_| AIR_QUALITY_URL.to_string());
         Self {
             client,
             base_url: base_url.into(),
-            air_quality_url: AIR_QUALITY_URL.to_string(),
+            air_quality_url,
         }
     }
 
