@@ -37,6 +37,7 @@ cargo build --release                            # release build
 Additional local parity gate:
 ```bash
 ./scripts/codacy-complexity-gate.sh              # Codacy-style complexity parity (critical fail by default)
+./scripts/codacy-coverage.sh                     # coverage gate (line/function/branch thresholds)
 ```
 
 Install static tooling once:
@@ -63,6 +64,12 @@ Duplication gate defaults (`scripts/duplication-gate.sh`):
 - mode: advisory (`TW_DUPES_ENFORCE=0`) — reports but does not fail
 - strict mode: `TW_DUPES_ENFORCE=1`
 - strict thresholds (when enabled): `TW_DUPES_MAX_EXACT_PERCENT=5.0`, `TW_DUPES_MAX_NEAR_PERCENT=10.0`
+
+Coverage gate thresholds (`scripts/coverage-thresholds.env`, enforced by `scripts/codacy-coverage.sh`):
+- line coverage: `>= 85%`
+- function coverage: `>= 85%`
+- branch coverage: `>= 75%`
+- ratchet policy: only raise thresholds; never lower them
 
 For fast iteration during development:
 ```bash

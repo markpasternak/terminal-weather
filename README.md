@@ -162,41 +162,41 @@ To contribute code:
 
 The maintainer reviews and merges all PRs. Direct pushes to `main` are restricted.
 
-### Codacy Coverage
+### Local Quality Gate
 
-Generate an LCOV report locally:
-
-```bash
-cargo install --locked cargo-llvm-cov
-./scripts/codacy-coverage.sh
-```
-
-Upload coverage to Codacy (local):
+Install local tooling once:
 
 ```bash
-export CODACY_PROJECT_TOKEN=your_project_token
-TW_CODACY_UPLOAD=1 ./scripts/codacy-coverage.sh
+cargo install --locked rust-code-analysis-cli --version 0.0.25
+cargo install --locked cargo-dupes --version 0.2.1
+# install jq via your package manager
 ```
 
-Alternative (account token mode):
+Primary pre-PR check:
 
 ```bash
-export CODACY_API_TOKEN=your_account_token
-export CODACY_ORGANIZATION_PROVIDER=gh
-export CODACY_USERNAME=your_org_or_user
-export CODACY_PROJECT_NAME=terminal-weather
-TW_CODACY_UPLOAD=1 ./scripts/codacy-coverage.sh
+./scripts/ci-local.sh
 ```
 
-Run full local parity including Codacy complexity + coverage:
+If you want to run checks step-by-step:
 
 ```bash
-./scripts/ci-local.sh --with-codacy
+cargo fmt --all
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic -D clippy::if_same_then_else -D clippy::match_same_arms -D clippy::branches_sharing_code
+./scripts/static-analysis-gate.sh
+./scripts/duplication-gate.sh
+cargo check --all-targets --all-features
+cargo test --all --all-features
+cargo build --release
 ```
 
-GitHub Actions uploads coverage automatically when either:
-- `CODACY_PROJECT_TOKEN` is set in repository secrets, or
-- `CODACY_API_TOKEN`, `CODACY_ORGANIZATION_PROVIDER`, `CODACY_USERNAME`, and `CODACY_PROJECT_NAME` are all set.
+Optional local parity gate:
+
+```bash
+./scripts/codacy-complexity-gate.sh
+```
 
 ---
 

@@ -42,14 +42,12 @@ jobs:
         run: ./scripts/ci-local.sh
 
       - name: Install coverage tooling
-        if: ${{ env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '') }}
         run: |
           rustup toolchain install nightly --profile minimal
           rustup component add llvm-tools-preview --toolchain nightly
           cargo install --locked cargo-llvm-cov
 
-      - name: Report coverage to Codacy
-        if: ${{ (env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+      - name: Run coverage gate (upload when credentials are available)
         env:
-          TW_CODACY_UPLOAD: "1"
+          TW_CODACY_UPLOAD: ${{ (env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '0' }}
         run: ./scripts/codacy-coverage.sh
