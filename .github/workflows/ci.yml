@@ -11,7 +11,7 @@ env:
 
 jobs:
   quality:
-    name: Format, Lint, Test, Build
+    name: Quality Gate
     runs-on: ubuntu-latest
     env:
       CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
@@ -31,24 +31,22 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
 
-      - name: Install analysis tooling
+      - name: Install tooling
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
           cargo install --locked rust-code-analysis-cli --version 0.0.25
           cargo install --locked cargo-dupes --version 0.2.1
-
-      - name: Run local CI parity script
-        run: ./scripts/check.sh
-
-      - name: Install coverage tooling
-        run: |
           rustup toolchain install nightly --profile minimal
           rustup component add llvm-tools-preview --toolchain nightly
           cargo install --locked cargo-llvm-cov
 
-      - name: Run coverage gate (upload when credentials are available)
+      - name: Run quality gate
+        run: ./scripts/check.sh --verbose
+
+      - name: Upload coverage to Codacy
+        if: env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '')
         env:
-          TW_CODACY_UPLOAD: ${{ (env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '0' }}
+          TW_CODACY_UPLOAD: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '0' }}
           TW_COVERAGE_FAIL_ON_THRESHOLD: "0"
         run: ./scripts/coverage.sh

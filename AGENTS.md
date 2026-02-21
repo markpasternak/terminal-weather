@@ -20,25 +20,30 @@ Single-binary Rust TUI app (Rust 2024 edition) using:
 
 ## Commands
 
-Run these before marking anything done. Put them in this order:
+Run this before marking anything done:
 
 ```bash
-cargo fmt --all                                  # format
-cargo fmt --all -- --check                       # verify formatting (CI gate)
-cargo clippy --all-targets --all-features -- -D warnings   # lint, zero warnings
-cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic -D clippy::if_same_then_else -D clippy::match_same_arms -D clippy::branches_sharing_code  # pedantic + duplication-pattern lint gate
-./scripts/complexity-gate.sh                     # complexity/MI static gate (CI gate)
-./scripts/duplication-gate.sh                    # duplication analysis (advisory by default)
-cargo check --all-targets --all-features         # type-check
-cargo test --all --all-features                  # full test suite
-cargo build --release                            # release build
+./scripts/check.sh                               # unified quality gate — runs everything, prints report
 ```
 
-Additional local parity gate:
-```bash
-./scripts/complexity-audit.sh                    # tiered complexity audit (critical fail by default)
-./scripts/coverage.sh                            # coverage gate (line/function/branch thresholds)
-```
+The script runs all checks and prints a final report classifying each as REQUIRED or RECOMMENDED:
+
+| Step | Classification |
+|------|---------------|
+| `cargo fmt --check` | REQUIRED |
+| `cargo clippy -D warnings` | REQUIRED |
+| `cargo clippy pedantic` | REQUIRED |
+| `complexity-gate.sh` | REQUIRED |
+| `cargo check` | REQUIRED |
+| `cargo test` | REQUIRED |
+| `cargo build --release` | REQUIRED |
+| `duplication-gate.sh` | RECOMMENDED |
+| `complexity-audit.sh` | RECOMMENDED |
+| `coverage.sh` | RECOMMENDED |
+
+Steps requiring optional tooling auto-skip with install hints if the tool is missing.
+
+For individual checks or fast iteration:
 
 Install static tooling once:
 ```bash

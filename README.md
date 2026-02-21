@@ -163,38 +163,20 @@ The maintainer reviews and merges all PRs. Direct pushes to `main` are restricte
 
 ### Local Quality Gate
 
-Install local tooling once:
+```bash
+./scripts/check.sh            # structured summary (default)
+./scripts/check.sh --verbose   # full tool output
+```
+
+The script checks formatting, linting (including pedantic), complexity, duplication, tests, release build, and coverage — then prints a final report classifying each check as **required** or **recommended**.
+
+Checks requiring optional tooling are auto-skipped when the tool is missing. Install everything for full coverage:
 
 ```bash
 cargo install --locked rust-code-analysis-cli --version 0.0.25
 cargo install --locked cargo-dupes --version 0.2.1
-# install jq via your package manager
-```
-
-Primary pre-PR check:
-
-```bash
-./scripts/check.sh
-```
-
-If you want to run checks step-by-step:
-
-```bash
-cargo fmt --all
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic -D clippy::if_same_then_else -D clippy::match_same_arms -D clippy::branches_sharing_code
-./scripts/complexity-gate.sh
-./scripts/duplication-gate.sh
-cargo check --all-targets --all-features
-cargo test --all --all-features
-cargo build --release
-```
-
-Optional local parity gate:
-
-```bash
-./scripts/complexity-audit.sh
+cargo install --locked cargo-llvm-cov
+# install jq via your package manager (brew install jq / apt install jq)
 ```
 
 ---
