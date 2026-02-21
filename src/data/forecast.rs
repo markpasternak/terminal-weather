@@ -29,7 +29,9 @@ impl Default for ForecastClient {
 impl ForecastClient {
     #[must_use]
     pub fn new() -> Self {
-        Self::with_base_url(FORECAST_URL)
+        let url = std::env::var("TERMINAL_WEATHER_FORECAST_URL")
+            .unwrap_or_else(|_| FORECAST_URL.to_string());
+        Self::with_base_url(url)
     }
 
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
@@ -37,46 +39,34 @@ impl ForecastClient {
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap_or_else(|_| Client::new());
+        let air_quality_url = std::env::var("TERMINAL_WEATHER_AIR_QUALITY_URL")
+            .unwrap_or_else(|_| AIR_QUALITY_URL.to_string());
         Self {
             client,
             base_url: base_url.into(),
-            air_quality_url: AIR_QUALITY_URL.to_string(),
+            air_quality_url,
         }
     }
 
-    pub fn with_air_quality_url(mut self, url: impl Into<String>) -> Self {
-        self.air_quality_url = url.into();
-        self
-    }
-
     pub async fn fetch(&self, location: Location) -> Result<ForecastBundle> {
-        let forecast_fut = async {
-            let response = self
-                .client
-                .get(&self.base_url)
-                .query(&forecast_query(&location))
-                .send()
-                .await
-                .context("forecast request failed")?
-                .error_for_status()
-                .context("forecast request returned non-success status")?;
+        let response = self
+            .client
+            .get(&self.base_url)
+            .query(&forecast_query(&location))
+            .send()
+            .await
+            .context("forecast request failed")?
+            .error_for_status()
+            .context("forecast request returned non-success status")?;
 
-            let payload: ForecastResponse = response
-                .json()
-                .await
-                .context("failed to parse forecast payload")?;
-
-            Ok::<_, anyhow::Error>(payload)
-        };
-
-        let air_quality_fut = self.fetch_air_quality(&location);
-
-        let (forecast_result, air_quality) = tokio::join!(forecast_fut, air_quality_fut);
-
-        let payload = forecast_result?;
+        let payload: ForecastResponse = response
+            .json()
+            .await
+            .context("failed to parse forecast payload")?;
 
         let daily = parse_daily(&payload.daily);
         let current = current_from_payload(&payload, &daily);
+        let air_quality = self.fetch_air_quality(&location).await;
 
         Ok(ForecastBundle {
             location,
@@ -107,20 +97,24 @@ fn forecast_query(location: &Location) -> Vec<(&'static str, String)> {
     vec![
         ("latitude", location.latitude.to_string()),
         ("longitude", location.longitude.to_string()),
-        (
-            "current",
-            "temperature_2m,relative_humidity_2m,apparent_temperature,dew_point_2m,weather_code,precipitation,cloud_cover,pressure_msl,visibility,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day"
-                .to_string(),
-        ),
+        ("current", CurrentBlock::field_names().join(",")),
         (
             "hourly",
-            "temperature_2m,weather_code,is_day,relative_humidity_2m,precipitation_probability,precipitation,rain,snowfall,wind_speed_10m,wind_gusts_10m,pressure_msl,visibility,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
-                .to_string(),
+            HourlyBlock::field_names()
+                .iter()
+                .filter(|&&f| f != "time")
+                .copied()
+                .collect::<Vec<_>>()
+                .join(","),
         ),
         (
             "daily",
-            "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max,precipitation_sum,rain_sum,snowfall_sum,precipitation_hours,wind_gusts_10m_max,daylight_duration,sunshine_duration"
-                .to_string(),
+            DailyBlock::field_names()
+                .iter()
+                .filter(|&&f| f != "time")
+                .copied()
+                .collect::<Vec<_>>()
+                .join(","),
         ),
         ("timezone", "auto".to_string()),
         ("forecast_days", "7".to_string()),
@@ -229,6 +223,35 @@ fn parse_air_quality(current: Option<&AirQualityCurrentBlock>) -> Option<AirQual
     AirQualityReading::from_indices(current.us_aqi, current.european_aqi)
 }
 
+macro_rules! api_struct {
+    (
+        $(#[$meta:meta])*
+        struct $name:ident {
+            $(
+                $(#[$field_meta:meta])*
+                $field:ident : $type:ty
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$meta])*
+        struct $name {
+            $(
+                $(#[$field_meta])*
+                $field: $type
+            ),*
+        }
+
+        impl $name {
+            #[allow(dead_code)]
+            fn field_names() -> &'static [&'static str] {
+                &[
+                    $(stringify!($field)),*
+                ]
+            }
+        }
+    };
+}
+
 #[derive(Debug, Deserialize)]
 struct ForecastResponse {
     current: CurrentBlock,
@@ -249,61 +272,67 @@ struct AirQualityCurrentBlock {
     european_aqi: Option<f32>,
 }
 
-#[derive(Debug, Deserialize)]
-struct CurrentBlock {
-    temperature_2m: f32,
-    relative_humidity_2m: f32,
-    apparent_temperature: f32,
-    dew_point_2m: f32,
-    weather_code: u8,
-    precipitation: f32,
-    cloud_cover: f32,
-    pressure_msl: f32,
-    visibility: f32,
-    wind_speed_10m: f32,
-    wind_gusts_10m: f32,
-    wind_direction_10m: f32,
-    is_day: u8,
+api_struct! {
+    #[derive(Debug, Deserialize)]
+    struct CurrentBlock {
+        temperature_2m: f32,
+        relative_humidity_2m: f32,
+        apparent_temperature: f32,
+        dew_point_2m: f32,
+        weather_code: u8,
+        precipitation: f32,
+        cloud_cover: f32,
+        pressure_msl: f32,
+        visibility: f32,
+        wind_speed_10m: f32,
+        wind_gusts_10m: f32,
+        wind_direction_10m: f32,
+        is_day: u8,
+    }
 }
 
-#[derive(Debug, Deserialize)]
-struct HourlyBlock {
-    time: Vec<String>,
-    temperature_2m: Vec<Option<f32>>,
-    weather_code: Vec<Option<u8>>,
-    is_day: Vec<Option<u8>>,
-    relative_humidity_2m: Vec<Option<f32>>,
-    precipitation_probability: Vec<Option<f32>>,
-    precipitation: Vec<Option<f32>>,
-    rain: Vec<Option<f32>>,
-    snowfall: Vec<Option<f32>>,
-    wind_speed_10m: Vec<Option<f32>>,
-    wind_gusts_10m: Vec<Option<f32>>,
-    pressure_msl: Vec<Option<f32>>,
-    visibility: Vec<Option<f32>>,
-    cloud_cover: Vec<Option<f32>>,
-    cloud_cover_low: Vec<Option<f32>>,
-    cloud_cover_mid: Vec<Option<f32>>,
-    cloud_cover_high: Vec<Option<f32>>,
+api_struct! {
+    #[derive(Debug, Deserialize)]
+    struct HourlyBlock {
+        time: Vec<String>,
+        temperature_2m: Vec<Option<f32>>,
+        weather_code: Vec<Option<u8>>,
+        is_day: Vec<Option<u8>>,
+        relative_humidity_2m: Vec<Option<f32>>,
+        precipitation_probability: Vec<Option<f32>>,
+        precipitation: Vec<Option<f32>>,
+        rain: Vec<Option<f32>>,
+        snowfall: Vec<Option<f32>>,
+        wind_speed_10m: Vec<Option<f32>>,
+        wind_gusts_10m: Vec<Option<f32>>,
+        pressure_msl: Vec<Option<f32>>,
+        visibility: Vec<Option<f32>>,
+        cloud_cover: Vec<Option<f32>>,
+        cloud_cover_low: Vec<Option<f32>>,
+        cloud_cover_mid: Vec<Option<f32>>,
+        cloud_cover_high: Vec<Option<f32>>,
+    }
 }
 
-#[derive(Debug, Deserialize)]
-struct DailyBlock {
-    time: Vec<String>,
-    weather_code: Vec<Option<u8>>,
-    temperature_2m_max: Vec<Option<f32>>,
-    temperature_2m_min: Vec<Option<f32>>,
-    sunrise: Vec<String>,
-    sunset: Vec<String>,
-    uv_index_max: Vec<Option<f32>>,
-    precipitation_probability_max: Vec<Option<f32>>,
-    precipitation_sum: Vec<Option<f32>>,
-    rain_sum: Vec<Option<f32>>,
-    snowfall_sum: Vec<Option<f32>>,
-    precipitation_hours: Vec<Option<f32>>,
-    wind_gusts_10m_max: Vec<Option<f32>>,
-    daylight_duration: Vec<Option<f32>>,
-    sunshine_duration: Vec<Option<f32>>,
+api_struct! {
+    #[derive(Debug, Deserialize)]
+    struct DailyBlock {
+        time: Vec<String>,
+        weather_code: Vec<Option<u8>>,
+        temperature_2m_max: Vec<Option<f32>>,
+        temperature_2m_min: Vec<Option<f32>>,
+        sunrise: Vec<String>,
+        sunset: Vec<String>,
+        uv_index_max: Vec<Option<f32>>,
+        precipitation_probability_max: Vec<Option<f32>>,
+        precipitation_sum: Vec<Option<f32>>,
+        rain_sum: Vec<Option<f32>>,
+        snowfall_sum: Vec<Option<f32>>,
+        precipitation_hours: Vec<Option<f32>>,
+        wind_gusts_10m_max: Vec<Option<f32>>,
+        daylight_duration: Vec<Option<f32>>,
+        sunshine_duration: Vec<Option<f32>>,
+    }
 }
 
 #[cfg(test)]

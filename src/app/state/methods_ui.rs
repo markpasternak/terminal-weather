@@ -235,6 +235,20 @@ impl AppState {
     pub(crate) fn switch_to_location(&mut self, tx: &mpsc::Sender<AppEvent>, location: Location) {
         self.selected_location = Some(location.clone());
         self.pending_locations.clear();
+
+        let key: LocationKey = (&location).into();
+        if let Some(bundle) = self.forecast_cache.get(&key).cloned() {
+            self.handle_fetch_succeeded(bundle.clone());
+            if (chrono::Utc::now() - bundle.fetched_at) > chrono::Duration::minutes(10) {
+                let tx2 = tx.clone();
+                tokio::spawn(async move {
+                    let _ = tx2.send(AppEvent::FetchStarted).await;
+                });
+                Self::fetch_forecast(tx, location);
+            }
+            return;
+        }
+
         self.mode = AppMode::Loading;
         self.city_status = Some(format!("Switching to {}", location.display_name()));
         Self::fetch_forecast(tx, location);

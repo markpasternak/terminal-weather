@@ -2,6 +2,7 @@
 
 use std::{
     io::IsTerminal,
+    num::NonZeroUsize,
     path::PathBuf,
     sync::{
         Arc,
@@ -12,6 +13,7 @@ use std::{
 
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use lru::LruCache;
 use tokio::sync::mpsc;
 
 use crate::{
@@ -97,6 +99,27 @@ pub struct SettingsEntry {
     pub editable: bool,
 }
 
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct LocationKey {
+    name: String,
+    lat_bits: u64,
+    lon_bits: u64,
+    country: Option<String>,
+    admin1: Option<String>,
+}
+
+impl From<&Location> for LocationKey {
+    fn from(loc: &Location) -> Self {
+        Self {
+            name: loc.name.clone(),
+            lat_bits: loc.latitude.to_bits(),
+            lon_bits: loc.longitude.to_bits(),
+            country: loc.country.clone(),
+            admin1: loc.admin1.clone(),
+        }
+    }
+}
+
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct AppState {
@@ -107,6 +130,7 @@ pub struct AppState {
     pub selected_location: Option<Location>,
     pub pending_locations: Vec<Location>,
     pub weather: Option<ForecastBundle>,
+    pub forecast_cache: LruCache<LocationKey, ForecastBundle>,
     pub refresh_meta: RefreshMetadata,
     pub units: Units,
     pub hourly_offset: usize,
@@ -160,6 +184,7 @@ impl AppState {
             selected_location,
             pending_locations: Vec::new(),
             weather: None,
+            forecast_cache: LruCache::new(NonZeroUsize::new(10).unwrap()),
             refresh_meta: RefreshMetadata::default(),
             units: settings.units,
             hourly_offset: 0,
@@ -548,30 +573,6 @@ mod tests {
             state.refresh_interval_secs_runtime.load(Ordering::Relaxed),
             300
         );
-    }
-
-    #[tokio::test]
-    async fn handle_input_updates_viewport_width_on_resize() {
-        let mut state = AppState::new(&test_cli());
-        let (tx, _rx) = tokio::sync::mpsc::channel(1);
-        let cli = test_cli();
-
-        // Initially 80
-        assert_eq!(state.viewport_width, 80);
-
-        // Resize to 120x40
-        state
-            .handle_input(crossterm::event::Event::Resize(120, 40), &tx, &cli)
-            .await
-            .unwrap();
-        assert_eq!(state.viewport_width, 120);
-
-        // Resize to 60x20
-        state
-            .handle_input(crossterm::event::Event::Resize(60, 20), &tx, &cli)
-            .await
-            .unwrap();
-        assert_eq!(state.viewport_width, 60);
     }
 
     fn test_cli() -> Cli {

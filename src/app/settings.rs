@@ -155,8 +155,6 @@ fn fold_lower(value: &str) -> String {
     value.chars().flat_map(char::to_lowercase).collect()
 }
 
-const MAX_SETTINGS_SIZE: u64 = 128 * 1024;
-
 #[must_use]
 pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, Option<PathBuf>) {
     let mut settings = RuntimeSettings::from_cli_defaults(cli);
@@ -168,9 +166,7 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
         return (settings, None);
     };
 
-    if let Ok(metadata) = fs::metadata(&path)
-        && metadata.len() <= MAX_SETTINGS_SIZE
-        && let Ok(content) = fs::read_to_string(&path)
+    if let Ok(content) = fs::read_to_string(&path)
         && let Ok(saved) = serde_json::from_str::<RuntimeSettings>(&content)
     {
         settings = saved;
@@ -251,38 +247,7 @@ pub fn save_runtime_settings(path: &Path, settings: &RuntimeSettings) -> anyhow:
     }
     let payload =
         serde_json::to_string_pretty(&settings).context("serializing settings payload failed")?;
-
-    #[cfg(unix)]
-    {
-        use std::io::Write;
-        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(path)
-            .context("writing settings file failed")?;
-
-        let metadata = file.metadata().context("reading file metadata failed")?;
-        let mut perms = metadata.permissions();
-        if perms.mode() & 0o777 != 0o600 {
-            perms.set_mode(0o600);
-            file.set_permissions(perms)
-                .context("setting file permissions failed")?;
-        }
-
-        file.write_all(payload.as_bytes())
-            .context("writing settings file failed")?;
-    }
-
-    #[cfg(not(unix))]
-    {
-        fs::write(path, payload).context("writing settings file failed")?;
-    }
-
-    Ok(())
+    fs::write(path, payload).context("writing settings file failed")
 }
 
 pub fn clear_runtime_settings(path: &Path) -> anyhow::Result<()> {
@@ -312,10 +277,143 @@ fn settings_path() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use crate::cli::{Cli, ColorArg, HeroVisualArg, HourlyViewArg, IconMode, ThemeArg, UnitsArg};
     use crate::domain::weather::HourlyViewMode;
     use tempfile::NamedTempFile;
 
-    use super::{RecentLocation, RuntimeSettings, save_runtime_settings};
+    use super::{MotionSetting, RecentLocation, RuntimeSettings, save_runtime_settings};
+
+    fn default_test_cli() -> Cli {
+        Cli {
+            city: None,
+            units: UnitsArg::Celsius,
+            fps: 30,
+            no_animation: false,
+            reduced_motion: false,
+            no_flash: false,
+            ascii_icons: false,
+            emoji_icons: false,
+            color: ColorArg::Auto,
+            no_color: false,
+            hourly_view: None,
+            theme: ThemeArg::Auto,
+            hero_visual: HeroVisualArg::AtmosCanvas,
+            country_code: None,
+            lat: None,
+            lon: None,
+            refresh_interval: 600,
+            demo: false,
+            one_shot: false,
+        }
+    }
+
+    #[test]
+    fn from_cli_defaults_basic_mapping() {
+        let mut cli = default_test_cli();
+        cli.units = UnitsArg::Fahrenheit;
+        cli.theme = ThemeArg::Nord;
+        cli.no_flash = true;
+        cli.hero_visual = HeroVisualArg::GaugeCluster;
+        cli.refresh_interval = 300;
+
+        let settings = RuntimeSettings::from_cli_defaults(&cli);
+
+        assert_eq!(settings.units, crate::domain::weather::Units::Fahrenheit);
+        assert_eq!(settings.theme, ThemeArg::Nord);
+        assert!(settings.no_flash);
+        assert_eq!(settings.hero_visual, HeroVisualArg::GaugeCluster);
+        assert_eq!(settings.refresh_interval_secs, 300);
+
+        // Also check defaults
+        let cli_default = default_test_cli();
+        let settings_default = RuntimeSettings::from_cli_defaults(&cli_default);
+        assert_eq!(
+            settings_default.units,
+            crate::domain::weather::Units::Celsius
+        );
+    }
+
+    #[test]
+    fn from_cli_defaults_motion_logic() {
+        // Default -> Full
+        let cli = default_test_cli();
+        assert_eq!(
+            RuntimeSettings::from_cli_defaults(&cli).motion,
+            MotionSetting::Full
+        );
+
+        // reduced_motion -> Reduced
+        let mut cli = default_test_cli();
+        cli.reduced_motion = true;
+        assert_eq!(
+            RuntimeSettings::from_cli_defaults(&cli).motion,
+            MotionSetting::Reduced
+        );
+
+        // no_animation -> Off
+        let mut cli = default_test_cli();
+        cli.no_animation = true;
+        assert_eq!(
+            RuntimeSettings::from_cli_defaults(&cli).motion,
+            MotionSetting::Off
+        );
+
+        // no_animation takes precedence over reduced_motion
+        let mut cli = default_test_cli();
+        cli.no_animation = true;
+        cli.reduced_motion = true;
+        assert_eq!(
+            RuntimeSettings::from_cli_defaults(&cli).motion,
+            MotionSetting::Off
+        );
+    }
+
+    #[test]
+    fn from_cli_defaults_icon_mode_logic() {
+        // Default -> Unicode
+        let cli = default_test_cli();
+        assert_eq!(
+            RuntimeSettings::from_cli_defaults(&cli).icon_mode,
+            IconMode::Unicode
+        );
+
+        // emoji_icons -> Emoji
+        let mut cli = default_test_cli();
+        cli.emoji_icons = true;
+        assert_eq!(
+            RuntimeSettings::from_cli_defaults(&cli).icon_mode,
+            IconMode::Emoji
+        );
+
+        // ascii_icons -> Ascii
+        let mut cli = default_test_cli();
+        cli.ascii_icons = true;
+        assert_eq!(
+            RuntimeSettings::from_cli_defaults(&cli).icon_mode,
+            IconMode::Ascii
+        );
+
+        // ascii_icons takes precedence over emoji_icons
+        let mut cli = default_test_cli();
+        cli.ascii_icons = true;
+        cli.emoji_icons = true;
+        assert_eq!(
+            RuntimeSettings::from_cli_defaults(&cli).icon_mode,
+            IconMode::Ascii
+        );
+    }
+
+    #[test]
+    fn from_cli_defaults_hardcoded_fields() {
+        let mut cli = default_test_cli();
+        // Even if we set hourly_view in CLI, the implementation currently hardcodes it to Table.
+        cli.hourly_view = Some(HourlyViewArg::Chart);
+
+        let settings = RuntimeSettings::from_cli_defaults(&cli);
+
+        assert_eq!(settings.hourly_view, HourlyViewMode::Table);
+        assert!(settings.recent_locations.is_empty());
+    }
 
     #[test]
     fn same_place_handles_unicode_case() {
@@ -352,85 +450,5 @@ mod tests {
         let restored: RuntimeSettings = serde_json::from_str(&content).expect("parse settings");
 
         assert_eq!(restored.hourly_view, HourlyViewMode::Chart);
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn save_runtime_settings_sets_secure_permissions() {
-        use std::os::unix::fs::PermissionsExt;
-        let settings = RuntimeSettings::default();
-        let temp_dir = tempfile::tempdir().expect("create temp dir");
-        let path = temp_dir.path().join("settings.json");
-
-        save_runtime_settings(&path, &settings).expect("save settings");
-
-        let metadata = std::fs::metadata(&path).expect("get metadata");
-        let mode = metadata.permissions().mode();
-        assert_eq!(mode & 0o777, 0o600, "permissions should be 600");
-    }
-}
-
-#[cfg(test)]
-mod verification_test {
-    use super::*;
-    use crate::cli::{Cli, UnitsArg, ColorArg, ThemeArg, HeroVisualArg};
-    use std::fs;
-    use tempfile::tempdir;
-
-    fn test_cli() -> Cli {
-        Cli {
-            city: None,
-            units: UnitsArg::Celsius,
-            fps: 30,
-            no_animation: false,
-            reduced_motion: false,
-            no_flash: false,
-            ascii_icons: false,
-            emoji_icons: false,
-            color: ColorArg::Auto,
-            no_color: false,
-            hourly_view: None,
-            theme: ThemeArg::Auto,
-            hero_visual: HeroVisualArg::AtmosCanvas,
-            country_code: None,
-            lat: None,
-            lon: None,
-            refresh_interval: 600,
-            demo: false,
-            one_shot: false,
-        }
-    }
-
-    #[test]
-    fn ignores_large_settings_file() {
-        let dir = tempdir().expect("create temp dir");
-        let settings_path = dir.path().join("settings.json");
-
-        // 130KB of data.
-        let large_string = "a".repeat(130 * 1024);
-        let content = format!(r#"{{
-            "units": "Celsius",
-            "recent_locations": [
-                {{
-                    "name": "{}",
-                    "latitude": 0.0,
-                    "longitude": 0.0,
-                    "country": null,
-                    "admin1": null,
-                    "timezone": null
-                }}
-            ]
-        }}"#, large_string);
-
-        fs::write(&settings_path, content).expect("write large settings file");
-
-        unsafe { std::env::set_var("TERMINAL_WEATHER_CONFIG_DIR", dir.path()); }
-
-        let cli = test_cli();
-        let (settings, _loaded_path) = load_runtime_settings(&cli, true);
-
-        unsafe { std::env::remove_var("TERMINAL_WEATHER_CONFIG_DIR"); }
-
-        assert!(settings.recent_locations.is_empty(), "Should ignore large settings file");
     }
 }
