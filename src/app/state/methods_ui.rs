@@ -21,15 +21,10 @@ impl AppState {
     }
 
     fn handle_settings_nav_key(&mut self, code: KeyCode) -> bool {
+        if navigate_list(&mut self.settings_selected, SETTINGS_COUNT - 1, code) {
+            return true;
+        }
         match code {
-            KeyCode::Up => {
-                self.settings_selected = self.settings_selected.saturating_sub(1);
-                true
-            }
-            KeyCode::Down => {
-                self.settings_selected = (self.settings_selected + 1).min(SETTINGS_COUNT - 1);
-                true
-            }
             KeyCode::Left => {
                 self.adjust_selected_setting(-1);
                 true
@@ -109,19 +104,14 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> bool {
+        let max_index = self.city_picker_max_index();
+        if navigate_list(&mut self.city_history_selected, max_index, code) {
+            return true;
+        }
         match code {
             KeyCode::Esc => {
                 self.city_picker_open = false;
                 self.city_status = None;
-                true
-            }
-            KeyCode::Up => {
-                self.city_history_selected = self.city_history_selected.saturating_sub(1);
-                true
-            }
-            KeyCode::Down => {
-                self.city_history_selected =
-                    (self.city_history_selected + 1).min(self.city_picker_max_index());
                 true
             }
             KeyCode::Enter => {
@@ -280,4 +270,59 @@ impl AppState {
 fn ctrl_char(key: KeyEvent, target: char) -> bool {
     key.modifiers.contains(KeyModifiers::CONTROL)
         && matches!(key.code, KeyCode::Char(ch) if ch.eq_ignore_ascii_case(&target))
+}
+
+fn navigate_list(selected: &mut usize, max: usize, code: KeyCode) -> bool {
+    match code {
+        KeyCode::Up => {
+            *selected = selected.saturating_sub(1);
+            true
+        }
+        KeyCode::Down => {
+            *selected = (*selected + 1).min(max);
+            true
+        }
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::navigate_list;
+    use crossterm::event::KeyCode;
+
+    #[test]
+    fn navigate_list_handles_up_down() {
+        let mut idx = 1;
+        let max = 5;
+
+        // Up: decrement
+        assert!(navigate_list(&mut idx, max, KeyCode::Up));
+        assert_eq!(idx, 0);
+
+        // Up: clamp at 0
+        assert!(navigate_list(&mut idx, max, KeyCode::Up));
+        assert_eq!(idx, 0);
+
+        // Down: increment
+        assert!(navigate_list(&mut idx, max, KeyCode::Down));
+        assert_eq!(idx, 1);
+
+        // Down: clamp at max
+        idx = max;
+        assert!(navigate_list(&mut idx, max, KeyCode::Down));
+        assert_eq!(idx, max);
+    }
+
+    #[test]
+    fn navigate_list_ignores_other_keys() {
+        let mut idx = 1;
+        let max = 5;
+
+        assert!(!navigate_list(&mut idx, max, KeyCode::Left));
+        assert_eq!(idx, 1);
+
+        assert!(!navigate_list(&mut idx, max, KeyCode::Enter));
+        assert_eq!(idx, 1);
+    }
 }
