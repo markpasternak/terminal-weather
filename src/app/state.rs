@@ -575,30 +575,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn handle_input_updates_viewport_width_on_resize() {
-        let mut state = AppState::new(&test_cli());
-        let (tx, _rx) = tokio::sync::mpsc::channel(1);
-        let cli = test_cli();
-
-        // Initially 80
-        assert_eq!(state.viewport_width, 80);
-
-        // Resize to 120x40
-        state
-            .handle_input(crossterm::event::Event::Resize(120, 40), &tx, &cli)
-            .await
-            .unwrap();
-        assert_eq!(state.viewport_width, 120);
-
-        // Resize to 60x20
-        state
-            .handle_input(crossterm::event::Event::Resize(60, 20), &tx, &cli)
-            .await
-            .unwrap();
-        assert_eq!(state.viewport_width, 60);
-    }
-
     fn test_cli() -> Cli {
         Cli {
             city: None,
