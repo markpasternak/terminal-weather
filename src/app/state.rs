@@ -303,70 +303,60 @@ fn motion_flags(settings: &RuntimeSettings) -> (bool, bool) {
     )
 }
 
-pub(crate) fn adjust_units_setting(state: &mut AppState, direction: i8) -> bool {
-    adjust_cycle_setting(
-        &mut state.settings.units,
-        &[Units::Celsius, Units::Fahrenheit],
-        direction,
-    )
-}
-
-pub(crate) fn adjust_theme_setting(state: &mut AppState, direction: i8) -> bool {
-    adjust_cycle_setting(&mut state.settings.theme, &THEME_OPTIONS, direction)
-}
-
-pub(crate) fn adjust_motion_setting(state: &mut AppState, direction: i8) -> bool {
-    adjust_cycle_setting(
-        &mut state.settings.motion,
-        &[
-            MotionSetting::Full,
-            MotionSetting::Reduced,
-            MotionSetting::Off,
-        ],
-        direction,
-    )
-}
-
-pub(crate) fn adjust_flash_setting(state: &mut AppState, _: i8) -> bool {
-    state.settings.no_flash = !state.settings.no_flash;
-    true
-}
-
-pub(crate) fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
-    adjust_cycle_setting(
-        &mut state.settings.icon_mode,
-        &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
-        direction,
-    )
-}
-
-pub(crate) fn adjust_hourly_view_setting(state: &mut AppState, direction: i8) -> bool {
-    adjust_cycle_setting_from(
-        &mut state.settings.hourly_view,
-        state.hourly_view_mode,
-        &HOURLY_VIEW_OPTIONS,
-        direction,
-    )
-}
-
-pub(crate) fn adjust_hero_visual_setting(state: &mut AppState, direction: i8) -> bool {
-    adjust_cycle_setting(
-        &mut state.settings.hero_visual,
-        &[
-            HeroVisualArg::AtmosCanvas,
-            HeroVisualArg::GaugeCluster,
-            HeroVisualArg::SkyObservatory,
-        ],
-        direction,
-    )
-}
-
-pub(crate) fn adjust_refresh_interval_setting(state: &mut AppState, direction: i8) -> bool {
-    adjust_cycle_setting(
-        &mut state.settings.refresh_interval_secs,
-        &REFRESH_OPTIONS,
-        direction,
-    )
+pub(crate) fn adjust_setting_selection(
+    state: &mut AppState,
+    selection: SettingsSelection,
+    direction: i8,
+) -> bool {
+    match selection {
+        SettingsSelection::Units => adjust_cycle_setting(
+            &mut state.settings.units,
+            &[Units::Celsius, Units::Fahrenheit],
+            direction,
+        ),
+        SettingsSelection::Theme => {
+            adjust_cycle_setting(&mut state.settings.theme, &THEME_OPTIONS, direction)
+        }
+        SettingsSelection::Motion => adjust_cycle_setting(
+            &mut state.settings.motion,
+            &[
+                MotionSetting::Full,
+                MotionSetting::Reduced,
+                MotionSetting::Off,
+            ],
+            direction,
+        ),
+        SettingsSelection::Flash => {
+            state.settings.no_flash = !state.settings.no_flash;
+            true
+        }
+        SettingsSelection::Icons => adjust_cycle_setting(
+            &mut state.settings.icon_mode,
+            &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
+            direction,
+        ),
+        SettingsSelection::HourlyView => adjust_cycle_setting_from(
+            &mut state.settings.hourly_view,
+            state.hourly_view_mode,
+            &HOURLY_VIEW_OPTIONS,
+            direction,
+        ),
+        SettingsSelection::HeroVisual => adjust_cycle_setting(
+            &mut state.settings.hero_visual,
+            &[
+                HeroVisualArg::AtmosCanvas,
+                HeroVisualArg::GaugeCluster,
+                HeroVisualArg::SkyObservatory,
+            ],
+            direction,
+        ),
+        SettingsSelection::RefreshInterval => adjust_cycle_setting(
+            &mut state.settings.refresh_interval_secs,
+            &REFRESH_OPTIONS,
+            direction,
+        ),
+        SettingsSelection::RefreshNow | SettingsSelection::Close => false,
+    }
 }
 
 fn cycle<T: Copy + Eq>(values: &[T], current: T, direction: i8) -> T {

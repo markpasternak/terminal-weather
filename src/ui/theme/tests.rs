@@ -226,51 +226,47 @@ fn light_themes_keep_semantic_tokens_legible() {
 }
 
 #[test]
-fn auto_mode_ignores_empty_no_color() {
-    let capability = detect_color_capability_from(
-        ColorArg::Auto,
-        Some("xterm-256color"),
-        Some("truecolor"),
-        Some(""),
-    );
-    assert_eq!(capability, ColorCapability::TrueColor);
-}
+fn detect_color_capability_respects_mode_and_env_overrides() {
+    let cases = [
+        (
+            ColorArg::Auto,
+            Some("xterm-256color"),
+            Some("truecolor"),
+            Some(""),
+            ColorCapability::TrueColor,
+        ),
+        (
+            ColorArg::Auto,
+            Some("xterm-256color"),
+            Some("truecolor"),
+            Some("1"),
+            ColorCapability::Basic16,
+        ),
+        (
+            ColorArg::Always,
+            Some("xterm-256color"),
+            Some("24bit"),
+            Some("1"),
+            ColorCapability::TrueColor,
+        ),
+        (
+            ColorArg::Auto,
+            Some("xterm-direct"),
+            None,
+            None,
+            ColorCapability::TrueColor,
+        ),
+        (
+            ColorArg::Never,
+            Some("xterm-256color"),
+            Some("truecolor"),
+            None,
+            ColorCapability::Basic16,
+        ),
+    ];
 
-#[test]
-fn auto_mode_honors_non_empty_no_color() {
-    let capability = detect_color_capability_from(
-        ColorArg::Auto,
-        Some("xterm-256color"),
-        Some("truecolor"),
-        Some("1"),
-    );
-    assert_eq!(capability, ColorCapability::Basic16);
-}
-
-#[test]
-fn always_mode_bypasses_no_color() {
-    let capability = detect_color_capability_from(
-        ColorArg::Always,
-        Some("xterm-256color"),
-        Some("24bit"),
-        Some("1"),
-    );
-    assert_eq!(capability, ColorCapability::TrueColor);
-}
-
-#[test]
-fn auto_mode_uses_term_direct_as_truecolor_hint() {
-    let capability = detect_color_capability_from(ColorArg::Auto, Some("xterm-direct"), None, None);
-    assert_eq!(capability, ColorCapability::TrueColor);
-}
-
-#[test]
-fn never_mode_forces_basic16() {
-    let capability = detect_color_capability_from(
-        ColorArg::Never,
-        Some("xterm-256color"),
-        Some("truecolor"),
-        None,
-    );
-    assert_eq!(capability, ColorCapability::Basic16);
+    for (mode, term, colorterm, no_color, expected) in cases {
+        let capability = detect_color_capability_from(mode, term, colorterm, no_color);
+        assert_eq!(capability, expected);
+    }
 }

@@ -1,0 +1,19 @@
+[[ignore]]
+fingerprint = "14da4d33e5b8ceeb"
+reason = "Small enum-label mappers duplicated across UI/state modules; refactoring would couple unrelated modules"
+
+[[ignore]]
+fingerprint = "134337233110dac0"
+reason = "CLI fixture constructors are duplicated across integration and unit test layers by design"
+
+[[ignore]]
+fingerprint = "5c97937c3ad9d454"
+reason = "Rendering helpers are structurally similar but semantically distinct widgets"
+
+[[ignore]]
+fingerprint = "804386ff6e809510"
+reason = "Module-local daily test fixtures intentionally mirror domain fixture shape"
+
+[[ignore]]
+fingerprint = "b8a8f19cdcbaf4f8"
+reason = "Settings default tests intentionally duplicate scenario setup to keep assertions explicit"

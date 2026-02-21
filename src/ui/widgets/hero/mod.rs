@@ -1,6 +1,8 @@
 pub mod background;
 pub mod landmark_panel;
 mod shared;
+#[cfg(test)]
+mod test_support;
 pub mod weather;
 pub mod weather_expanded;
 

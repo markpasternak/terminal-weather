@@ -1,11 +1,11 @@
 use super::{
-    AppState, adjust_hero_visual_setting, adjust_icon_setting, adjust_motion_setting,
-    initial_selected_location, is_city_char,
+    AppState, SettingsSelection, adjust_setting_selection, initial_selected_location, is_city_char,
 };
 use crate::{
     app::settings::{MotionSetting, RecentLocation, RuntimeSettings},
     cli::{Cli, ColorArg, HeroVisualArg, IconMode, ThemeArg, UnitsArg},
 };
+use std::fmt::Debug;
 use std::sync::atomic::Ordering;
 
 #[test]
@@ -74,48 +74,56 @@ fn apply_runtime_settings_updates_refresh_interval_runtime() {
 }
 
 #[test]
-fn adjust_motion_setting_cycles_forward_and_backward() {
+fn adjust_setting_cycles_forward_and_backward() {
     let mut state = AppState::new(&test_cli());
-    assert_eq!(state.settings.motion, MotionSetting::Off);
-
-    assert!(adjust_motion_setting(&mut state, 1));
-    assert_eq!(state.settings.motion, MotionSetting::Full);
-
-    assert!(adjust_motion_setting(&mut state, 1));
-    assert_eq!(state.settings.motion, MotionSetting::Reduced);
-
-    assert!(adjust_motion_setting(&mut state, -1));
-    assert_eq!(state.settings.motion, MotionSetting::Full);
+    assert_cycle(
+        &mut state,
+        SettingsSelection::Motion,
+        MotionSetting::Off,
+        MotionSetting::Full,
+        MotionSetting::Reduced,
+        MotionSetting::Full,
+        |s| s.settings.motion,
+    );
+    assert_cycle(
+        &mut state,
+        SettingsSelection::Icons,
+        IconMode::Unicode,
+        IconMode::Ascii,
+        IconMode::Emoji,
+        IconMode::Ascii,
+        |s| s.settings.icon_mode,
+    );
+    assert_cycle(
+        &mut state,
+        SettingsSelection::HeroVisual,
+        HeroVisualArg::AtmosCanvas,
+        HeroVisualArg::GaugeCluster,
+        HeroVisualArg::SkyObservatory,
+        HeroVisualArg::GaugeCluster,
+        |s| s.settings.hero_visual,
+    );
 }
 
-#[test]
-fn adjust_icon_setting_cycles_forward_and_backward() {
-    let mut state = AppState::new(&test_cli());
-    assert_eq!(state.settings.icon_mode, IconMode::Unicode);
-
-    assert!(adjust_icon_setting(&mut state, 1));
-    assert_eq!(state.settings.icon_mode, IconMode::Ascii);
-
-    assert!(adjust_icon_setting(&mut state, 1));
-    assert_eq!(state.settings.icon_mode, IconMode::Emoji);
-
-    assert!(adjust_icon_setting(&mut state, -1));
-    assert_eq!(state.settings.icon_mode, IconMode::Ascii);
-}
-
-#[test]
-fn adjust_hero_visual_setting_cycles_forward_and_backward() {
-    let mut state = AppState::new(&test_cli());
-    assert_eq!(state.settings.hero_visual, HeroVisualArg::AtmosCanvas);
-
-    assert!(adjust_hero_visual_setting(&mut state, 1));
-    assert_eq!(state.settings.hero_visual, HeroVisualArg::GaugeCluster);
-
-    assert!(adjust_hero_visual_setting(&mut state, 1));
-    assert_eq!(state.settings.hero_visual, HeroVisualArg::SkyObservatory);
-
-    assert!(adjust_hero_visual_setting(&mut state, -1));
-    assert_eq!(state.settings.hero_visual, HeroVisualArg::GaugeCluster);
+fn assert_cycle<T, F>(
+    state: &mut AppState,
+    selection: SettingsSelection,
+    initial: T,
+    next: T,
+    next_after_wrap: T,
+    previous: T,
+    read: F,
+) where
+    T: Copy + Debug + PartialEq,
+    F: Fn(&AppState) -> T,
+{
+    assert_eq!(read(state), initial);
+    assert!(adjust_setting_selection(state, selection, 1));
+    assert_eq!(read(state), next);
+    assert!(adjust_setting_selection(state, selection, 1));
+    assert_eq!(read(state), next_after_wrap);
+    assert!(adjust_setting_selection(state, selection, -1));
+    assert_eq!(read(state), previous);
 }
 
 fn test_cli() -> Cli {

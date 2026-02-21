@@ -162,17 +162,7 @@ impl AppState {
     }
 
     pub(crate) fn adjust_selected_setting(&mut self, direction: i8) {
-        let changed = match self.settings_selected {
-            SettingsSelection::Units => adjust_units_setting(self, direction),
-            SettingsSelection::Theme => adjust_theme_setting(self, direction),
-            SettingsSelection::Motion => adjust_motion_setting(self, direction),
-            SettingsSelection::Flash => adjust_flash_setting(self, direction),
-            SettingsSelection::Icons => adjust_icon_setting(self, direction),
-            SettingsSelection::HourlyView => adjust_hourly_view_setting(self, direction),
-            SettingsSelection::HeroVisual => adjust_hero_visual_setting(self, direction),
-            SettingsSelection::RefreshInterval => adjust_refresh_interval_setting(self, direction),
-            SettingsSelection::RefreshNow | SettingsSelection::Close => false,
-        };
+        let changed = adjust_setting_selection(self, self.settings_selected, direction);
 
         if changed {
             self.apply_runtime_settings();
@@ -317,39 +307,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_handle_vertical_nav_up() {
-        let mut selected = 5;
-        let max_index = 10;
-        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Up);
-        assert!(handled);
-        assert_eq!(selected, 4);
-    }
+    fn test_handle_vertical_nav_movement_cases() {
+        let cases = [
+            (5, 10, KeyCode::Up, 4),
+            (0, 10, KeyCode::Up, 0),
+            (5, 10, KeyCode::Down, 6),
+            (10, 10, KeyCode::Down, 10),
+        ];
 
-    #[test]
-    fn test_handle_vertical_nav_up_at_zero() {
-        let mut selected = 0;
-        let max_index = 10;
-        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Up);
-        assert!(handled);
-        assert_eq!(selected, 0);
-    }
-
-    #[test]
-    fn test_handle_vertical_nav_down() {
-        let mut selected = 5;
-        let max_index = 10;
-        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Down);
-        assert!(handled);
-        assert_eq!(selected, 6);
-    }
-
-    #[test]
-    fn test_handle_vertical_nav_down_at_max() {
-        let mut selected = 10;
-        let max_index = 10;
-        let handled = handle_vertical_nav(&mut selected, max_index, KeyCode::Down);
-        assert!(handled);
-        assert_eq!(selected, 10);
+        for (start, max_index, key, expected) in cases {
+            let mut selected = start;
+            let handled = handle_vertical_nav(&mut selected, max_index, key);
+            assert!(handled);
+            assert_eq!(selected, expected);
+        }
     }
 
     #[test]
