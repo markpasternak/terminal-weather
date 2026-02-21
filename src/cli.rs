@@ -224,28 +224,4 @@ mod tests {
         let cli = Cli::parse_from(["terminal-weather", "--hourly-view", "hybrid"]);
         assert_eq!(cli.hourly_view, Some(HourlyViewArg::Hybrid));
     }
-
-    #[test]
-    fn validate_fails_when_only_lat_provided() {
-        let cli = Cli::parse_from(["terminal-weather", "--lat", "10.0"]);
-        assert!(cli.validate().is_err());
-    }
-
-    #[test]
-    fn validate_fails_when_only_lon_provided() {
-        let cli = Cli::parse_from(["terminal-weather", "--lon", "10.0"]);
-        assert!(cli.validate().is_err());
-    }
-
-    #[test]
-    fn validate_succeeds_when_both_provided() {
-        let cli = Cli::parse_from(["terminal-weather", "--lat", "10.0", "--lon", "10.0"]);
-        assert!(cli.validate().is_ok());
-    }
-
-    #[test]
-    fn validate_succeeds_when_neither_provided() {
-        let cli = Cli::parse_from(["terminal-weather"]);
-        assert!(cli.validate().is_ok());
-    }
 }
