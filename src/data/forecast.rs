@@ -34,6 +34,7 @@ impl ForecastClient {
         Self::with_base_url(url)
     }
 
+    #[must_use]
     pub fn with_base_url(base_url: impl Into<String>) -> Self {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(10))
@@ -385,5 +386,53 @@ mod tests {
     #[test]
     fn parse_air_quality_returns_none_when_missing() {
         assert!(parse_air_quality(None).is_none());
+    }
+
+    #[test]
+    fn test_forecast_config_env_vars() {
+        struct EnvVarGuard {
+            key: &'static str,
+        }
+
+        impl Drop for EnvVarGuard {
+            fn drop(&mut self) {
+                unsafe {
+                    std::env::remove_var(self.key);
+                }
+            }
+        }
+
+        let custom_forecast = "https://example.com/forecast";
+        let custom_aq = "https://example.com/aq";
+        let key_forecast = "TERMINAL_WEATHER_FORECAST_URL";
+        let key_aq = "TERMINAL_WEATHER_AIR_QUALITY_URL";
+
+        // Set env vars
+        // Note: this modifies process state which may affect other tests running in parallel
+        // however, these env vars are specific to this test case.
+        // We use RAII guards to ensure cleanup even if assertions fail.
+        unsafe {
+            std::env::set_var(key_forecast, custom_forecast);
+        }
+        let guard_forecast = EnvVarGuard { key: key_forecast };
+
+        unsafe {
+            std::env::set_var(key_aq, custom_aq);
+        }
+        let guard_aq = EnvVarGuard { key: key_aq };
+
+        let client = ForecastClient::new();
+
+        assert_eq!(client.base_url, custom_forecast);
+        assert_eq!(client.air_quality_url, custom_aq);
+
+        // Drop guards here to clean up before checking defaults
+        drop(guard_forecast);
+        drop(guard_aq);
+
+        // Verify defaults are restored
+        let client_default = ForecastClient::new();
+        assert_eq!(client_default.base_url, FORECAST_URL);
+        assert_eq!(client_default.air_quality_url, AIR_QUALITY_URL);
     }
 }
