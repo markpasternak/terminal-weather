@@ -372,12 +372,12 @@ mod tests {
         unsafe {
             std::env::set_var(key_forecast, custom_forecast);
         }
-        let _guard_forecast = EnvVarGuard { key: key_forecast };
+        let guard_forecast = EnvVarGuard { key: key_forecast };
 
         unsafe {
             std::env::set_var(key_aq, custom_aq);
         }
-        let _guard_aq = EnvVarGuard { key: key_aq };
+        let guard_aq = EnvVarGuard { key: key_aq };
 
         let client = ForecastClient::new();
 
@@ -385,8 +385,8 @@ mod tests {
         assert_eq!(client.air_quality_url, custom_aq);
 
         // Drop guards here to clean up before checking defaults
-        drop(_guard_forecast);
-        drop(_guard_aq);
+        drop(guard_forecast);
+        drop(guard_aq);
 
         // Verify defaults are restored
         let client_default = ForecastClient::new();
