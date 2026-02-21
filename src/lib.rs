@@ -158,6 +158,7 @@ async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) 
     let mut app = AppState::new(&cli);
 
     tx.send(AppEvent::Bootstrap).await?;
+    app.viewport_width = terminal.size()?.width;
 
     while app.running {
         tokio::select! {
@@ -169,7 +170,6 @@ async fn run_inner(terminal: &mut Terminal<CrosstermBackend<Stdout>>, cli: Cli) 
             }
         }
 
-        app.viewport_width = terminal.size()?.width;
         terminal.draw(|frame| ui::render(frame, &app, &cli))?;
 
         if app.mode == AppMode::Quit {
