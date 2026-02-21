@@ -156,7 +156,7 @@ To contribute code:
 
 1. Fork the repo and create a branch from `main`
 2. Make your changes
-3. Run `./scripts/ci-local.sh` — CI must pass before a PR can merge
+3. Run `./scripts/check.sh` — CI must pass before a PR can merge
 4. Open a pull request against `main`
 
 The maintainer reviews and merges all PRs. Direct pushes to `main` are restricted.
@@ -174,7 +174,7 @@ cargo install --locked cargo-dupes --version 0.2.1
 Primary pre-PR check:
 
 ```bash
-./scripts/ci-local.sh
+./scripts/check.sh
 ```
 
 If you want to run checks step-by-step:
@@ -184,7 +184,7 @@ cargo fmt --all
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic -D clippy::if_same_then_else -D clippy::match_same_arms -D clippy::branches_sharing_code
-./scripts/static-analysis-gate.sh
+./scripts/complexity-gate.sh
 ./scripts/duplication-gate.sh
 cargo check --all-targets --all-features
 cargo test --all --all-features
@@ -194,7 +194,7 @@ cargo build --release
 Optional local parity gate:
 
 ```bash
-./scripts/codacy-complexity-gate.sh
+./scripts/complexity-audit.sh
 ```
 
 ---
