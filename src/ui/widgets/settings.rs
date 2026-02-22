@@ -116,20 +116,27 @@ fn push_setting_row(
     });
 }
 
-const fn selection_entry_index(selection: SettingsSelection) -> usize {
-    match selection {
-        SettingsSelection::Units => 0,
-        SettingsSelection::Theme => 1,
-        SettingsSelection::Flash => 2,
-        SettingsSelection::Icons => 3,
-        SettingsSelection::InlineHints => 4,
-        SettingsSelection::CommandBar => 5,
-        SettingsSelection::HourlyView => 6,
-        SettingsSelection::HeroVisual => 7,
-        SettingsSelection::RefreshInterval => 8,
-        SettingsSelection::RefreshNow => 9,
-        SettingsSelection::Close => 10,
-    }
+fn selection_entry_index(selection: SettingsSelection) -> usize {
+    selection_order()
+        .iter()
+        .position(|candidate| *candidate == selection)
+        .unwrap_or(0)
+}
+
+const fn selection_order() -> [SettingsSelection; 11] {
+    [
+        SettingsSelection::Units,
+        SettingsSelection::Theme,
+        SettingsSelection::Flash,
+        SettingsSelection::Icons,
+        SettingsSelection::InlineHints,
+        SettingsSelection::CommandBar,
+        SettingsSelection::HourlyView,
+        SettingsSelection::HeroVisual,
+        SettingsSelection::RefreshInterval,
+        SettingsSelection::RefreshNow,
+        SettingsSelection::Close,
+    ]
 }
 
 fn settings_list(items: Vec<ListItem<'static>>, panel_style: Style, theme: Theme) -> List<'static> {

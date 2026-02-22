@@ -16,9 +16,9 @@ pub(super) fn precipitation_cue(day: &crate::domain::weather::DailyForecast) -> 
     let precip = day.precipitation_sum_mm.unwrap_or(0.0).max(0.0);
     let rain = day.rain_sum_mm.unwrap_or(0.0).max(0.0);
     let snow = day.snowfall_sum_cm.unwrap_or(0.0).max(0.0);
-    snow_cue(snow)
-        .or_else(|| rain_cue(rain))
-        .or_else(|| precip_cue(precip))
+    threshold_cue(snow, 1.0, 0.2, "snow", "light snow", "cm")
+        .or_else(|| threshold_cue(rain, 6.0, 1.0, "wet", "light rain", "mm"))
+        .or_else(|| threshold_cue(precip, 6.0, 1.0, "wet", "light precip", "mm"))
         .unwrap_or_else(|| "mostly dry".to_string())
 }
 
@@ -90,31 +90,18 @@ pub(super) fn day_cue(day: &crate::domain::weather::DailyForecast) -> String {
     parts.join(", ")
 }
 
-fn snow_cue(snow: f32) -> Option<String> {
-    if snow >= 1.0 {
-        Some(format!("snow {snow:.1}cm"))
-    } else if snow >= 0.2 {
-        Some(format!("light snow {snow:.1}cm"))
-    } else {
-        None
-    }
-}
-
-fn rain_cue(rain: f32) -> Option<String> {
-    if rain >= 6.0 {
-        Some(format!("wet {rain:.1}mm"))
-    } else if rain >= 1.0 {
-        Some(format!("light rain {rain:.1}mm"))
-    } else {
-        None
-    }
-}
-
-fn precip_cue(precip: f32) -> Option<String> {
-    if precip >= 6.0 {
-        Some(format!("wet {precip:.1}mm"))
-    } else if precip >= 1.0 {
-        Some(format!("light precip {precip:.1}mm"))
+fn threshold_cue(
+    value: f32,
+    strong_threshold: f32,
+    light_threshold: f32,
+    strong_label: &str,
+    light_label: &str,
+    unit: &str,
+) -> Option<String> {
+    if value >= strong_threshold {
+        Some(format!("{strong_label} {value:.1}{unit}"))
+    } else if value >= light_threshold {
+        Some(format!("{light_label} {value:.1}{unit}"))
     } else {
         None
     }

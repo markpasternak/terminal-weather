@@ -72,17 +72,12 @@ struct TimelineSeries {
 type TimelineLine = Line<'static>;
 
 fn timeline_series(slice: &[&HourlyForecast], units: Units) -> TimelineSeries {
-    let temp_unit = match units {
-        Units::Celsius => "C",
-        Units::Fahrenheit => "F",
-    };
-
     TimelineSeries {
         temps: slice
             .iter()
             .map(|h| h.temperature_2m_c.map(|t| convert_temp(t, units)))
             .collect::<Vec<_>>(),
-        temp_unit,
+        temp_unit: units.symbol(),
         precips: slice
             .iter()
             .map(|h| h.precipitation_mm.unwrap_or(0.0).max(0.0))
@@ -274,130 +269,68 @@ fn time_axis_line(times: &[chrono::NaiveDateTime], width: usize) -> String {
     let mut previous_col = None;
 
     for (idx, time) in times.iter().enumerate() {
-        let col = sample_column(idx, width, times.len());
-        if previous_col == Some(col) {
+        let Some(col) = unique_axis_column(idx, width, times.len(), &mut previous_col) else {
             continue;
-        }
-        previous_col = Some(col);
+        };
 
         let hour = time.hour();
         let day = time.ordinal();
         let day_changed = day != previous_day;
-        out[col] = if day_changed {
+        out[col] = axis_marker(hour, day_changed);
+        if day_changed {
             previous_day = day;
-            '|'
-        } else if hour.is_multiple_of(6) {
-            '┆'
-        } else if hour.is_multiple_of(3) {
-            '·'
-        } else {
-            ' '
-        };
+        }
 
         if hour.is_multiple_of(6) {
             let label = format!("{hour:02}");
-            let start = if day_changed && col + 1 < width {
-                col.saturating_add(1).min(width.saturating_sub(label.len()))
-            } else {
-                col.saturating_sub(1).min(width.saturating_sub(label.len()))
-            };
-            for (offset, ch) in label.chars().enumerate() {
-                if start + offset < width {
-                    out[start + offset] = ch;
-                }
-            }
+            let start = axis_label_start(day_changed, col, width, label.len());
+            write_axis_label(&mut out, start, &label);
         }
     }
     out.into_iter().collect()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        cli::ThemeArg,
-        domain::weather::WeatherCategory,
-        ui::theme::{ColorCapability, theme_for},
-    };
-    use chrono::{NaiveDate, NaiveDateTime};
-
-    #[test]
-    fn timeline_lines_use_single_time_axis_with_anchors() {
-        let theme = theme_for(
-            WeatherCategory::Cloudy,
-            true,
-            ColorCapability::Basic16,
-            ThemeArg::Aurora,
-        );
-        let series = TimelineSeries {
-            temps: vec![Some(-2.0), Some(4.0), Some(1.0)],
-            temp_unit: "C",
-            precips: vec![0.0, 0.8, 1.6],
-            times: vec![dt(2026, 2, 22, 0), dt(2026, 2, 22, 6), dt(2026, 2, 22, 12)],
-        };
-
-        let lines = timeline_lines(&series, 56, 6, theme);
-        assert_eq!(lines.len(), 3);
-
-        let text = lines.iter().map(line_text).collect::<Vec<_>>();
-        assert!(text[0].starts_with("Temp  "));
-        assert!(text[1].starts_with("Precip"));
-        assert!(text[2].starts_with("Time  "));
-        assert!(text[0].contains('C'));
-        assert!(text[0].contains(".."));
-        assert!(text[1].contains("mm/h"));
-        assert!(!text.iter().any(|line| line.starts_with("Tick  ")));
-        assert!(!text.iter().any(|line| line.starts_with("Hour  ")));
-        assert!(!text.iter().any(|line| line.starts_with("Shift ")));
+fn unique_axis_column(
+    sample_idx: usize,
+    width: usize,
+    sample_len: usize,
+    previous_col: &mut Option<usize>,
+) -> Option<usize> {
+    let col = sample_column(sample_idx, width, sample_len);
+    if *previous_col == Some(col) {
+        return None;
     }
+    *previous_col = Some(col);
+    Some(col)
+}
 
-    #[test]
-    fn time_axis_labels_are_not_repeated_per_column() {
-        let times = (0..13)
-            .map(|hour| dt(2026, 2, 22, hour))
-            .collect::<Vec<_>>();
-        let axis = time_axis_line(&times, 80);
-
-        assert_eq!(axis.matches("00").count(), 1);
-        assert_eq!(axis.matches("06").count(), 1);
-        assert_eq!(axis.matches("12").count(), 1);
-    }
-
-    #[test]
-    fn time_axis_marks_day_boundaries() {
-        let times = (18..31)
-            .map(|h| {
-                let day = if h < 24 { 22 } else { 23 };
-                let hour = h % 24;
-                dt(2026, 2, day, hour)
-            })
-            .collect::<Vec<_>>();
-        let axis = time_axis_line(&times, 64);
-        assert!(axis.contains('|'));
-    }
-
-    #[test]
-    fn capped_precip_barline_uses_absolute_intensity_scale() {
-        let bars = barline_capped(&[0.2, 1.0, 2.5], 3, 2.0);
-        let chars = bars.chars().collect::<Vec<_>>();
-
-        assert_eq!(chars.len(), 3);
-        assert_ne!(chars[1], '█');
-        assert_eq!(chars[2], '█');
-    }
-
-    fn dt(year: i32, month: u32, day: u32, hour: u32) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(year, month, day)
-            .expect("valid date")
-            .and_hms_opt(hour, 0, 0)
-            .expect("valid time")
-    }
-
-    fn line_text(line: &Line<'_>) -> String {
-        line.spans
-            .iter()
-            .map(|span| span.content.as_ref())
-            .collect::<Vec<_>>()
-            .join("")
+fn axis_marker(hour: u32, day_changed: bool) -> char {
+    if day_changed {
+        '|'
+    } else if hour.is_multiple_of(6) {
+        '┆'
+    } else if hour.is_multiple_of(3) {
+        '·'
+    } else {
+        ' '
     }
 }
+
+fn axis_label_start(day_changed: bool, col: usize, width: usize, label_len: usize) -> usize {
+    if day_changed && col + 1 < width {
+        col.saturating_add(1).min(width.saturating_sub(label_len))
+    } else {
+        col.saturating_sub(1).min(width.saturating_sub(label_len))
+    }
+}
+
+fn write_axis_label(out: &mut [char], start: usize, label: &str) {
+    for (offset, ch) in label.chars().enumerate() {
+        if start + offset < out.len() {
+            out[start + offset] = ch;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

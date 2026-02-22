@@ -15,14 +15,27 @@ use crate::{
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(Clear, area);
+    let (theme, panel_style) = selector_theme(state);
+
+    let chunks = Layout::vertical([Constraint::Min(4), Constraint::Length(2)]).split(area);
+    let list = selector_list(selector_items(state), panel_style, theme);
+    frame.render_widget(list, chunks[0]);
+    let state_line = selector_state_line(state);
+    frame.render_widget(
+        Paragraph::new(Line::from(state_line)).style(Style::default().fg(theme.popup_muted_text)),
+        chunks[1],
+    );
+}
+
+fn selector_theme(state: &AppState) -> (crate::ui::theme::Theme, Style) {
     let (category, is_day) =
         state
             .weather
             .as_ref()
-            .map_or((WeatherCategory::Unknown, false), |w| {
+            .map_or((WeatherCategory::Unknown, false), |weather| {
                 (
-                    crate::domain::weather::weather_code_to_category(w.current.weather_code),
-                    w.current.is_day,
+                    crate::domain::weather::weather_code_to_category(weather.current.weather_code),
+                    weather.current.is_day,
                 )
             });
     let theme = theme_for(
@@ -34,21 +47,29 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     let panel_style = Style::default()
         .fg(theme.popup_text)
         .bg(theme.popup_surface);
+    (theme, panel_style)
+}
 
-    let chunks = Layout::vertical([Constraint::Min(4), Constraint::Length(2)]).split(area);
+fn selector_items(state: &AppState) -> Vec<ListItem<'static>> {
     let items = state
         .pending_locations
         .iter()
         .enumerate()
-        .map(|(idx, loc)| ListItem::new(format_selector_location(idx, loc)))
+        .map(|(idx, location)| ListItem::new(format_selector_location(idx, location)))
         .collect::<Vec<_>>();
-    let items = if items.is_empty() {
+    if items.is_empty() {
         vec![ListItem::new("No candidate locations")]
     } else {
         items
-    };
+    }
+}
 
-    let list = List::new(items)
+fn selector_list(
+    items: Vec<ListItem<'static>>,
+    panel_style: Style,
+    theme: crate::ui::theme::Theme,
+) -> List<'static> {
+    List::new(items)
         .style(panel_style)
         .highlight_style(
             Style::default()
@@ -65,14 +86,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
                         .fg(theme.popup_border)
                         .bg(theme.popup_surface),
                 ),
-        );
-
-    frame.render_widget(list, chunks[0]);
-    let state_line = selector_state_line(state);
-    frame.render_widget(
-        Paragraph::new(Line::from(state_line)).style(Style::default().fg(theme.popup_muted_text)),
-        chunks[1],
-    );
+        )
 }
 
 fn format_selector_location(index: usize, location: &Location) -> String {

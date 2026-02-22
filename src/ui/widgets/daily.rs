@@ -26,9 +26,11 @@ use crate::{
 };
 
 mod layout;
+mod loading;
 mod summary;
 
 use layout::DailyLayout;
+use loading::render_loading_daily;
 use summary::render_week_summary;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
@@ -82,28 +84,8 @@ fn render_daily_with_bundle(
     bundle: &ForecastBundle,
     capability: crate::ui::theme::ColorCapability,
 ) {
-    let layout = DailyLayout::for_area(area);
-    let theme = theme_for(
-        weather_code_to_category(bundle.current.weather_code),
-        bundle.current.is_day,
-        capability,
-        state.settings.theme,
-    );
-    let panel_style = Style::default().fg(theme.text).bg(theme.surface_alt);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(
-            if state.panel_focus == crate::app::state::PanelFocus::Daily {
-                "▶ 7-Day Forecast"
-            } else {
-                "7-Day Forecast"
-            },
-        )
-        .style(panel_style)
-        .border_style(Style::default().fg(theme.border).bg(theme.surface_alt));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
+    let (layout, theme, panel_style, inner) =
+        prepare_daily_bundle_panel(frame, area, state, bundle, capability);
     let content_area = render_daily_context_strip(frame, inner, state, bundle, theme);
     let max_rows = layout.max_rows(content_area.height);
     if max_rows == 0 {
@@ -130,6 +112,35 @@ fn render_daily_with_bundle(
         theme,
         layout,
     );
+}
+
+fn prepare_daily_bundle_panel(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+    bundle: &ForecastBundle,
+    capability: crate::ui::theme::ColorCapability,
+) -> (DailyLayout, crate::ui::theme::Theme, Style, Rect) {
+    let layout = DailyLayout::for_area(area);
+    let theme = theme_for(
+        weather_code_to_category(bundle.current.weather_code),
+        bundle.current.is_day,
+        capability,
+        state.settings.theme,
+    );
+    let panel_style = Style::default().fg(theme.text).bg(theme.surface_alt);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(if state.panel_focus == PanelFocus::Daily {
+            "▶ 7-Day Forecast"
+        } else {
+            "7-Day Forecast"
+        })
+        .style(panel_style)
+        .border_style(Style::default().fg(theme.border).bg(theme.surface_alt));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    (layout, theme, panel_style, inner)
 }
 
 fn render_daily_context_strip(
@@ -313,7 +324,7 @@ fn append_daily_icon_cell(
     let code = day.weather_code.unwrap_or(3);
     cells.push(
         Cell::from(weather_icon(code, icon_mode, true))
-            .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))).bg(Color::Reset)),
+            .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code)))),
     );
 }
 
@@ -464,52 +475,6 @@ fn split_table_and_summary(inner: Rect, table_height: u16) -> (Rect, Option<Rect
         height: summary_height,
     });
     (table_area, summary_slot)
-}
-
-fn render_loading_daily(
-    frame: &mut Frame,
-    area: Rect,
-    frame_tick: u64,
-    panel_style: Style,
-    accent: Color,
-    muted: Color,
-) {
-    if area.height == 0 || area.width < 12 {
-        return;
-    }
-    let rows = usize::from(area.height).min(6);
-    let width = usize::from(area.width.saturating_sub(10)).clamp(8, 28);
-    let phase = (frame_tick as usize) % width;
-
-    let body = (0..rows)
-        .map(|idx| {
-            let mut bar = vec!['·'; width];
-            let head = (phase + idx * 2) % width;
-            bar[head] = '█';
-            if head > 0 {
-                bar[head - 1] = '▓';
-            }
-
-            Row::new(vec![
-                Cell::from(format!("D{}", idx + 1)).style(Style::default().fg(muted)),
-                Cell::from(bar.into_iter().collect::<String>()).style(Style::default().fg(accent)),
-                Cell::from("--°").style(Style::default().fg(muted)),
-            ])
-        })
-        .collect::<Vec<_>>();
-
-    let table = Table::new(
-        body,
-        [
-            Constraint::Length(4),
-            Constraint::Length(width as u16),
-            Constraint::Length(4),
-        ],
-    )
-    .column_spacing(1)
-    .style(panel_style);
-
-    frame.render_widget(table, area);
 }
 
 #[must_use]

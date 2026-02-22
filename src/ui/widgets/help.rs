@@ -34,88 +34,69 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
 
 fn help_lines(theme: Theme, color_mode: ColorArg) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
-    append_start_here_help(&mut lines, theme);
-    append_switch_city_help(&mut lines, theme);
-    append_read_risk_help(&mut lines, theme);
-    append_recover_data_help(&mut lines, theme);
-    append_customize_visuals_help(&mut lines, theme);
+    for section in CORE_HELP_SECTIONS {
+        push_section(&mut lines, theme, section.title, section.body);
+    }
     append_key_reference_help(&mut lines, theme);
     append_color_policy_help(&mut lines, theme, color_mode);
     append_help_footer(&mut lines, theme);
     lines
 }
 
-fn append_start_here_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
-    push_section(
-        lines,
-        theme,
-        "Start here",
-        [
+struct HelpSection {
+    title: &'static str,
+    body: &'static [&'static str],
+}
+
+const CORE_HELP_SECTIONS: [HelpSection; 5] = [
+    HelpSection {
+        title: "Start here",
+        body: &[
             "1) Read top-left triad: now action, next change, confidence/freshness",
             "2) Press Tab to focus Hourly or 7-Day for deeper context",
             "3) Use :city <name> or l to switch location quickly",
         ],
-    );
-}
-
-fn append_switch_city_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
-    push_section(
-        lines,
-        theme,
-        "Switch city",
-        [
+    },
+    HelpSection {
+        title: "Switch city",
+        body: &[
             "Press l, type city, Enter search",
             "Use 1..9 for recent locations",
             "When ambiguous results appear, choose 1..5",
         ],
-    );
-}
-
-fn append_read_risk_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
-    push_section(
-        lines,
-        theme,
-        "Read risk fast",
-        [
+    },
+    HelpSection {
+        title: "Read risk fast",
+        body: &[
             "Hero shows: now action + next change + confidence",
             "Hourly table adds cursor detail and next 6h summary",
             "Alerts include severity and ETA context",
         ],
-    );
-}
-
-fn append_recover_data_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
-    push_section(
-        lines,
-        theme,
-        "Fix stale/offline",
-        [
+    },
+    HelpSection {
+        title: "Fix stale/offline",
+        body: &[
             "Watch status badge: fresh / stale / offline",
             "Press r to retry immediately",
             "Reliability lines show data age and retry timer",
         ],
-    );
-}
-
-fn append_customize_visuals_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
-    push_section(
-        lines,
-        theme,
-        "Customize visuals",
-        [
+    },
+    HelpSection {
+        title: "Customize visuals",
+        body: &[
             "Open settings with s for theme, icons, and hourly view",
             "Use v to cycle hourly views quickly",
             "Type :theme <name> or :view <table|hybrid|chart>",
         ],
-    );
-}
+    },
+];
 
 fn append_key_reference_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
     push_section(
         lines,
         theme,
         "Key reference",
-        [
+        &[
             "q / Esc quit  |  Ctrl+C immediate quit",
             "r refresh now  |  Ctrl+L force redraw",
             "s settings  |  l city picker  |  f/c units  |  v hourly view",
@@ -146,14 +127,14 @@ fn append_help_footer(lines: &mut Vec<Line<'static>>, theme: Theme) {
     )));
 }
 
-fn push_section<const N: usize>(
+fn push_section(
     lines: &mut Vec<Line<'static>>,
     theme: Theme,
     title: &'static str,
-    body: [&'static str; N],
+    body: &[&'static str],
 ) {
     lines.push(section_title_line(theme, title));
-    lines.extend(body.into_iter().map(Line::from));
+    lines.extend(body.iter().copied().map(Line::from));
     lines.push(Line::from(""));
 }
 

@@ -9,44 +9,19 @@ pub(super) fn render_table_mode(
     theme: Theme,
 ) {
     let panel_style = Style::default().fg(theme.text).bg(theme.surface);
-    let label_width = if area.width >= 92 { 7 } else { 6 };
+    let label_width = table_label_width(area.width);
     let offset = state.hourly_offset;
-    let cursor_in_view =
-        if state.hourly_cursor >= offset && state.hourly_cursor < offset + slice.len() {
-            Some(state.hourly_cursor - offset)
-        } else {
-            None
-        };
-
-    let mut rows = vec![
-        build_time_row(slice, offset, cursor_in_view, theme),
-        build_weather_row(slice, bundle, state, theme),
-        build_temp_row(slice, state.units, cursor_in_view, theme),
-    ];
-
-    if let Some(date_row) = build_optional_date_row(slice, offset, theme) {
-        rows.insert(1, date_row);
-    }
-
-    for (min_height, label, color, formatter) in metric_row_specs(theme) {
-        if area.height >= min_height {
-            rows.push(build_metric_row(label, slice, color, formatter, theme));
-        }
-    }
-
-    let column_spacing = if area.width >= 140 {
-        2
-    } else {
-        u16::from(area.width >= 104)
-    };
-    let mut widths = vec![Constraint::Length(label_width)];
-    widths.extend(vec![
-        Constraint::Ratio(1, slice.len().max(1) as u32);
-        slice.len()
-    ]);
-    let table = Table::new(rows, widths)
-        .column_spacing(column_spacing)
-        .style(panel_style);
+    let cursor_in_view = cursor_in_view(state.hourly_cursor, offset, slice.len());
+    let rows = build_table_rows(
+        area.height,
+        slice,
+        offset,
+        cursor_in_view,
+        bundle,
+        state,
+        theme,
+    );
+    let table = build_hourly_table(area.width, slice, rows, panel_style, label_width);
 
     let insight =
         crate::domain::weather::derive_nowcast_insight(bundle, state.units, &state.refresh_meta);
@@ -62,6 +37,65 @@ pub(super) fn render_table_mode(
     );
     render_cursor_detail_line(frame, detail_area, detail_text, theme);
     render_window_summary_line(frame, window_area, &insight.next_6h_summary, theme);
+}
+
+const fn table_label_width(width: u16) -> u16 {
+    if width >= 92 { 7 } else { 6 }
+}
+
+const fn cursor_in_view(hourly_cursor: usize, offset: usize, visible_len: usize) -> Option<usize> {
+    if hourly_cursor >= offset && hourly_cursor < offset + visible_len {
+        Some(hourly_cursor - offset)
+    } else {
+        None
+    }
+}
+
+fn build_table_rows(
+    area_height: u16,
+    slice: &[&HourlyForecast],
+    offset: usize,
+    cursor_in_view: Option<usize>,
+    bundle: &ForecastBundle,
+    state: &AppState,
+    theme: Theme,
+) -> Vec<Row<'static>> {
+    let mut rows = vec![
+        build_time_row(slice, offset, cursor_in_view, theme),
+        build_weather_row(slice, bundle, state, theme),
+        build_temp_row(slice, state.units, cursor_in_view, theme),
+    ];
+    if let Some(date_row) = build_optional_date_row(slice, offset, theme) {
+        rows.insert(1, date_row);
+    }
+    for (min_height, label, color, formatter) in metric_row_specs(theme) {
+        if area_height >= min_height {
+            rows.push(build_metric_row(label, slice, color, formatter, theme));
+        }
+    }
+    rows
+}
+
+fn build_hourly_table(
+    area_width: u16,
+    slice: &[&HourlyForecast],
+    rows: Vec<Row<'static>>,
+    panel_style: Style,
+    label_width: u16,
+) -> Table<'static> {
+    let column_spacing = if area_width >= 140 {
+        2
+    } else {
+        u16::from(area_width >= 104)
+    };
+    let mut widths = vec![Constraint::Length(label_width)];
+    widths.extend(vec![
+        Constraint::Ratio(1, slice.len().max(1) as u32);
+        slice.len()
+    ]);
+    Table::new(rows, widths)
+        .column_spacing(column_spacing)
+        .style(panel_style)
 }
 
 fn split_table_and_detail_areas(area: Rect) -> (Rect, Option<Rect>, Option<Rect>) {
@@ -107,36 +141,60 @@ fn cursor_detail_text(
     cursor_in_view: Option<usize>,
     action_text: &str,
 ) -> Option<String> {
-    let cursor_idx = cursor_in_view
-        .or_else(|| (!slice.is_empty()).then_some(0))
-        .unwrap_or(0);
-    let hour = slice.get(cursor_idx).copied()?;
-    let code = hour.weather_code.unwrap_or(bundle.current.weather_code);
-    let is_day = hour.is_day.unwrap_or(bundle.current.is_day);
-    let temp = hour.temperature_2m_c.map_or_else(
-        || "--".to_string(),
-        |value| format!("{}°", round_temp(convert_temp(value, state.units))),
-    );
-    let gust = wind_reference(hour).map_or_else(
-        || "--".to_string(),
-        |value| format!("{}m/s", crate::domain::weather::round_wind_speed(value)),
-    );
-    let precip = hour
-        .precipitation_probability
-        .map_or_else(|| "--".to_string(), |value| format!("{value:.0}%"));
-    let mm = hour.precipitation_mm.map_or_else(
-        || "--.-".to_string(),
-        |value| format!("{:.1}", value.max(0.0)),
-    );
+    let (cursor_idx, hour) = selected_cursor_hour(slice, cursor_in_view)?;
+    let temp = cursor_temp_text(hour, state.units);
+    let gust = cursor_gust_text(hour);
+    let precip = cursor_precip_probability_text(hour);
+    let mm = cursor_precip_mm_text(hour);
     let decision = strip_action_prefix(action_text);
     let why = format!(
         "focus {} {} is {}",
         offset + cursor_idx,
         hour.time.format("%a %H:%M"),
-        weather_label_for_time(code, is_day),
+        weather_label_for_time(
+            hour.weather_code.unwrap_or(bundle.current.weather_code),
+            hour.is_day.unwrap_or(bundle.current.is_day),
+        ),
     );
     let details = format!("temp {temp} · P% {precip} · P {mm}mm · gust {gust}");
     Some(format_decision_line(decision, &why, &details))
+}
+
+fn selected_cursor_hour<'a>(
+    slice: &'a [&'a HourlyForecast],
+    cursor_in_view: Option<usize>,
+) -> Option<(usize, &'a HourlyForecast)> {
+    let cursor_idx = cursor_in_view.or_else(|| (!slice.is_empty()).then_some(0))?;
+    slice
+        .get(cursor_idx)
+        .copied()
+        .map(|hour| (cursor_idx, hour))
+}
+
+fn cursor_temp_text(hour: &HourlyForecast, units: Units) -> String {
+    hour.temperature_2m_c.map_or_else(
+        || "--".to_string(),
+        |value| format!("{}°", round_temp(convert_temp(value, units))),
+    )
+}
+
+fn cursor_gust_text(hour: &HourlyForecast) -> String {
+    wind_reference(hour).map_or_else(
+        || "--".to_string(),
+        |value| format!("{}m/s", crate::domain::weather::round_wind_speed(value)),
+    )
+}
+
+fn cursor_precip_probability_text(hour: &HourlyForecast) -> String {
+    hour.precipitation_probability
+        .map_or_else(|| "--".to_string(), |value| format!("{value:.0}%"))
+}
+
+fn cursor_precip_mm_text(hour: &HourlyForecast) -> String {
+    hour.precipitation_mm.map_or_else(
+        || "--.-".to_string(),
+        |value| format!("{:.1}", value.max(0.0)),
+    )
 }
 
 fn render_window_summary_line(
@@ -220,7 +278,7 @@ fn build_weather_row(
         let code = h.weather_code.unwrap_or(bundle.current.weather_code);
         let is_day = h.is_day.unwrap_or(bundle.current.is_day);
         Cell::from(weather_icon(code, state.settings.icon_mode, is_day))
-            .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))).bg(Color::Reset))
+            .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))))
     }));
     Row::new(cells)
 }
@@ -330,10 +388,7 @@ fn format_visibility_metric(hour: &HourlyForecast) -> String {
 }
 
 fn format_cloud_metric(hour: &HourlyForecast) -> String {
-    hour.cloud_cover.map_or_else(
-        || "-- ".to_string(),
-        |c| format!("{:>3}%", c.round() as i32),
-    )
+    format_percent_metric(hour.cloud_cover)
 }
 
 fn format_pressure_metric(hour: &HourlyForecast) -> String {
@@ -342,23 +397,24 @@ fn format_pressure_metric(hour: &HourlyForecast) -> String {
 }
 
 fn format_humidity_metric(hour: &HourlyForecast) -> String {
-    hour.relative_humidity_2m.map_or_else(
-        || "-- ".to_string(),
-        |rh| format!("{:>3}%", rh.round() as i32),
-    )
+    format_percent_metric(hour.relative_humidity_2m)
 }
 
 fn format_precip_probability_metric(hour: &HourlyForecast) -> String {
-    hour.precipitation_probability.map_or_else(
-        || "-- ".to_string(),
-        |p| format!("{:>3}%", p.round() as i32),
-    )
+    format_percent_metric(hour.precipitation_probability)
 }
 
 fn format_wind_metric(hour: &HourlyForecast) -> String {
     hour.wind_speed_10m.map_or_else(
         || "-- ".to_string(),
         |w| format!("{:>3}", crate::domain::weather::round_wind_speed(w)),
+    )
+}
+
+fn format_percent_metric(value: Option<f32>) -> String {
+    value.map_or_else(
+        || "-- ".to_string(),
+        |p| format!("{:>3}%", p.round() as i32),
     )
 }
 

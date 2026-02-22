@@ -251,7 +251,28 @@ fn expanded_sun_time(
 }
 
 fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'static>> {
-    let mut top_lines = vec![Line::from(vec![
+    let mut top_lines = vec![
+        expanded_temp_condition_line(data, theme),
+        expanded_location_line(data, theme),
+        expanded_status_line(data, theme),
+        themed_text_line(data.updated.clone(), theme.muted_text),
+        themed_bold_text_line(data.action_text.clone(), theme.accent),
+    ];
+    if let Some(next_change) = data.next_change_text.clone() {
+        top_lines.push(themed_text_line(next_change, theme.info));
+    }
+    top_lines.push(themed_text_line(
+        data.confidence_text.clone(),
+        theme.muted_text,
+    ));
+    if let Some(fetch_context) = data.fetch_context.clone() {
+        top_lines.push(themed_text_line(fetch_context, theme.warning));
+    }
+    top_lines
+}
+
+fn expanded_temp_condition_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
+    Line::from(vec![
         Span::styled(
             format!("{}°{}  ", data.temp, data.unit_symbol),
             Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
@@ -262,22 +283,24 @@ fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'s
                 .fg(data.condition_color)
                 .add_modifier(Modifier::BOLD),
         ),
-    ])];
+    ])
+}
+
+fn expanded_location_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
     if let Some((high, low)) = data.high_low {
-        top_lines.push(Line::from(vec![
+        return Line::from(vec![
             Span::styled(
                 format!("H:{high}°  L:{low}°  "),
                 Style::default().fg(theme.text),
             ),
             Span::styled(data.location.clone(), Style::default().fg(theme.muted_text)),
-        ]));
-    } else {
-        top_lines.push(Line::from(Span::styled(
-            data.location.clone(),
-            Style::default().fg(theme.muted_text),
-        )));
+        ]);
     }
-    top_lines.push(Line::from(vec![
+    themed_text_line(data.location.clone(), theme.muted_text)
+}
+
+fn expanded_status_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
+    Line::from(vec![
         Span::styled("Status ", Style::default().fg(theme.muted_text)),
         Span::styled(
             data.freshness,
@@ -285,34 +308,18 @@ fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'s
                 .fg(data.freshness_color)
                 .add_modifier(Modifier::BOLD),
         ),
-    ]));
-    top_lines.push(Line::from(Span::styled(
-        data.updated.clone(),
-        Style::default().fg(theme.muted_text),
-    )));
-    top_lines.push(Line::from(Span::styled(
-        data.action_text.clone(),
-        Style::default()
-            .fg(theme.accent)
-            .add_modifier(Modifier::BOLD),
-    )));
-    if let Some(next_change) = &data.next_change_text {
-        top_lines.push(Line::from(Span::styled(
-            next_change.clone(),
-            Style::default().fg(theme.info),
-        )));
-    }
-    top_lines.push(Line::from(Span::styled(
-        data.confidence_text.clone(),
-        Style::default().fg(theme.muted_text),
-    )));
-    if let Some(fetch_context) = &data.fetch_context {
-        top_lines.push(Line::from(Span::styled(
-            fetch_context.clone(),
-            Style::default().fg(theme.warning),
-        )));
-    }
-    top_lines
+    ])
+}
+
+fn themed_text_line(text: String, color: Color) -> Line<'static> {
+    Line::from(Span::styled(text, Style::default().fg(color)))
+}
+
+fn themed_bold_text_line(text: String, color: Color) -> Line<'static> {
+    Line::from(Span::styled(
+        text,
+        Style::default().fg(color).add_modifier(Modifier::BOLD),
+    ))
 }
 
 fn build_expanded_metric_lines(
