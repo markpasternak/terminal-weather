@@ -42,5 +42,6 @@ fn with_test_config_dir<R>(base: impl AsRef<Path>, run: impl FnOnce() -> R) -> R
 }
 
 mod cli_mapping;
+mod permissions;
 mod persistence;
 mod recent_location;
