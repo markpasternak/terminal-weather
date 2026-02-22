@@ -313,7 +313,7 @@ fn append_daily_icon_cell(
     let code = day.weather_code.unwrap_or(3);
     cells.push(
         Cell::from(weather_icon(code, icon_mode, true))
-            .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code)))),
+            .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))).bg(Color::Reset)),
     );
 }
 

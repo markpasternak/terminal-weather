@@ -220,7 +220,7 @@ fn build_weather_row(
         let code = h.weather_code.unwrap_or(bundle.current.weather_code);
         let is_day = h.is_day.unwrap_or(bundle.current.is_day);
         Cell::from(weather_icon(code, state.settings.icon_mode, is_day))
-            .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))))
+            .style(Style::default().fg(icon_color(&theme, weather_code_to_category(code))).bg(Color::Reset))
     }));
     Row::new(cells)
 }
