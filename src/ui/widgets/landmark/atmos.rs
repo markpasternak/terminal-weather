@@ -14,13 +14,21 @@ use crate::ui::widgets::landmark::shared::{canvas_to_lines, paint_char};
 use crate::ui::widgets::landmark::{LandmarkScene, scene_name, tint_for_category};
 
 mod effects;
+mod effects_dispatch;
 mod hud;
+mod sky_layers;
+mod terrain;
 
 use effects::{
-    draw_ambient_cloud, paint_ambient_sky_life, paint_fog_banks, paint_hail, paint_heat_shimmer,
-    paint_ice_glaze, paint_lightning_bolts, paint_rain, paint_snowfall, paint_star_reflections,
+    paint_ambient_sky_life, paint_fog_banks, paint_hail, paint_heat_shimmer, paint_ice_glaze,
+    paint_lightning_bolts, paint_rain, paint_snowfall, paint_star_reflections,
 };
+use effects_dispatch::paint_weather_effects;
 use hud::{atmos_context_line, paint_hud_badge};
+use sky_layers::{
+    is_night, moon_visible, paint_cloud_layer, paint_starfield, place_celestial_body,
+};
+use terrain::{compute_terrain, paint_horizon_haze, paint_terrain};
 
 #[must_use]
 pub fn scene_for_weather(
@@ -135,7 +143,7 @@ fn paint_base_atmos_layers(
         width,
     );
 
-    // Nighttime star reflections below the horizon (water/ground reflection)
+    // Nighttime star reflections below the horizon (water/ground reflection).
     if is_night(bundle) && matches!(category, WeatherCategory::Clear | WeatherCategory::Cloudy) {
         paint_star_reflections(canvas, width, horizon_y, height);
     }
@@ -216,293 +224,6 @@ fn animation_phase(animate: bool, frame_tick: u64) -> usize {
         ((frame_tick / 6) % 512) as usize
     } else {
         0
-    }
-}
-
-fn is_night(bundle: &ForecastBundle) -> bool {
-    !bundle.current.is_day
-}
-
-fn paint_weather_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext) {
-    let is_freezing = matches!(ctx.weather_code, 56 | 57 | 66 | 67);
-    let has_hail = matches!(ctx.weather_code, 96 | 99);
-    match ctx.category {
-        WeatherCategory::Clear => paint_clear_effects(canvas, ctx),
-        WeatherCategory::Rain => paint_rain_effects(canvas, ctx, is_freezing),
-        WeatherCategory::Snow => paint_snowfall(canvas, ctx.phase, ctx.horizon_y, ctx.width),
-        WeatherCategory::Fog => {
-            paint_fog_banks(canvas, ctx.phase, ctx.horizon_y, ctx.width, ctx.height);
-        }
-        WeatherCategory::Thunder => paint_thunder_effects(canvas, ctx, has_hail),
-        _ => {}
-    }
-}
-
-fn paint_clear_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext) {
-    if ctx.is_day && ctx.temp_c >= 26.0 {
-        paint_heat_shimmer(canvas, ctx.phase, ctx.horizon_y, ctx.width);
-    }
-}
-
-fn paint_rain_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext, is_freezing: bool) {
-    paint_rain(canvas, ctx.precip_mm, ctx.phase, ctx.horizon_y, ctx.width);
-    if is_freezing {
-        paint_ice_glaze(canvas, ctx.horizon_y, ctx.width);
-    }
-}
-
-fn paint_thunder_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext, has_hail: bool) {
-    paint_rain(
-        canvas,
-        ctx.precip_mm.max(1.0),
-        ctx.phase,
-        ctx.horizon_y,
-        ctx.width,
-    );
-    paint_lightning_bolts(canvas, ctx.phase, ctx.horizon_y, ctx.width);
-    if has_hail {
-        paint_hail(canvas, ctx.phase, ctx.horizon_y, ctx.width);
-    }
-}
-
-fn compute_terrain(
-    w: usize,
-    temps: &[f32],
-    min_temp: f32,
-    span: f32,
-    horizon_y: usize,
-    amp: usize,
-) -> Vec<usize> {
-    let mut tops = vec![horizon_y; w];
-    for (x, top) in tops.iter_mut().enumerate() {
-        let t = if w <= 1 {
-            0.0
-        } else {
-            x as f32 / (w - 1) as f32
-        };
-        let pos = t * (temps.len().saturating_sub(1)) as f32;
-        let left = pos.floor() as usize;
-        let right = pos.ceil().min((temps.len() - 1) as f32) as usize;
-        let frac = pos - left as f32;
-        let sample = if right > left {
-            temps[left] * (1.0 - frac) + temps[right] * frac
-        } else {
-            temps[left]
-        };
-        // Add gentle rolling hills with a sine overlay for organic feel
-        let norm = ((sample - min_temp) / span).clamp(0.0, 1.0);
-        let hill = (t * std::f32::consts::PI * 2.3).sin() * 0.3 + 0.7;
-        let peak = (norm * hill * amp as f32).round() as usize;
-        *top = horizon_y.saturating_sub(peak).max(1);
-    }
-    tops
-}
-
-fn paint_terrain(
-    canvas: &mut [Vec<char>],
-    terrain_top: &[usize],
-    horizon_y: usize,
-    w: usize,
-    h: usize,
-) {
-    for (x, &top) in terrain_top.iter().enumerate().take(w) {
-        for (y, row) in canvas.iter_mut().enumerate().take(h) {
-            if y < top {
-                continue;
-            }
-            row[x] = terrain_glyph(y, top, horizon_y);
-        }
-    }
-    overlay_horizon_line(canvas, terrain_top, horizon_y, w, h);
-}
-
-fn terrain_glyph(y: usize, top: usize, horizon_y: usize) -> char {
-    if y == top {
-        '▁'
-    } else if y == top + 1 {
-        '▃'
-    } else if y <= horizon_y {
-        '▅'
-    } else {
-        '█'
-    }
-}
-
-fn overlay_horizon_line(
-    canvas: &mut [Vec<char>],
-    terrain_top: &[usize],
-    horizon_y: usize,
-    width: usize,
-    height: usize,
-) {
-    if horizon_y >= height {
-        return;
-    }
-    for (x, cell) in canvas[horizon_y].iter_mut().enumerate().take(width) {
-        if terrain_top[x] > horizon_y {
-            *cell = '─';
-        }
-    }
-}
-
-fn paint_horizon_haze(canvas: &mut [Vec<char>], horizon_y: usize, w: usize) {
-    // Thin atmospheric haze band just above the horizon
-    let haze_y = horizon_y.saturating_sub(1);
-    if haze_y == 0 {
-        return;
-    }
-    for (x, cell) in canvas[haze_y].iter_mut().enumerate().take(w) {
-        if *cell == ' ' {
-            *cell = if x % 3 == 0 { '░' } else { ' ' };
-        }
-    }
-}
-
-fn paint_starfield(
-    canvas: &mut [Vec<char>],
-    w: usize,
-    horizon_y: usize,
-    phase: usize,
-    cloud_pct: f32,
-) {
-    if w == 0 || horizon_y < 2 || cloud_pct >= 92.0 {
-        return;
-    }
-    // Dense star field with depth layers
-    let sky_h = horizon_y.saturating_sub(1);
-    let base_count = (w * sky_h / 8).max(12);
-    let visibility_factor = (1.0 - cloud_pct / 100.0).clamp(0.08, 1.0);
-    let star_count = ((base_count as f32) * visibility_factor).round() as usize;
-    if star_count == 0 {
-        return;
-    }
-    let glyphs = ['*', '✶', '✦', '*', '✶', '✦'];
-    for i in 0..star_count {
-        let seed = i.wrapping_mul(7919).wrapping_add(31);
-        let x = seed % w;
-        let y = 1 + (seed / w) % sky_h;
-        if y >= horizon_y || x >= w {
-            continue;
-        }
-        if canvas[y][x] != ' ' {
-            continue;
-        }
-        // Twinkle: some stars blink based on phase
-        let twinkle = (i + phase / 4).is_multiple_of(7);
-        if twinkle {
-            continue;
-        }
-        let glyph_idx = (seed / 3) % glyphs.len();
-        canvas[y][x] = glyphs[glyph_idx];
-    }
-}
-
-fn place_celestial_body(
-    canvas: &mut [Vec<char>],
-    is_day: bool,
-    moon_visible: bool,
-    hour: usize,
-    horizon_y: usize,
-    w: usize,
-) {
-    if w < 4 || horizon_y < 3 || (!is_day && !moon_visible) {
-        return;
-    }
-    // Position based on time of day along a parabolic arc
-    let t = hour as f32 / 23.0;
-    let x = (t * (w.saturating_sub(3)) as f32).round() as usize + 1;
-    let arc = 1.0 - 4.0 * (t - 0.5) * (t - 0.5); // peaks at noon
-    let sky_height = horizon_y.saturating_sub(2);
-    let y = (horizon_y as f32 - 1.0 - arc * sky_height as f32 * 0.8)
-        .round()
-        .clamp(1.0, (horizon_y - 1) as f32) as usize;
-
-    let glyph = if is_day { '◉' } else { '◕' };
-    paint_char(canvas, x as isize, y as isize, glyph, true);
-
-    // Glow around celestial body
-    for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
-        paint_char(canvas, x as isize + dx, y as isize + dy, '░', false);
-    }
-    if w >= 50 {
-        for (dx, dy) in [
-            (-2, 0),
-            (2, 0),
-            (0, -2),
-            (0, 2),
-            (-1, -1),
-            (1, -1),
-            (-1, 1),
-            (1, 1),
-        ] {
-            paint_char(canvas, x as isize + dx, y as isize + dy, '░', false);
-        }
-    }
-}
-
-fn moon_visible(bundle: &ForecastBundle, hour: usize) -> bool {
-    if bundle.current.is_day {
-        return false;
-    }
-    let Some(day) = bundle.daily.first() else {
-        return true;
-    };
-    let (Some(sunrise), Some(sunset)) = (day.sunrise, day.sunset) else {
-        return true;
-    };
-    let sunrise_h = hm_to_hour_f32(&sunrise);
-    let sunset_h = hm_to_hour_f32(&sunset);
-    let hour = hour as f32;
-
-    if sunset_h > sunrise_h {
-        hour >= sunset_h || hour < sunrise_h
-    } else {
-        // Handles edge cases where provided times invert (e.g. polar regions).
-        hour >= sunset_h && hour < sunrise_h
-    }
-}
-
-fn hm_to_hour_f32(dt: &chrono::NaiveDateTime) -> f32 {
-    dt.hour() as f32 + dt.minute() as f32 / 60.0
-}
-
-fn paint_cloud_layer(
-    canvas: &mut [Vec<char>],
-    cloud_pct: f32,
-    wind_speed: f32,
-    phase: usize,
-    horizon_y: usize,
-    w: usize,
-) {
-    if cloud_pct < 5.0 || horizon_y < 4 {
-        return;
-    }
-
-    // Number and size of clouds scale with cloud coverage
-    let cloud_count = ((cloud_pct / 15.0).ceil() as usize).clamp(1, 8);
-    let max_cloud_w = if cloud_pct > 80.0 {
-        w / 2
-    } else if cloud_pct > 50.0 {
-        w / 3
-    } else {
-        w / 5
-    }
-    .clamp(6, 40);
-    let cloud_rows = if cloud_pct > 70.0 { 3 } else { 2 };
-
-    // Wind drift offset
-    let drift = (phase as f32 * wind_speed.max(3.0) / 40.0) as usize;
-
-    let sky_band = horizon_y.saturating_sub(2);
-    for i in 0..cloud_count {
-        let seed = i.wrapping_mul(4001).wrapping_add(17);
-        let base_x = (seed.wrapping_mul(13) + drift) % (w + max_cloud_w);
-        let base_y = 1 + (seed % sky_band.max(1));
-        if base_y >= horizon_y.saturating_sub(1) {
-            continue;
-        }
-        let cw = (max_cloud_w / 2) + (seed % (max_cloud_w / 2 + 1));
-        draw_ambient_cloud(canvas, base_x, base_y, cw, cloud_rows, w, horizon_y);
     }
 }
 
