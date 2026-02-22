@@ -307,7 +307,7 @@ pub fn categorize_european_aqi(aqi: u16) -> AirQualityCategory {
         41..=60 => AirQualityCategory::UnhealthySensitive,
         61..=80 => AirQualityCategory::Unhealthy,
         81..=100 => AirQualityCategory::VeryUnhealthy,
-        101.. => AirQualityCategory::Hazardous,
+        101..=u16::MAX => AirQualityCategory::Hazardous,
     }
 }
 
