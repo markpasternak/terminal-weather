@@ -105,11 +105,15 @@ Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` 
 | `l` | City switcher |
 | `f` / `c` | Switch to Fahrenheit / Celsius |
 | `←` / `→` | Move hourly cursor |
+| `Tab` / `Shift+Tab` | Cycle panel focus (Current / Hourly / 7-Day) |
+| `:` | Open command bar (when enabled in Settings) |
 | `1..5` | Select ambiguous location |
 
 **Settings panel:** `↑`/`↓` navigate · `←`/`→` or `Enter` change value · `s`/`Esc` close
 
 **City switcher:** type to search · `Enter` confirm · `↑`/`↓` browse recents · `1..9` quick-switch · `Delete` clear all · `Esc` close
+
+**Command bar:** `:refresh` · `:quit` · `:units c|f` · `:view table|hybrid|chart` · `:theme <name>` · `:city <name>`
 
 ---
 
@@ -117,7 +121,7 @@ Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` 
 
 Settings persist to `~/.config/terminal-weather/settings.json`. Override the directory with `TERMINAL_WEATHER_CONFIG_DIR` (legacy `ATMOS_TUI_CONFIG_DIR` is also supported).
 
-Persisted values: units, theme, motion (`full`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`/`nerd-font`), hourly view, hero visual, refresh interval, recent locations.
+Persisted values: units, theme, motion (`full`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`/`nerd-font`), inline hints, command bar enabled/disabled, hourly view, hero visual, refresh interval, recent locations.
 
 Color detection falls back TrueColor → xterm-256 → 16-color based on `COLORTERM` and `TERM`. `NO_COLOR` is honored in `auto` mode.
 
@@ -144,9 +148,11 @@ Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (yo
 ## What's New in v0.6.0
 
 - **Weather insights** — the app now derives actionable cues from your forecast (carry an umbrella, apply sun protection, secure loose items) and surfaces them in the UI alongside a confidence indicator and a look-ahead summary for the next six hours.
-- **Contextual narrative** — focus-aware hints adapt to whichever panel is active: the hero shows your immediate decision, the hourly view shows the six-hour outlook, and the daily view shows the week at a glance.
-- **Semantic icon modes** — status and confidence indicators now respect your `--icons` setting, rendering as Unicode symbols, two-character ASCII codes, or emoji depending on your terminal's capabilities.
+- **Contextual narrative** — focus-aware hints adapt to whichever panel is active: the hero shows your immediate decision, the hourly view shows the six-hour outlook, and the daily view shows the week at a glance. `Tab` / `Shift+Tab` cycles panel focus.
+- **Semantic icon modes** — status and confidence indicators now follow icon mode selection, including CLI flags (`--ascii-icons`, `--emoji-icons`, `--nerd-font`) and settings panel choices.
+- **Command bar shortcuts** — `:` opens command mode for `city`, `theme`, `view`, `units`, `refresh`, and `quit`, so common actions can be scripted from the keyboard without opening panels.
 - **City names restored for coordinate locations** — locations entered as `--lat`/`--lon` or selected from history now display their resolved city name again instead of raw coordinates.
+- **Readability polish** — improved hourly chart legibility and fixed table cell background bleed with emoji icon mode.
 - **Quality pass** — eliminated all critical cyclomatic complexity hotspots, reduced medium-complexity count, and tightened the overall code structure across the codebase.
 
 ---
