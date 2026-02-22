@@ -66,12 +66,14 @@ fn gradient_ratio(area: Rect, y: u16) -> f32 {
 }
 
 fn paint_particles(area: Rect, buf: &mut Buffer, particles: &[Particle], particle_color: Color) {
+    // Reuse a stack buffer to avoid heap allocations in the loop
+    let mut utf8_buf = [0u8; 4];
     for particle in particles {
         if let Some((x, y)) = particle_position(area, particle)
             && let Some(cell) = buf.cell_mut((x, y))
         {
             let bg = cell.bg;
-            cell.set_symbol(&particle.glyph.to_string())
+            cell.set_symbol(particle.glyph.encode_utf8(&mut utf8_buf))
                 .set_fg(particle_color)
                 .set_bg(bg);
         }
