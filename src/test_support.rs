@@ -9,9 +9,9 @@ fn parse_time(value: &str) -> NaiveDateTime {
     NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M").expect("valid time fixture")
 }
 
-pub(crate) fn hero_test_cli() -> Cli {
+fn base_test_cli() -> Cli {
     Cli {
-        city: Some("Stockholm".to_string()),
+        city: None,
         units: UnitsArg::Celsius,
         fps: 30,
         no_animation: true,
@@ -34,60 +34,23 @@ pub(crate) fn hero_test_cli() -> Cli {
         demo: false,
         one_shot: false,
     }
+}
+
+pub(crate) fn hero_test_cli() -> Cli {
+    let mut cli = base_test_cli();
+    cli.city = Some("Stockholm".to_string());
+    cli
 }
 
 pub(crate) fn state_test_cli() -> Cli {
-    Cli {
-        city: None,
-        units: UnitsArg::Celsius,
-        fps: 30,
-        no_animation: true,
-        reduced_motion: false,
-        no_flash: true,
-        ascii_icons: false,
-        emoji_icons: false,
-        nerd_font: false,
-        color: ColorArg::Auto,
-        no_color: false,
-        hourly_view: None,
-        theme: ThemeArg::Auto,
-        hero_visual: HeroVisualArg::AtmosCanvas,
-        country_code: None,
-        lat: None,
-        lon: None,
-        forecast_url: None,
-        air_quality_url: None,
-        refresh_interval: 600,
-        demo: false,
-        one_shot: false,
-    }
+    base_test_cli()
 }
 
 pub(crate) fn settings_default_test_cli() -> Cli {
-    Cli {
-        city: None,
-        units: UnitsArg::Celsius,
-        fps: 30,
-        no_animation: false,
-        reduced_motion: false,
-        no_flash: false,
-        ascii_icons: false,
-        emoji_icons: false,
-        nerd_font: false,
-        color: ColorArg::Auto,
-        no_color: false,
-        hourly_view: None,
-        theme: ThemeArg::Auto,
-        hero_visual: HeroVisualArg::AtmosCanvas,
-        country_code: None,
-        lat: None,
-        lon: None,
-        forecast_url: None,
-        air_quality_url: None,
-        refresh_interval: 600,
-        demo: false,
-        one_shot: false,
-    }
+    let mut cli = base_test_cli();
+    cli.no_animation = false;
+    cli.no_flash = false;
+    cli
 }
 
 pub(crate) fn stockholm_location() -> Location {

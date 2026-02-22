@@ -252,14 +252,53 @@ async fn resolve_city_with_geocoder(
 mod tests {
     use super::*;
     use crate::cli::{HeroVisualArg, ThemeArg};
+    use serde_json::Value;
     use tokio::sync::mpsc;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
         matchers::{method, path},
     };
 
+    const TEST_LAT: f64 = 59.3293;
+    const TEST_LON: f64 = 18.0686;
+
     fn test_state() -> AppState {
         AppState::new(&crate::test_support::state_test_cli())
+    }
+
+    fn coords_cli() -> Cli {
+        let mut cli = crate::test_support::state_test_cli();
+        cli.lat = Some(TEST_LAT);
+        cli.lon = Some(TEST_LON);
+        cli
+    }
+
+    fn stockholm_reverse_payload() -> Value {
+        serde_json::json!({
+            "address": {
+                "city": "Stockholm",
+                "state": "Stockholm County",
+                "country": "Sweden"
+            }
+        })
+    }
+
+    async fn reverse_geocoder_client(
+        status: u16,
+        payload: Option<Value>,
+    ) -> (MockServer, GeocodeClient) {
+        let server = MockServer::start().await;
+        let template = payload.map_or_else(
+            || ResponseTemplate::new(status),
+            |body| ResponseTemplate::new(status).set_body_json(body),
+        );
+        Mock::given(method("GET"))
+            .and(path("/v1/reverse"))
+            .respond_with(template)
+            .mount(&server)
+            .await;
+        let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+        (server, geocoder)
     }
 
     #[test]
@@ -291,23 +330,9 @@ mod tests {
 
     #[tokio::test]
     async fn try_fetch_coords_emits_selected_location_when_present() {
-        let mut cli = crate::test_support::state_test_cli();
-        cli.lat = Some(59.3293);
-        cli.lon = Some(18.0686);
-        let server = MockServer::start().await;
-        let payload = serde_json::json!({
-            "address": {
-                "city": "Stockholm",
-                "state": "Stockholm County",
-                "country": "Sweden"
-            }
-        });
-        Mock::given(method("GET"))
-            .and(path("/v1/reverse"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
-            .mount(&server)
-            .await;
-        let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+        let cli = coords_cli();
+        let (_server, geocoder) =
+            reverse_geocoder_client(200, Some(stockholm_reverse_payload())).await;
 
         let (tx, mut rx) = mpsc::channel(2);
         let handled = AppState::try_fetch_coords_with_geocoder(&tx, &cli, &geocoder)
@@ -320,22 +345,14 @@ mod tests {
             event,
             AppEvent::GeocodeResolved(GeocodeResolution::Selected(location))
             if location.name == "Stockholm"
-            && (location.latitude - 59.3293).abs() < f64::EPSILON
+            && (location.latitude - TEST_LAT).abs() < f64::EPSILON
         ));
     }
 
     #[tokio::test]
     async fn try_fetch_coords_falls_back_when_reverse_geocode_fails() {
-        let mut cli = crate::test_support::state_test_cli();
-        cli.lat = Some(59.3293);
-        cli.lon = Some(18.0686);
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/v1/reverse"))
-            .respond_with(ResponseTemplate::new(500))
-            .mount(&server)
-            .await;
-        let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+        let cli = coords_cli();
+        let (_server, geocoder) = reverse_geocoder_client(500, None).await;
 
         let (tx, mut rx) = mpsc::channel(2);
         let handled = AppState::try_fetch_coords_with_geocoder(&tx, &cli, &geocoder)
@@ -353,24 +370,12 @@ mod tests {
 
     #[tokio::test]
     async fn resolve_saved_location_updates_coordinate_label_when_reverse_available() {
-        let server = MockServer::start().await;
-        let payload = serde_json::json!({
-            "address": {
-                "city": "Stockholm",
-                "state": "Stockholm County",
-                "country": "Sweden"
-            }
-        });
-        Mock::given(method("GET"))
-            .and(path("/v1/reverse"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
-            .mount(&server)
-            .await;
-        let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+        let (_server, geocoder) =
+            reverse_geocoder_client(200, Some(stockholm_reverse_payload())).await;
 
         let location = resolve_saved_location_with_reverse_geocoder(
             &geocoder,
-            Location::from_coords(59.3293, 18.0686),
+            Location::from_coords(TEST_LAT, TEST_LON),
         )
         .await;
 
@@ -390,8 +395,7 @@ mod tests {
 
     #[tokio::test]
     async fn try_fetch_coords_returns_false_without_complete_pair() {
-        let mut cli = crate::test_support::state_test_cli();
-        cli.lat = Some(59.3293);
+        let mut cli = coords_cli();
         cli.lon = None;
         let (tx, mut rx) = mpsc::channel(2);
         let handled = AppState::try_fetch_coords(&tx, &cli)
@@ -479,5 +483,81 @@ mod tests {
         state.air_quality_url_override = Some("http://127.0.0.1:1".to_string());
         let (tx, _rx) = mpsc::channel(2);
         assert!(state.try_fetch_existing_location(&tx).await);
+    }
+
+    #[tokio::test]
+    async fn start_fetch_returns_early_when_blocked() {
+        let mut state = test_state();
+        state.fetch_in_flight = true;
+        let cli = crate::test_support::state_test_cli();
+        let (tx, mut rx) = mpsc::channel(4);
+
+        state
+            .start_fetch(&tx, &cli)
+            .await
+            .expect("blocked start_fetch should not fail");
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn start_fetch_auto_lookup_sets_detecting_loading_message() {
+        let mut state = test_state();
+        let cli = crate::test_support::state_test_cli();
+        let (tx, mut rx) = mpsc::channel(4);
+
+        state
+            .start_fetch(&tx, &cli)
+            .await
+            .expect("auto lookup start_fetch should not fail");
+
+        assert!(matches!(rx.recv().await, Some(AppEvent::FetchStarted)));
+        assert_eq!(state.loading_message, "Detecting location...");
+    }
+
+    #[tokio::test]
+    async fn start_fetch_city_lookup_keeps_existing_loading_message() {
+        let mut state = test_state();
+        state.loading_message = "Initializing...".to_string();
+        let mut cli = crate::test_support::state_test_cli();
+        cli.city = Some("Berlin".to_string());
+        let (tx, mut rx) = mpsc::channel(4);
+
+        state
+            .start_fetch(&tx, &cli)
+            .await
+            .expect("city lookup start_fetch should not fail");
+
+        assert!(matches!(rx.recv().await, Some(AppEvent::FetchStarted)));
+        assert_eq!(state.loading_message, "Initializing...");
+    }
+
+    #[tokio::test]
+    async fn apply_demo_action_handles_all_non_quit_variants() {
+        let mut state = test_state();
+        let (tx, _rx) = mpsc::channel(4);
+        let location = crate::test_support::stockholm_location();
+
+        state.apply_demo_action(DemoAction::OpenSettings, &tx);
+        assert!(state.settings_open);
+        assert_eq!(state.settings_selected, SettingsSelection::HeroVisual);
+
+        state.apply_demo_action(DemoAction::SetHeroVisual(HeroVisualArg::GaugeCluster), &tx);
+        assert_eq!(state.settings.hero_visual, HeroVisualArg::GaugeCluster);
+
+        state.apply_demo_action(DemoAction::SetTheme(ThemeArg::Nord), &tx);
+        assert_eq!(state.settings.theme, ThemeArg::Nord);
+
+        state.apply_demo_action(DemoAction::OpenCityPicker("Tokyo".to_string()), &tx);
+        assert!(state.city_picker_open);
+        assert_eq!(state.city_query, "Tokyo");
+
+        state.apply_demo_action(DemoAction::SwitchCity(location), &tx);
+        assert!(!state.city_picker_open);
+        assert!(state.city_status.is_some());
+
+        state.settings_open = true;
+        state.apply_demo_action(DemoAction::CloseSettings, &tx);
+        assert!(!state.settings_open);
     }
 }

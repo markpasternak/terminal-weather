@@ -453,4 +453,40 @@ mod tests {
         cli.emoji_icons = true;
         assert_eq!(one_shot_icon_mode(&cli), IconMode::Ascii);
     }
+
+    #[test]
+    fn setup_terminal_errors_when_stdout_is_not_a_tty() {
+        let err = setup_terminal().expect_err("tests should not have interactive stdout");
+        assert!(format!("{err}").contains("interactive TTY"));
+    }
+
+    #[tokio::test]
+    async fn handle_input_event_updates_viewport_on_resize_and_accepts_none() {
+        let mut state = AppState::new(&crate::test_support::state_test_cli());
+        let cli = crate::test_support::state_test_cli();
+        let (tx, _rx) = mpsc::channel(4);
+
+        handle_input_event(
+            &mut state,
+            Some(crossterm::event::Event::Resize(123, 40)),
+            &tx,
+            &cli,
+        )
+        .await
+        .expect("resize input should be handled");
+        assert_eq!(state.viewport_width, 123);
+
+        handle_input_event(&mut state, None, &tx, &cli)
+            .await
+            .expect("none input should be a no-op");
+    }
+
+    #[tokio::test]
+    async fn run_errors_without_tty_in_interactive_mode() {
+        let cli = crate::test_support::state_test_cli();
+        let err = run(cli)
+            .await
+            .expect_err("interactive run should fail without tty");
+        assert!(format!("{err}").contains("interactive TTY"));
+    }
 }

@@ -7,7 +7,7 @@ use crate::{
     ui::theme::{ColorCapability, theme_for},
 };
 use chrono::{NaiveDate, NaiveDateTime};
-use ratatui::layout::Rect;
+use ratatui::{Terminal, backend::TestBackend, layout::Rect, style::Style};
 
 #[test]
 fn width_below_70_forces_table() {
@@ -185,4 +185,157 @@ fn sample_hour(time: NaiveDateTime) -> HourlyForecast {
         cloud_cover_mid: Some(25.0),
         cloud_cover_high: Some(15.0),
     }
+}
+
+fn bundle_with_hour_count(count: usize) -> crate::domain::weather::ForecastBundle {
+    let mut bundle = crate::test_support::sample_bundle();
+    let base = bundle.hourly[0].clone();
+    bundle.hourly = (0..count)
+        .map(|idx| {
+            let mut hour = base.clone();
+            hour.time = base.time + chrono::Duration::hours(i64::try_from(idx).unwrap_or(0));
+            hour.temperature_2m_c = Some(4.0 + idx as f32);
+            hour
+        })
+        .collect();
+    bundle
+}
+
+fn draw_hourly(state: &AppState, width: u16, height: u16) {
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).expect("test terminal");
+    let cli = crate::test_support::state_test_cli();
+    terminal
+        .draw(|frame| render(frame, frame.area(), state, &cli))
+        .expect("draw hourly panel");
+}
+
+#[test]
+fn hourly_panel_title_empty_slice_includes_focus_prefix() {
+    let title = hourly_panel_title(HourlyViewMode::Chart, &[], true);
+    assert_eq!(title, "▶ Hourly · Chart");
+}
+
+#[test]
+fn hourly_slice_clamps_offset_and_matches_visible_count() {
+    let bundle = bundle_with_hour_count(24);
+    let slice = hourly_slice(&bundle, 100, 80);
+    assert_eq!(slice.len(), 1);
+    assert_eq!(
+        slice[0].time,
+        bundle.hourly.last().expect("hourly point").time
+    );
+}
+
+#[test]
+fn render_handles_loading_and_empty_hourly_states() {
+    let mut loading_state = AppState::new(&crate::test_support::state_test_cli());
+    loading_state.panel_focus = PanelFocus::Hourly;
+    draw_hourly(&loading_state, 80, 12);
+
+    let mut empty_hourly_state = AppState::new(&crate::test_support::state_test_cli());
+    let mut bundle = bundle_with_hour_count(1);
+    bundle.hourly.clear();
+    empty_hourly_state.weather = Some(bundle);
+    empty_hourly_state.panel_focus = PanelFocus::Hourly;
+    draw_hourly(&empty_hourly_state, 80, 12);
+}
+
+#[test]
+fn render_exercises_hybrid_and_chart_modes() {
+    let mut state = AppState::new(&crate::test_support::state_test_cli());
+    state.weather = Some(bundle_with_hour_count(24));
+    state.panel_focus = PanelFocus::Hourly;
+    state.settings.inline_hints = true;
+
+    state.hourly_view_mode = HourlyViewMode::Hybrid;
+    draw_hourly(&state, 110, 20);
+
+    state.hourly_view_mode = HourlyViewMode::Chart;
+    draw_hourly(&state, 110, 20);
+}
+
+#[test]
+fn render_mode_helpers_cover_size_branches() {
+    let bundle = bundle_with_hour_count(24);
+    let state = AppState::new(&crate::test_support::state_test_cli());
+    let theme = theme_for(
+        WeatherCategory::Cloudy,
+        true,
+        ColorCapability::Basic16,
+        ThemeArg::Aurora,
+    );
+    let slice = bundle.hourly.iter().collect::<Vec<_>>();
+
+    let mut hybrid_short = false;
+    let mut hybrid_bands = [false, false, false];
+    let mut chart_short = false;
+    let mut chart_tall = false;
+
+    let mut terminal = Terminal::new(TestBackend::new(120, 30)).expect("test terminal");
+    terminal
+        .draw(|frame| {
+            hybrid_short = render_hybrid_mode(
+                frame,
+                Rect::new(0, 0, 100, 6),
+                &state,
+                &bundle,
+                &slice,
+                theme,
+            );
+            hybrid_bands[0] = render_hybrid_mode(
+                frame,
+                Rect::new(0, 0, 100, 9),
+                &state,
+                &bundle,
+                &slice,
+                theme,
+            );
+            hybrid_bands[1] = render_hybrid_mode(
+                frame,
+                Rect::new(0, 0, 100, 10),
+                &state,
+                &bundle,
+                &slice,
+                theme,
+            );
+            hybrid_bands[2] = render_hybrid_mode(
+                frame,
+                Rect::new(0, 0, 100, 12),
+                &state,
+                &bundle,
+                &slice,
+                theme,
+            );
+            chart_short = render_chart_mode(
+                frame,
+                Rect::new(0, 0, 100, 7),
+                &state,
+                &bundle,
+                &slice,
+                theme,
+            );
+            chart_tall = render_chart_mode(
+                frame,
+                Rect::new(0, 0, 100, 8),
+                &state,
+                &bundle,
+                &slice,
+                theme,
+            );
+            render_loading_placeholder(
+                frame,
+                Rect::new(0, 0, 20, 0),
+                0,
+                Style::default(),
+                theme.accent,
+                theme.muted_text,
+            );
+        })
+        .expect("draw helper branches");
+
+    assert!(!hybrid_short);
+    assert!(hybrid_bands.into_iter().all(|value| value));
+    assert!(!chart_short);
+    assert!(chart_tall);
 }

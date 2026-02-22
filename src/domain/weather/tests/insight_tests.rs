@@ -1,28 +1,52 @@
 use super::*;
 use crate::resilience::freshness::FreshnessState;
 
+fn base_time() -> chrono::NaiveDateTime {
+    chrono::NaiveDateTime::parse_from_str("2026-02-12T08:00", "%Y-%m-%dT%H:%M").unwrap()
+}
+
+fn time_plus_hours(hours: i64) -> chrono::NaiveDateTime {
+    base_time() + chrono::Duration::hours(hours)
+}
+
+fn fresh_meta() -> RefreshMetadata {
+    RefreshMetadata {
+        state: FreshnessState::Fresh,
+        ..RefreshMetadata::default()
+    }
+}
+
+fn hourly_precip_fixture(time: chrono::NaiveDateTime, precip_mm: f32) -> HourlyForecast {
+    HourlyForecast {
+        time,
+        temperature_2m_c: None,
+        weather_code: None,
+        is_day: None,
+        relative_humidity_2m: None,
+        precipitation_probability: None,
+        precipitation_mm: Some(precip_mm),
+        rain_mm: None,
+        snowfall_cm: None,
+        wind_speed_10m: None,
+        wind_gusts_10m: None,
+        pressure_msl_hpa: None,
+        visibility_m: None,
+        cloud_cover: None,
+        cloud_cover_low: None,
+        cloud_cover_mid: None,
+        cloud_cover_high: None,
+    }
+}
+
 #[test]
 fn summarize_precip_window_includes_12h_boundary() {
-    let base = chrono::NaiveDateTime::parse_from_str("2026-02-12T15:00", "%Y-%m-%dT%H:%M").unwrap();
+    let base = time_plus_hours(7);
     let hourly = (0..13)
-        .map(|idx| HourlyForecast {
-            time: base + chrono::Duration::hours(i64::from(idx)),
-            temperature_2m_c: None,
-            weather_code: None,
-            is_day: None,
-            relative_humidity_2m: None,
-            precipitation_probability: None,
-            precipitation_mm: Some(if idx == 12 { 0.4 } else { 0.0 }),
-            rain_mm: None,
-            snowfall_cm: None,
-            wind_speed_10m: None,
-            wind_gusts_10m: None,
-            pressure_msl_hpa: None,
-            visibility_m: None,
-            cloud_cover: None,
-            cloud_cover_low: None,
-            cloud_cover_mid: None,
-            cloud_cover_high: None,
+        .map(|idx| {
+            hourly_precip_fixture(
+                base + chrono::Duration::hours(i64::from(idx)),
+                if idx == 12 { 0.4 } else { 0.0 },
+            )
         })
         .collect::<Vec<_>>();
 
@@ -45,33 +69,14 @@ fn summarize_precip_window_guard_cases() {
 
 #[test]
 fn precip_window_has_precip_now_when_first_hour_has_precip() {
-    let base = chrono::NaiveDateTime::parse_from_str("2026-02-12T08:00", "%Y-%m-%dT%H:%M").unwrap();
-    let hourly = vec![HourlyForecast {
-        time: base,
-        temperature_2m_c: None,
-        weather_code: None,
-        is_day: None,
-        relative_humidity_2m: None,
-        precipitation_probability: None,
-        precipitation_mm: Some(1.5),
-        rain_mm: None,
-        snowfall_cm: None,
-        wind_speed_10m: None,
-        wind_gusts_10m: None,
-        pressure_msl_hpa: None,
-        visibility_m: None,
-        cloud_cover: None,
-        cloud_cover_low: None,
-        cloud_cover_mid: None,
-        cloud_cover_high: None,
-    }];
+    let hourly = vec![hourly_precip_fixture(base_time(), 1.5)];
     let summary = summarize_precip_window(&hourly, 12, 0.1).expect("should find precip");
     assert!(summary.has_precip_now());
 }
 
 #[test]
 fn derive_nowcast_insight_returns_rain_action_when_precip_signal_is_high() {
-    let base = chrono::NaiveDateTime::parse_from_str("2026-02-12T08:00", "%Y-%m-%dT%H:%M").unwrap();
+    let base = base_time();
     let mut bundle = minimal_bundle(Some(8.0), Some(1.0));
     bundle.hourly = vec![
         sample_hour(base, 5.0, 3, 10.0, 0.0, 12.0, 9_000.0),
@@ -85,19 +90,14 @@ fn derive_nowcast_insight_returns_rain_action_when_precip_signal_is_high() {
             8_000.0,
         ),
     ];
-    let refresh_meta = RefreshMetadata {
-        state: FreshnessState::Fresh,
-        ..RefreshMetadata::default()
-    };
-
-    let insight = derive_nowcast_insight(&bundle, Units::Celsius, &refresh_meta);
+    let insight = derive_nowcast_insight(&bundle, Units::Celsius, &fresh_meta());
     assert_eq!(insight.action, ActionCue::CarryUmbrella);
     assert!(insight.action_text.contains("precipitation gear"));
 }
 
 #[test]
 fn derive_nowcast_insight_ignores_distant_light_precip_for_now_action() {
-    let base = chrono::NaiveDateTime::parse_from_str("2026-02-12T08:00", "%Y-%m-%dT%H:%M").unwrap();
+    let base = base_time();
     let mut bundle = minimal_bundle(Some(8.0), Some(1.0));
     bundle.hourly = (0..10)
         .map(|idx| {
@@ -113,18 +113,13 @@ fn derive_nowcast_insight_ignores_distant_light_precip_for_now_action() {
             )
         })
         .collect();
-    let refresh_meta = RefreshMetadata {
-        state: FreshnessState::Fresh,
-        ..RefreshMetadata::default()
-    };
-
-    let insight = derive_nowcast_insight(&bundle, Units::Celsius, &refresh_meta);
+    let insight = derive_nowcast_insight(&bundle, Units::Celsius, &fresh_meta());
     assert_eq!(insight.action, ActionCue::Comfortable);
 }
 
 #[test]
 fn derive_nowcast_insight_uses_winter_action_for_snow_signal() {
-    let base = chrono::NaiveDateTime::parse_from_str("2026-02-12T08:00", "%Y-%m-%dT%H:%M").unwrap();
+    let base = base_time();
     let mut bundle = minimal_bundle(Some(0.0), Some(-5.0));
     bundle.current.temperature_2m_c = -3.0;
     bundle.current.weather_code = 71;
@@ -140,19 +135,14 @@ fn derive_nowcast_insight_uses_winter_action_for_snow_signal() {
             8_000.0,
         ),
     ];
-    let refresh_meta = RefreshMetadata {
-        state: FreshnessState::Fresh,
-        ..RefreshMetadata::default()
-    };
-
-    let insight = derive_nowcast_insight(&bundle, Units::Celsius, &refresh_meta);
+    let insight = derive_nowcast_insight(&bundle, Units::Celsius, &fresh_meta());
     assert_eq!(insight.action, ActionCue::WinterTraction);
     assert!(insight.action_text.contains("winter traction"));
 }
 
 #[test]
 fn derive_nowcast_insight_uses_rain_action_for_nonfreezing_thunder() {
-    let base = chrono::NaiveDateTime::parse_from_str("2026-02-12T08:00", "%Y-%m-%dT%H:%M").unwrap();
+    let base = base_time();
     let mut bundle = minimal_bundle(Some(11.0), Some(6.0));
     bundle.current.temperature_2m_c = 7.0;
     bundle.current.weather_code = 95;
@@ -170,18 +160,13 @@ fn derive_nowcast_insight_uses_rain_action_for_nonfreezing_thunder() {
     ];
     bundle.hourly[0].snowfall_cm = Some(0.2);
     bundle.hourly[1].snowfall_cm = Some(0.2);
-    let refresh_meta = RefreshMetadata {
-        state: FreshnessState::Fresh,
-        ..RefreshMetadata::default()
-    };
-
-    let insight = derive_nowcast_insight(&bundle, Units::Celsius, &refresh_meta);
+    let insight = derive_nowcast_insight(&bundle, Units::Celsius, &fresh_meta());
     assert_eq!(insight.action, ActionCue::CarryUmbrella);
 }
 
 #[test]
 fn next_notable_change_prefers_precip_start_over_later_changes() {
-    let base = chrono::NaiveDateTime::parse_from_str("2026-02-12T08:00", "%Y-%m-%dT%H:%M").unwrap();
+    let base = base_time();
     let hourly = vec![
         sample_hour(base, 5.0, 3, 5.0, 0.0, 10.0, 9_000.0),
         sample_hour(
@@ -211,7 +196,7 @@ fn next_notable_change_prefers_precip_start_over_later_changes() {
 
 #[test]
 fn derive_nowcast_insight_confidence_drops_to_low_when_offline() {
-    let base = chrono::NaiveDateTime::parse_from_str("2026-02-12T08:00", "%Y-%m-%dT%H:%M").unwrap();
+    let base = base_time();
     let mut bundle = minimal_bundle(Some(8.0), Some(1.0));
     bundle.hourly = vec![sample_hour(base, 5.0, 3, 10.0, 0.0, 10.0, 9_000.0)];
     let refresh_meta = RefreshMetadata {

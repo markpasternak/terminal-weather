@@ -8,28 +8,7 @@ pub(crate) const HOURLY_VIEW_OPTIONS: [HourlyViewMode; 3] = [
     HourlyViewMode::Chart,
 ];
 
-pub(crate) const THEME_OPTIONS: [ThemeArg; 18] = [
-    ThemeArg::Auto,
-    ThemeArg::Aurora,
-    ThemeArg::MidnightCyan,
-    ThemeArg::Aubergine,
-    ThemeArg::Hoth,
-    ThemeArg::Monument,
-    ThemeArg::Nord,
-    ThemeArg::CatppuccinMocha,
-    ThemeArg::Mono,
-    ThemeArg::HighContrast,
-    ThemeArg::Dracula,
-    ThemeArg::GruvboxMaterialDark,
-    ThemeArg::KanagawaWave,
-    ThemeArg::AyuMirage,
-    ThemeArg::AyuLight,
-    ThemeArg::PoimandresStorm,
-    ThemeArg::SelenizedDark,
-    ThemeArg::NoClownFiesta,
-];
-
-pub(super) const THEME_LABELS: &[(ThemeArg, &str)] = &[
+const THEME_LABEL_TABLE: [(ThemeArg, &str); 18] = [
     (ThemeArg::Auto, "Auto"),
     (ThemeArg::Aurora, "Aurora"),
     (ThemeArg::MidnightCyan, "Midnight Cyan"),
@@ -49,6 +28,20 @@ pub(super) const THEME_LABELS: &[(ThemeArg, &str)] = &[
     (ThemeArg::SelenizedDark, "Selenized Dark"),
     (ThemeArg::NoClownFiesta, "No Clown Fiesta"),
 ];
+
+const fn theme_options() -> [ThemeArg; THEME_LABEL_TABLE.len()] {
+    let mut options = [ThemeArg::Auto; THEME_LABEL_TABLE.len()];
+    let mut idx = 0;
+    while idx < THEME_LABEL_TABLE.len() {
+        options[idx] = THEME_LABEL_TABLE[idx].0;
+        idx += 1;
+    }
+    options
+}
+
+pub(crate) const THEME_OPTIONS: [ThemeArg; THEME_LABEL_TABLE.len()] = theme_options();
+
+pub(super) const THEME_LABELS: &[(ThemeArg, &str)] = &THEME_LABEL_TABLE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SettingsSelection {
@@ -104,4 +97,19 @@ pub(super) fn selection_index(selection: SettingsSelection) -> usize {
         .iter()
         .position(|candidate| *candidate == selection)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn theme_options_matches_theme_labels_order() {
+        let options_from_labels = THEME_LABELS
+            .iter()
+            .map(|(theme, _)| *theme)
+            .collect::<Vec<_>>();
+        assert_eq!(theme_options().to_vec(), options_from_labels);
+        assert_eq!(THEME_OPTIONS.to_vec(), options_from_labels);
+    }
 }
