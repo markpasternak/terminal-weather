@@ -163,7 +163,7 @@ fn extreme_heat_alert(next_24h: &[HourlyForecast], units: Units) -> Option<Weath
         let display_temp = round_temp(convert_temp(max_temp, units));
         Some(WeatherAlert {
             icon: "🔥",
-            message: format!("Extreme heat: up to {display_temp}°{}", unit_label(units)),
+            message: format!("Extreme heat: up to {display_temp}°{}", units.symbol()),
             eta_hours: first_hour_index(next_24h, |hour| {
                 hour.temperature_2m_c.is_some_and(|temp| temp >= 38.0)
             }),
@@ -183,7 +183,7 @@ fn extreme_cold_alert(next_24h: &[HourlyForecast], units: Units) -> Option<Weath
         let display_temp = round_temp(convert_temp(min_temp, units));
         Some(WeatherAlert {
             icon: "❄",
-            message: format!("Extreme cold: down to {display_temp}°{}", unit_label(units)),
+            message: format!("Extreme cold: down to {display_temp}°{}", units.symbol()),
             eta_hours: first_hour_index(next_24h, |hour| {
                 hour.temperature_2m_c.is_some_and(|temp| temp <= -15.0)
             }),
@@ -210,13 +210,6 @@ fn thunder_alert(next_24h: &[HourlyForecast]) -> Option<WeatherAlert> {
         })
     } else {
         None
-    }
-}
-
-fn unit_label(units: Units) -> &'static str {
-    match units {
-        Units::Celsius => "C",
-        Units::Fahrenheit => "F",
     }
 }
 

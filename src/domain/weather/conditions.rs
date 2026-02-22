@@ -131,7 +131,7 @@ fn icon_tokens(
 fn clear_icon_tokens(is_day: bool) -> (&'static str, &'static str, &'static str, &'static str) {
     use nerd_font_symbols::weather::{WEATHER_DAY_SUNNY, WEATHER_NIGHT_CLEAR};
     if is_day {
-        ("SUN", "☀️", "☀", WEATHER_DAY_SUNNY)
+        ("SUN", "🌞", "☀", WEATHER_DAY_SUNNY)
     } else {
         ("MON", "🌙", "☾", WEATHER_NIGHT_CLEAR)
     }
@@ -144,11 +144,11 @@ fn non_clear_icon_tokens(
         WEATHER_CLOUDY, WEATHER_FOG, WEATHER_RAIN, WEATHER_SNOW, WEATHER_THUNDERSTORM,
     };
     match category {
-        WeatherCategory::Cloudy => ("CLD", "☁️", "☁", WEATHER_CLOUDY),
-        WeatherCategory::Rain => ("RAN", "🌧️", "🌧", WEATHER_RAIN),
-        WeatherCategory::Snow => ("SNW", "🌨️", "❄", WEATHER_SNOW),
-        WeatherCategory::Fog => ("FOG", "🌫️", "≡", WEATHER_FOG),
-        WeatherCategory::Thunder => ("THN", "⛈️", "⚡", WEATHER_THUNDERSTORM),
-        WeatherCategory::Unknown | WeatherCategory::Clear => ("---", "☁️", "☁", WEATHER_CLOUDY),
+        WeatherCategory::Cloudy => ("CLD", "⛅", "☁", WEATHER_CLOUDY),
+        WeatherCategory::Rain => ("RAN", "☔", "🌧", WEATHER_RAIN),
+        WeatherCategory::Snow => ("SNW", "⛄", "❄", WEATHER_SNOW),
+        WeatherCategory::Fog => ("FOG", "🌁", "≡", WEATHER_FOG),
+        WeatherCategory::Thunder => ("THN", "⚡", "⚡", WEATHER_THUNDERSTORM),
+        WeatherCategory::Unknown | WeatherCategory::Clear => ("---", "⛅", "☁", WEATHER_CLOUDY),
     }
 }
