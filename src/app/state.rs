@@ -21,10 +21,10 @@ use crate::{
         },
         settings::{
             RecentLocation, RuntimeSettings, clear_runtime_settings, hourly_view_from_cli,
-            load_runtime_settings, save_runtime_settings,
+            load_runtime_settings,
         },
     },
-    cli::{Cli, ColorArg, HeroVisualArg, IconMode, ThemeArg},
+    cli::{Cli, ColorArg, HeroVisualArg, ThemeArg},
     data::{forecast::ForecastClient, geocode::GeocodeClient},
     domain::weather::{
         ForecastBundle, GeocodeResolution, HourlyViewMode, Location, RefreshMetadata, Units,
@@ -41,14 +41,10 @@ mod methods_fetch;
 mod methods_ui;
 mod settings;
 
-use input::{command_char, settings_close_key};
-pub(crate) use input::{initial_selected_location, is_city_char};
+use input::command_char;
+pub(crate) use input::initial_selected_location;
 pub use settings::SettingsSelection;
-pub(crate) use settings::adjust_setting_selection;
 use settings::{HOURLY_VIEW_OPTIONS, cycle};
-
-const HISTORY_MAX: usize = 12;
-const CITY_PICKER_VISIBLE_MAX: usize = 9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {

@@ -1,7 +1,9 @@
 use super::*;
 
+mod command_bar;
 mod command_parse;
-use command_parse::{CommandAction, KeyCommand, command_from_char, parse_command_action};
+mod lifecycle;
+use command_parse::{KeyCommand, command_from_char};
 
 #[cfg(test)]
 use command_parse::{parse_hourly_view_command, parse_units_command};
@@ -65,138 +67,6 @@ impl AppState {
             _ => {}
         }
         Ok(())
-    }
-
-    pub(crate) fn handle_sync_event(&mut self, event: AppEvent, tx: &mpsc::Sender<AppEvent>) {
-        match event {
-            AppEvent::TickFrame => self.handle_tick_frame(),
-            AppEvent::FetchStarted => self.handle_fetch_started(),
-            AppEvent::GeocodeResolved(resolution) => {
-                self.handle_geocode_resolved(tx, resolution);
-            }
-            AppEvent::FetchSucceeded(bundle) => self.handle_fetch_succeeded(bundle),
-            AppEvent::FetchFailed(err) => self.handle_fetch_failed(tx, err),
-            AppEvent::Quit => self.mode = AppMode::Quit,
-            _ => {}
-        }
-    }
-
-    pub(crate) async fn handle_bootstrap(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        cli.validate()?;
-        start_frame_task(tx.clone(), cli.fps);
-        start_refresh_task(tx.clone(), self.refresh_interval_secs_runtime.clone());
-        if cli.demo {
-            start_demo_task(tx.clone());
-        }
-        self.start_fetch(tx, cli).await
-    }
-
-    pub(crate) fn handle_tick_frame(&mut self) {
-        let now = Instant::now();
-        let delta = now.duration_since(self.last_frame_at);
-        self.last_frame_at = now;
-        self.frame_tick = self.frame_tick.saturating_add(1);
-
-        self.particles.update(
-            self.weather
-                .as_ref()
-                .map(ForecastBundle::current_weather_code),
-            self.weather.as_ref().map(|w| w.current.wind_speed_10m),
-            self.weather.as_ref().map(|w| w.current.wind_direction_10m),
-            delta,
-        );
-        self.refresh_meta.state = evaluate_freshness(
-            self.refresh_meta.last_success,
-            self.refresh_meta.consecutive_failures,
-        );
-    }
-
-    pub(crate) async fn handle_tick_refresh(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        if matches!(
-            self.mode,
-            AppMode::Ready | AppMode::Error | AppMode::Loading
-        ) {
-            self.start_fetch(tx, cli).await?;
-        }
-        Ok(())
-    }
-
-    pub(crate) fn handle_fetch_started(&mut self) {
-        self.fetch_in_flight = true;
-        self.loading_message = "Fetching weather...".to_string();
-        if self.weather.is_none() {
-            self.mode = AppMode::Loading;
-        }
-        self.refresh_meta.last_attempt = Some(chrono::Utc::now());
-        self.refresh_meta.clear_retry();
-    }
-
-    pub(crate) fn handle_geocode_resolved(
-        &mut self,
-        tx: &mpsc::Sender<AppEvent>,
-        resolution: GeocodeResolution,
-    ) {
-        match resolution {
-            GeocodeResolution::Selected(location) => {
-                self.switch_to_location(tx, location);
-            }
-            GeocodeResolution::NeedsDisambiguation(locations) => {
-                self.pending_locations = locations;
-                self.fetch_in_flight = false;
-                self.mode = AppMode::SelectingLocation;
-                self.loading_message = "Choose a location (1-5)".to_string();
-                self.city_picker_open = false;
-                self.city_status =
-                    Some("Ambiguous results: choose a matching location".to_string());
-            }
-            GeocodeResolution::NotFound(city) => {
-                self.fetch_in_flight = false;
-                self.mode = AppMode::Error;
-                self.last_error = Some(format!("No geocoding result for {city}"));
-                self.city_status = Some(format!("No results for '{city}'"));
-            }
-        }
-    }
-
-    pub(crate) fn handle_fetch_succeeded(&mut self, bundle: ForecastBundle) {
-        let location = bundle.location.clone();
-        let key: LocationKey = (&location).into();
-        self.forecast_cache.put(key, bundle.clone());
-        self.fetch_in_flight = false;
-        self.weather = Some(bundle);
-        self.mode = AppMode::Ready;
-        self.last_error = None;
-        self.refresh_meta.mark_success();
-        self.backoff.reset();
-        self.hourly_offset = 0;
-        self.hourly_cursor = 0;
-        self.push_recent_location(&location);
-        self.persist_settings();
-        self.city_status = None;
-    }
-
-    pub(crate) fn handle_fetch_failed(&mut self, tx: &mpsc::Sender<AppEvent>, err: String) {
-        self.fetch_in_flight = false;
-        self.last_error = Some(err);
-        self.mode = AppMode::Error;
-        self.city_status =
-            Some("Failed to fetch weather; keeping last successful data".to_string());
-        self.refresh_meta.mark_failure();
-        self.refresh_meta.state = evaluate_freshness(
-            self.refresh_meta.last_success,
-            self.refresh_meta.consecutive_failures,
-        );
-        let delay = self.backoff.next_delay();
-        self.refresh_meta.schedule_retry_in(delay);
-        schedule_retry(tx.clone(), delay);
     }
 
     pub(crate) async fn handle_input(
@@ -292,22 +162,44 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> Result<()> {
-        if self.settings.command_bar_enabled && matches!(key.code, KeyCode::Char(':')) {
+        let code = key.code;
+        if self.try_open_command_bar(code) {
+            return Ok(());
+        }
+        if self.handle_main_navigation_key(code, tx).await? {
+            return Ok(());
+        }
+        self.handle_main_char_key(key, tx, cli).await
+    }
+
+    fn try_open_command_bar(&mut self, code: KeyCode) -> bool {
+        if self.settings.command_bar_enabled && matches!(code, KeyCode::Char(':')) {
             self.command_bar.open();
-            return Ok(());
+            return true;
         }
-        if self.handle_global_main_key(key.code, tx).await? {
-            return Ok(());
+        false
+    }
+
+    async fn handle_main_navigation_key(
+        &mut self,
+        code: KeyCode,
+        tx: &mpsc::Sender<AppEvent>,
+    ) -> Result<bool> {
+        if self.handle_global_main_key(code, tx).await? {
+            return Ok(true);
         }
-        if self.handle_panel_focus_key(key.code) {
-            return Ok(());
-        }
-        if self.handle_hourly_navigation_key(key.code) {
-            return Ok(());
-        }
-        if self.try_select_pending_location(key.code, tx) {
-            return Ok(());
-        }
+        let handled = self.handle_panel_focus_key(code)
+            || self.handle_hourly_navigation_key(code)
+            || self.try_select_pending_location(code, tx);
+        Ok(handled)
+    }
+
+    async fn handle_main_char_key(
+        &mut self,
+        key: KeyEvent,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> Result<()> {
         if matches!(key.code, KeyCode::Char(_)) {
             self.handle_char_command(key, tx, cli).await?;
         }
@@ -488,100 +380,6 @@ impl AppState {
                 }
             }
         }
-    }
-
-    async fn handle_command_bar_key(
-        &mut self,
-        key: KeyEvent,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> Result<()> {
-        match key.code {
-            KeyCode::Esc => {
-                self.command_bar.close();
-            }
-            KeyCode::Backspace => {
-                if self.command_bar.buffer.len() > 1 {
-                    self.command_bar.buffer.pop();
-                }
-            }
-            KeyCode::Enter => {
-                self.execute_command_bar(tx, cli).await;
-            }
-            KeyCode::Char(ch) => {
-                if key
-                    .modifiers
-                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER)
-                {
-                    return Ok(());
-                }
-                self.command_bar.buffer.push(ch);
-                self.command_bar.parse_error = None;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    async fn execute_command_bar(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) {
-        let raw = self
-            .command_bar
-            .buffer
-            .trim()
-            .trim_start_matches(':')
-            .to_string();
-        if raw.is_empty() {
-            self.command_bar.close();
-            return;
-        }
-        match self.run_command(&raw, tx, cli).await {
-            Ok(()) => self.command_bar.close(),
-            Err(err) => self.command_bar.parse_error = Some(err),
-        }
-    }
-
-    async fn run_command(
-        &mut self,
-        command: &str,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> std::result::Result<(), String> {
-        let action = parse_command_action(command)?;
-        self.execute_command_action(action, tx, cli).await
-    }
-
-    async fn execute_command_action(
-        &mut self,
-        action: CommandAction,
-        tx: &mpsc::Sender<AppEvent>,
-        cli: &Cli,
-    ) -> std::result::Result<(), String> {
-        match action {
-            CommandAction::Refresh => self
-                .start_fetch(tx, cli)
-                .await
-                .map_err(|err| format!("refresh failed: {err}"))?,
-            CommandAction::Quit => tx
-                .send(AppEvent::Quit)
-                .await
-                .map_err(|err| format!("quit failed: {err}"))?,
-            CommandAction::Units(units) => self.set_units(units),
-            CommandAction::View(mode) => {
-                self.settings.hourly_view = mode;
-                self.apply_runtime_settings();
-                self.persist_settings();
-            }
-            CommandAction::Theme(theme) => {
-                self.settings.theme = theme;
-                self.apply_runtime_settings();
-                self.persist_settings();
-            }
-            CommandAction::City(query) => {
-                self.start_city_search(tx, query, cli.country_code.clone());
-            }
-        }
-
-        Ok(())
     }
 
     pub(crate) fn handle_panel_focus_key(&mut self, code: KeyCode) -> bool {

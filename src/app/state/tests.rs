@@ -1,5 +1,6 @@
 use super::{
-    AppState, SettingsSelection, adjust_setting_selection, initial_selected_location, is_city_char,
+    AppState, SettingsSelection, initial_selected_location, input::is_city_char,
+    settings::adjust_setting_selection,
 };
 use crate::{
     app::settings::{RecentLocation, RuntimeSettings},
