@@ -6,8 +6,7 @@
     clippy::doc_markdown,
     clippy::manual_midpoint,
     clippy::match_same_arms,
-    clippy::must_use_candidate,
-    clippy::too_many_lines
+    clippy::must_use_candidate
 )]
 
 use ratatui::style::Color;
@@ -15,16 +14,25 @@ use ratatui::style::Color;
 use crate::{
     app::state::AppState,
     cli::{ColorArg, ThemeArg},
-    domain::weather::{WeatherCategory, weather_code_to_category},
+    domain::weather::WeatherCategory,
 };
 
+mod basic16;
 mod capability;
+mod contrast;
 mod data;
 mod extended;
+mod quantize;
+mod resolve;
 
+#[cfg(test)]
+use basic16::auto_basic16_gradient;
+#[cfg(test)]
 use capability::detect_color_capability_from;
-use data::{AUTO_THEME_SEEDS, BASIC16_MODE_PALETTES, PRESET_THEME_SEEDS};
-use extended::{quantize_rgb, theme_for_extended};
+#[cfg(test)]
+use contrast::{contrast_ratio, min_contrast_ratio, relative_luminance};
+use contrast::{ensure_contrast, ensure_contrast_multi, luma, mix_rgb};
+pub use quantize::quantize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorCapability {
@@ -68,30 +76,11 @@ pub struct Theme {
 }
 
 pub fn detect_color_capability(mode: ColorArg) -> ColorCapability {
-    let term = std::env::var("TERM").ok();
-    let colorterm = std::env::var("COLORTERM").ok();
-    let no_color = std::env::var("NO_COLOR").ok();
-    detect_color_capability_from(
-        mode,
-        term.as_deref(),
-        colorterm.as_deref(),
-        no_color.as_deref(),
-    )
+    resolve::detect_color_capability(mode)
 }
 
 pub fn resolved_theme(state: &AppState) -> Theme {
-    let capability = detect_color_capability(state.color_mode);
-    let (category, is_day) =
-        state
-            .weather
-            .as_ref()
-            .map_or((WeatherCategory::Unknown, false), |w| {
-                (
-                    weather_code_to_category(w.current.weather_code),
-                    w.current.is_day,
-                )
-            });
-    theme_for(category, is_day, capability, state.settings.theme)
+    resolve::resolved_theme(state)
 }
 
 pub fn theme_for(
@@ -100,201 +89,7 @@ pub fn theme_for(
     capability: ColorCapability,
     mode: ThemeArg,
 ) -> Theme {
-    let (top, bottom, accent_seed) = match mode {
-        ThemeArg::Auto => auto_theme_seed(category, is_day),
-        _ => preset_theme_seed(mode),
-    };
-
-    if capability == ColorCapability::Basic16 {
-        return theme_for_basic16(mode, category, is_day, top, bottom, capability);
-    }
-
-    theme_for_extended(top, bottom, accent_seed, capability)
-}
-
-fn auto_theme_seed(category: WeatherCategory, is_day: bool) -> ThemeSeed {
-    for ((candidate_category, candidate_is_day), seed) in AUTO_THEME_SEEDS {
-        if *candidate_category == category && *candidate_is_day == is_day {
-            return *seed;
-        }
-    }
-    ((28, 36, 51), (42, 53, 73), (205, 219, 234))
-}
-
-fn lookup_theme_entry<T: Copy>(entries: &[(ThemeArg, T)], mode: ThemeArg) -> T {
-    debug_assert!(mode != ThemeArg::Auto, "auto mode handled separately");
-    for (candidate, value) in entries {
-        if *candidate == mode {
-            return *value;
-        }
-    }
-    unreachable!("missing theme mapping for {:?}", mode)
-}
-
-fn preset_theme_seed(mode: ThemeArg) -> ThemeSeed {
-    lookup_theme_entry(PRESET_THEME_SEEDS, mode)
-}
-
-fn theme_for_basic16(
-    mode: ThemeArg,
-    category: WeatherCategory,
-    is_day: bool,
-    top: (u8, u8, u8),
-    bottom: (u8, u8, u8),
-    capability: ColorCapability,
-) -> Theme {
-    if mode == ThemeArg::Auto {
-        return auto_basic16_theme(category, is_day, capability);
-    }
-    explicit_basic16_theme(mode, top, bottom, capability)
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Basic16Semantics {
-    text: Color,
-    muted: Color,
-    particle: Color,
-    info: Color,
-    success: Color,
-    warning: Color,
-    danger: Color,
-    temp_freezing: Color,
-    temp_cold: Color,
-    temp_mild: Color,
-    temp_warm: Color,
-    temp_hot: Color,
-    landmark_warm: Color,
-    landmark_cool: Color,
-}
-
-fn auto_basic16_gradient(category: WeatherCategory, is_day: bool) -> ((u8, u8, u8), (u8, u8, u8)) {
-    let (top, bottom, _) = auto_theme_seed(category, is_day);
-    (top, bottom)
-}
-
-fn basic16_mode_palette(mode: ThemeArg) -> (Color, Color, Color, Color, Color, Color) {
-    lookup_theme_entry(BASIC16_MODE_PALETTES, mode)
-}
-
-const BASIC16_DARK_SEMANTICS: Basic16Semantics = Basic16Semantics {
-    text: Color::White,
-    muted: Color::Gray,
-    particle: Color::DarkGray,
-    info: Color::LightCyan,
-    success: Color::LightGreen,
-    warning: Color::Yellow,
-    danger: Color::LightRed,
-    temp_freezing: Color::LightBlue,
-    temp_cold: Color::Cyan,
-    temp_mild: Color::Green,
-    temp_warm: Color::Yellow,
-    temp_hot: Color::LightRed,
-    landmark_warm: Color::Yellow,
-    landmark_cool: Color::LightBlue,
-};
-
-const BASIC16_LIGHT_SEMANTICS: Basic16Semantics = Basic16Semantics {
-    text: Color::Black,
-    muted: Color::DarkGray,
-    particle: Color::Gray,
-    info: Color::Blue,
-    success: Color::Green,
-    warning: Color::Magenta,
-    danger: Color::Red,
-    temp_freezing: Color::Blue,
-    temp_cold: Color::Cyan,
-    temp_mild: Color::Green,
-    temp_warm: Color::Magenta,
-    temp_hot: Color::Red,
-    landmark_warm: Color::Magenta,
-    landmark_cool: Color::Blue,
-};
-
-fn basic16_semantics(is_light_theme: bool) -> Basic16Semantics {
-    if is_light_theme {
-        BASIC16_LIGHT_SEMANTICS
-    } else {
-        BASIC16_DARK_SEMANTICS
-    }
-}
-
-fn auto_basic16_theme(
-    category: WeatherCategory,
-    is_day: bool,
-    capability: ColorCapability,
-) -> Theme {
-    let (top, bottom) = auto_basic16_gradient(category, is_day);
-    Theme {
-        top: quantize_rgb(top, capability),
-        bottom: quantize_rgb(bottom, capability),
-        surface: Color::Black,
-        surface_alt: Color::DarkGray,
-        popup_surface: Color::Blue,
-        accent: if is_day {
-            Color::Cyan
-        } else {
-            Color::LightBlue
-        },
-        text: Color::White,
-        muted_text: Color::Gray,
-        popup_text: Color::White,
-        popup_muted_text: Color::Gray,
-        particle: Color::Gray,
-        border: Color::LightCyan,
-        popup_border: Color::Yellow,
-        info: Color::LightCyan,
-        success: Color::LightGreen,
-        warning: Color::Yellow,
-        danger: Color::LightRed,
-        temp_freezing: Color::LightBlue,
-        temp_cold: Color::Cyan,
-        temp_mild: Color::Green,
-        temp_warm: Color::Yellow,
-        temp_hot: Color::LightRed,
-        range_track: Color::Gray,
-        landmark_warm: Color::Yellow,
-        landmark_cool: Color::LightBlue,
-        landmark_neutral: Color::Gray,
-    }
-}
-
-fn explicit_basic16_theme(
-    mode: ThemeArg,
-    top: Rgb,
-    bottom: Rgb,
-    capability: ColorCapability,
-) -> Theme {
-    let (surface, surface_alt, popup_surface, accent, border, popup_border) =
-        basic16_mode_palette(mode);
-    let semantics = basic16_semantics(matches!(mode, ThemeArg::AyuLight | ThemeArg::Hoth));
-    Theme {
-        top: quantize_rgb(top, capability),
-        bottom: quantize_rgb(bottom, capability),
-        surface,
-        surface_alt,
-        popup_surface,
-        accent,
-        text: semantics.text,
-        muted_text: semantics.muted,
-        popup_text: semantics.text,
-        popup_muted_text: semantics.muted,
-        particle: semantics.particle,
-        border,
-        popup_border,
-        info: semantics.info,
-        success: semantics.success,
-        warning: semantics.warning,
-        danger: semantics.danger,
-        temp_freezing: semantics.temp_freezing,
-        temp_cold: semantics.temp_cold,
-        temp_mild: semantics.temp_mild,
-        temp_warm: semantics.temp_warm,
-        temp_hot: semantics.temp_hot,
-        range_track: semantics.muted,
-        landmark_warm: semantics.landmark_warm,
-        landmark_cool: semantics.landmark_cool,
-        landmark_neutral: semantics.muted,
-    }
+    resolve::theme_for(category, is_day, capability, mode)
 }
 
 pub fn condition_color(theme: &Theme, category: WeatherCategory) -> Color {
@@ -333,187 +128,6 @@ pub fn temp_color(theme: &Theme, temp: f32) -> Color {
     } else {
         theme.temp_hot
     }
-}
-
-fn luma(r: u8, g: u8, b: u8) -> f32 {
-    (0.2126 * f32::from(r)) + (0.7152 * f32::from(g)) + (0.0722 * f32::from(b))
-}
-
-fn mix_rgb(a: (u8, u8, u8), b: (u8, u8, u8), t: f32) -> (u8, u8, u8) {
-    let t = t.clamp(0.0, 1.0);
-    let mix = |x: u8, y: u8| -> u8 {
-        (f32::from(x) + (f32::from(y) - f32::from(x)) * t)
-            .round()
-            .clamp(0.0, 255.0) as u8
-    };
-    (mix(a.0, b.0), mix(a.1, b.1), mix(a.2, b.2))
-}
-
-fn ensure_contrast(fg: (u8, u8, u8), bg: (u8, u8, u8), min_ratio: f32) -> (u8, u8, u8) {
-    ensure_contrast_multi(fg, &[bg], min_ratio)
-}
-
-fn ensure_contrast_multi(
-    fg: (u8, u8, u8),
-    backgrounds: &[(u8, u8, u8)],
-    min_ratio: f32,
-) -> (u8, u8, u8) {
-    if backgrounds.is_empty() {
-        return fg;
-    }
-    if min_contrast_ratio(fg, backgrounds) >= min_ratio {
-        return fg;
-    }
-
-    let black = (0, 0, 0);
-    let white = (255, 255, 255);
-    let black_score = min_contrast_ratio(black, backgrounds);
-    let white_score = min_contrast_ratio(white, backgrounds);
-    let target = if white_score >= black_score {
-        white
-    } else {
-        black
-    };
-
-    let mut best = fg;
-    let mut best_ratio = min_contrast_ratio(fg, backgrounds);
-    for step in 1..=24 {
-        let t = step as f32 / 24.0;
-        let candidate = mix_rgb(fg, target, t);
-        let ratio = min_contrast_ratio(candidate, backgrounds);
-        if ratio > best_ratio {
-            best = candidate;
-            best_ratio = ratio;
-        }
-        if ratio >= min_ratio {
-            return candidate;
-        }
-    }
-    best
-}
-
-fn min_contrast_ratio(color: (u8, u8, u8), backgrounds: &[(u8, u8, u8)]) -> f32 {
-    backgrounds
-        .iter()
-        .map(|bg| contrast_ratio(color, *bg))
-        .fold(f32::INFINITY, f32::min)
-}
-
-fn contrast_ratio(a: (u8, u8, u8), b: (u8, u8, u8)) -> f32 {
-    let l1 = relative_luminance(a);
-    let l2 = relative_luminance(b);
-    let (hi, lo) = if l1 >= l2 { (l1, l2) } else { (l2, l1) };
-    (hi + 0.05) / (lo + 0.05)
-}
-
-fn relative_luminance(rgb: (u8, u8, u8)) -> f32 {
-    let r = srgb_to_linear(rgb.0);
-    let g = srgb_to_linear(rgb.1);
-    let b = srgb_to_linear(rgb.2);
-    0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
-fn srgb_to_linear(v: u8) -> f32 {
-    let s = f32::from(v) / 255.0;
-    if s <= 0.04045 {
-        s / 12.92
-    } else {
-        ((s + 0.055) / 1.055).powf(2.4)
-    }
-}
-
-pub fn quantize(color: Color, capability: ColorCapability) -> Color {
-    match (capability, color) {
-        (ColorCapability::TrueColor, c) => c,
-        (ColorCapability::Xterm256, Color::Rgb(r, g, b)) => {
-            let to_cube = |v: u8| -> u8 { ((f32::from(v) / 255.0) * 5.0).round() as u8 };
-            let ri = to_cube(r);
-            let gi = to_cube(g);
-            let bi = to_cube(b);
-            let index = 16 + 36 * ri + 6 * gi + bi;
-            Color::Indexed(index)
-        }
-        (ColorCapability::Basic16, Color::Rgb(r, g, b)) => basic16_from_rgb(r, g, b),
-        (_, c) => c,
-    }
-}
-
-fn basic16_from_rgb(r: u8, g: u8, b: u8) -> Color {
-    let rf = f32::from(r) / 255.0;
-    let gf = f32::from(g) / 255.0;
-    let bf = f32::from(b) / 255.0;
-
-    let max = rf.max(gf.max(bf));
-    let min = rf.min(gf.min(bf));
-    let delta = max - min;
-    let light = (max + min) / 2.0;
-
-    if delta < 0.08 {
-        return achromatic_basic16(light);
-    }
-
-    let hue = hue_from_rgb_components(rf, gf, bf, max, delta);
-    hue_to_basic16(hue, light >= 0.55)
-}
-
-fn achromatic_basic16(light: f32) -> Color {
-    if light < 0.20 {
-        return Color::Black;
-    }
-    if light < 0.40 {
-        return Color::DarkGray;
-    }
-    if light < 0.72 {
-        return Color::Gray;
-    }
-    Color::White
-}
-
-fn hue_from_rgb_components(rf: f32, gf: f32, bf: f32, max: f32, delta: f32) -> f32 {
-    if (max - rf).abs() < f32::EPSILON {
-        return 60.0 * ((gf - bf) / delta).rem_euclid(6.0);
-    }
-    if (max - gf).abs() < f32::EPSILON {
-        return 60.0 * (((bf - rf) / delta) + 2.0);
-    }
-    60.0 * (((rf - gf) / delta) + 4.0)
-}
-
-fn hue_to_basic16(hue: f32, bright: bool) -> Color {
-    let band = if !(30.0..330.0).contains(&hue) {
-        0
-    } else if hue < 90.0 {
-        1
-    } else if hue < 150.0 {
-        2
-    } else if hue < 210.0 {
-        3
-    } else if hue < 270.0 {
-        4
-    } else {
-        5
-    };
-    hue_band_color(band, bright)
-}
-
-fn hue_band_color(band: usize, bright: bool) -> Color {
-    const DIM: [Color; 6] = [
-        Color::Red,
-        Color::Yellow,
-        Color::Green,
-        Color::Cyan,
-        Color::Blue,
-        Color::Magenta,
-    ];
-    const BRIGHT: [Color; 6] = [
-        Color::LightRed,
-        Color::LightYellow,
-        Color::LightGreen,
-        Color::LightCyan,
-        Color::LightBlue,
-        Color::LightMagenta,
-    ];
-    if bright { BRIGHT[band] } else { DIM[band] }
 }
 
 #[cfg(test)]

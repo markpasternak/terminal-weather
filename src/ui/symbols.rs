@@ -31,12 +31,24 @@ const fn unicode_symbol(symbol: SemanticSymbol) -> &'static str {
         SemanticSymbol::Fresh | SemanticSymbol::ConfidenceHigh => "●",
         SemanticSymbol::Stale | SemanticSymbol::ConfidenceMedium => "◐",
         SemanticSymbol::Offline | SemanticSymbol::ConfidenceLow => "○",
+        _ => unicode_non_status_symbol(symbol),
+    }
+}
+
+const fn unicode_non_status_symbol(symbol: SemanticSymbol) -> &'static str {
+    match symbol {
         SemanticSymbol::TrendUp => "↗",
         SemanticSymbol::TrendDown => "↘",
         SemanticSymbol::SeverityInfo => "ℹ",
         SemanticSymbol::SeverityWarning => "⚠",
         SemanticSymbol::SeverityDanger => "⛔",
         SemanticSymbol::Wind => "➤",
+        SemanticSymbol::Fresh
+        | SemanticSymbol::Stale
+        | SemanticSymbol::Offline
+        | SemanticSymbol::ConfidenceHigh
+        | SemanticSymbol::ConfidenceMedium
+        | SemanticSymbol::ConfidenceLow => unreachable!(),
     }
 }
 
@@ -74,13 +86,25 @@ const fn emoji_symbol(symbol: SemanticSymbol) -> &'static str {
         SemanticSymbol::Fresh | SemanticSymbol::ConfidenceHigh => "🟢",
         SemanticSymbol::Stale | SemanticSymbol::ConfidenceMedium => "🟡",
         SemanticSymbol::Offline => "🔴",
+        SemanticSymbol::ConfidenceLow => "⚪",
+        _ => emoji_non_status_symbol(symbol),
+    }
+}
+
+const fn emoji_non_status_symbol(symbol: SemanticSymbol) -> &'static str {
+    match symbol {
         SemanticSymbol::TrendUp => "📈",
         SemanticSymbol::TrendDown => "📉",
         SemanticSymbol::SeverityInfo => "ℹ️",
         SemanticSymbol::SeverityWarning => "⚠️",
         SemanticSymbol::SeverityDanger => "🛑",
-        SemanticSymbol::ConfidenceLow => "⚪",
         SemanticSymbol::Wind => "🧭",
+        SemanticSymbol::Fresh
+        | SemanticSymbol::Stale
+        | SemanticSymbol::Offline
+        | SemanticSymbol::ConfidenceHigh
+        | SemanticSymbol::ConfidenceMedium
+        | SemanticSymbol::ConfidenceLow => unreachable!(),
     }
 }
 
@@ -90,12 +114,24 @@ fn nerd_font_symbol(symbol: SemanticSymbol) -> &'static str {
         SemanticSymbol::Fresh | SemanticSymbol::ConfidenceHigh => "●",
         SemanticSymbol::Stale | SemanticSymbol::ConfidenceMedium => "◐",
         SemanticSymbol::Offline | SemanticSymbol::ConfidenceLow => "○",
+        _ => nerd_font_non_status_symbol(symbol, WEATHER_STRONG_WIND),
+    }
+}
+
+fn nerd_font_non_status_symbol(symbol: SemanticSymbol, wind: &'static str) -> &'static str {
+    match symbol {
         SemanticSymbol::TrendUp => "↑",
         SemanticSymbol::TrendDown => "↓",
         SemanticSymbol::SeverityInfo => "ℹ",
         SemanticSymbol::SeverityWarning => "⚠",
         SemanticSymbol::SeverityDanger => "⛔",
-        SemanticSymbol::Wind => WEATHER_STRONG_WIND,
+        SemanticSymbol::Wind => wind,
+        SemanticSymbol::Fresh
+        | SemanticSymbol::Stale
+        | SemanticSymbol::Offline
+        | SemanticSymbol::ConfidenceHigh
+        | SemanticSymbol::ConfidenceMedium
+        | SemanticSymbol::ConfidenceLow => unreachable!(),
     }
 }
 

@@ -1,4 +1,6 @@
-use super::*;
+use crate::cli::ColorArg;
+
+use super::ColorCapability;
 
 pub(super) fn detect_color_capability_from(
     mode: ColorArg,
