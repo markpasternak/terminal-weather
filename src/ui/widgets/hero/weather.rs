@@ -21,7 +21,10 @@ use crate::{
         AirQualityCategory, ForecastBundle, HourlyForecast, convert_temp, round_temp,
         round_wind_speed, weather_code_to_category, weather_label_for_time,
     },
-    ui::theme::{Theme, condition_color},
+    ui::{
+        narrative::build_narrative,
+        theme::{Theme, condition_color},
+    },
 };
 
 mod loading;
@@ -113,6 +116,7 @@ fn build_weather_lines(
     scale: HeroScale,
 ) -> Vec<Line<'static>> {
     let mut lines = build_header_lines(state, weather, theme, code, scale);
+    append_insight_lines(&mut lines, state, weather, theme);
     let metrics = collect_weather_metrics(state, weather);
     push_metric_lines(
         &mut lines,
@@ -138,6 +142,38 @@ fn build_weather_lines(
         Style::default().fg(theme.muted_text),
     )));
     lines
+}
+
+fn append_insight_lines(
+    lines: &mut Vec<Line<'static>>,
+    state: &AppState,
+    weather: &ForecastBundle,
+    theme: Theme,
+) {
+    let narrative = build_narrative(state, weather);
+    lines.push(Line::from(Span::styled(
+        narrative.now_action,
+        Style::default()
+            .fg(theme.accent)
+            .add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(Span::styled(
+        narrative.next_change,
+        Style::default().fg(theme.info),
+    )));
+    lines.push(Line::from(Span::styled(
+        narrative.next_6h,
+        Style::default().fg(theme.muted_text),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!(
+            "{} Confidence {} · {}",
+            narrative.confidence_symbol,
+            narrative.confidence.label(),
+            narrative.reliability
+        ),
+        Style::default().fg(theme.muted_text),
+    )));
 }
 
 fn build_header_lines(

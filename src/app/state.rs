@@ -4,10 +4,7 @@ use std::{
     io::IsTerminal,
     num::NonZeroUsize,
     path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::{Arc, atomic::AtomicU64},
     time::Instant,
 };
 
@@ -23,8 +20,8 @@ use crate::{
             start_refresh_task,
         },
         settings::{
-            MotionSetting, RecentLocation, RuntimeSettings, clear_runtime_settings,
-            hourly_view_from_cli, load_runtime_settings, save_runtime_settings,
+            RecentLocation, RuntimeSettings, clear_runtime_settings, hourly_view_from_cli,
+            load_runtime_settings, save_runtime_settings,
         },
     },
     cli::{Cli, ColorArg, HeroVisualArg, IconMode, ThemeArg},
@@ -60,6 +57,66 @@ pub enum AppMode {
     Ready,
     Error,
     Quit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelFocus {
+    Hero,
+    Hourly,
+    Daily,
+}
+
+impl PanelFocus {
+    #[must_use]
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Hero => Self::Hourly,
+            Self::Hourly => Self::Daily,
+            Self::Daily => Self::Hero,
+        }
+    }
+
+    #[must_use]
+    pub const fn previous(self) -> Self {
+        match self {
+            Self::Hero => Self::Daily,
+            Self::Hourly => Self::Hero,
+            Self::Daily => Self::Hourly,
+        }
+    }
+
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Hero => "Hero",
+            Self::Hourly => "Hourly",
+            Self::Daily => "7-Day",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CommandBarState {
+    pub open: bool,
+    pub buffer: String,
+    pub parse_error: Option<String>,
+}
+
+impl CommandBarState {
+    pub fn open(&mut self) {
+        self.open = true;
+        self.parse_error = None;
+        if !self.buffer.starts_with(':') {
+            self.buffer.clear();
+            self.buffer.push(':');
+        }
+    }
+
+    pub fn close(&mut self) {
+        self.open = false;
+        self.buffer.clear();
+        self.parse_error = None;
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -123,6 +180,8 @@ pub struct AppState {
     pub city_status: Option<String>,
     pub color_mode: ColorArg,
     pub hourly_view_mode: HourlyViewMode,
+    pub panel_focus: PanelFocus,
+    pub command_bar: CommandBarState,
     pub refresh_interval_secs_runtime: Arc<AtomicU64>,
     forecast_url_override: Option<String>,
     air_quality_url_override: Option<String>,
@@ -132,13 +191,13 @@ pub struct AppState {
 impl AppState {
     pub fn new(cli: &Cli) -> Self {
         let (settings, settings_path) = load_or_reset_settings(cli);
-        let (disabled, reduced) = motion_flags(&settings);
         let runtime_hourly_view = cli
             .hourly_view
             .map_or(settings.hourly_view, hourly_view_from_cli);
         let selected_location = initial_selected_location(cli, &settings);
         let refresh_interval_secs_runtime =
             Arc::new(AtomicU64::new(settings.refresh_interval_secs));
+        let panel_focus = PanelFocus::Hourly;
 
         Self {
             mode: AppMode::Loading,
@@ -153,12 +212,12 @@ impl AppState {
             units: settings.units,
             hourly_offset: 0,
             hourly_cursor: 0,
-            particles: ParticleEngine::new(disabled, reduced, settings.no_flash),
+            particles: ParticleEngine::new(false, false, settings.no_flash),
             backoff: Backoff::new(10, 300),
             fetch_in_flight: false,
             last_frame_at: Instant::now(),
             frame_tick: 0,
-            animate_ui: matches!(settings.motion, MotionSetting::Full),
+            animate_ui: true,
             viewport_width: 80,
             demo_mode: cli.demo,
             settings,
@@ -171,6 +230,8 @@ impl AppState {
             city_status: None,
             color_mode: cli.effective_color_mode(),
             hourly_view_mode: runtime_hourly_view,
+            panel_focus,
+            command_bar: CommandBarState::default(),
             refresh_interval_secs_runtime,
             forecast_url_override: cli.forecast_url.clone(),
             air_quality_url_override: cli.air_quality_url.clone(),
@@ -189,13 +250,6 @@ fn load_or_reset_settings(cli: &Cli) -> (RuntimeSettings, Option<PathBuf>) {
         settings = RuntimeSettings::default();
     }
     (settings, settings_path)
-}
-
-fn motion_flags(settings: &RuntimeSettings) -> (bool, bool) {
-    (
-        matches!(settings.motion, MotionSetting::Off),
-        matches!(settings.motion, MotionSetting::Reduced),
-    )
 }
 
 fn event_is_async(event: &AppEvent) -> bool {

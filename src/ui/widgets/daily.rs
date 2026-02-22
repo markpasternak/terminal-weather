@@ -6,20 +6,23 @@
 
 use ratatui::{
     Frame,
-    layout::{Constraint, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
 };
 
 use crate::{
-    app::state::AppState,
+    app::state::{AppState, PanelFocus},
     cli::{Cli, IconMode},
     domain::weather::{
         DailyForecast, ForecastBundle, Units, WeatherCategory, convert_temp, round_temp,
         weather_code_to_category, weather_icon,
     },
-    ui::theme::{detect_color_capability, icon_color, temp_color, theme_for},
+    ui::{
+        narrative::build_narrative,
+        theme::{detect_color_capability, icon_color, temp_color, theme_for},
+    },
 };
 
 mod layout;
@@ -51,7 +54,13 @@ fn render_daily_loading(
     let panel_style = Style::default().fg(theme.text).bg(theme.surface_alt);
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("7-Day")
+        .title(
+            if state.panel_focus == crate::app::state::PanelFocus::Daily {
+                "▶ 7-Day"
+            } else {
+                "7-Day"
+            },
+        )
         .style(panel_style)
         .border_style(Style::default().fg(theme.border).bg(theme.surface_alt));
     let inner = block.inner(area);
@@ -83,13 +92,20 @@ fn render_daily_with_bundle(
     let panel_style = Style::default().fg(theme.text).bg(theme.surface_alt);
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("7-Day Forecast")
+        .title(
+            if state.panel_focus == crate::app::state::PanelFocus::Daily {
+                "▶ 7-Day Forecast"
+            } else {
+                "7-Day Forecast"
+            },
+        )
         .style(panel_style)
         .border_style(Style::default().fg(theme.border).bg(theme.surface_alt));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let max_rows = layout.max_rows(inner.height);
+    let content_area = render_daily_context_strip(frame, inner, state, bundle, theme);
+    let max_rows = layout.max_rows(content_area.height);
     if max_rows == 0 {
         return;
     }
@@ -105,7 +121,34 @@ fn render_daily_with_bundle(
     };
     let rows = build_daily_rows(bundle, max_rows, ctx);
     let table = build_daily_table(rows, panel_style, layout, theme.muted_text);
-    render_daily_table_and_summary(frame, inner, table, bundle, state.units, theme, layout);
+    render_daily_table_and_summary(
+        frame,
+        content_area,
+        table,
+        bundle,
+        state.units,
+        theme,
+        layout,
+    );
+}
+
+fn render_daily_context_strip(
+    frame: &mut Frame,
+    inner: Rect,
+    state: &AppState,
+    bundle: &ForecastBundle,
+    theme: crate::ui::theme::Theme,
+) -> Rect {
+    if !state.settings.inline_hints || state.panel_focus != PanelFocus::Daily || inner.height < 8 {
+        return inner;
+    }
+
+    let rows = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(inner);
+    let narrative = build_narrative(state, bundle);
+    let line = narrative.focus_hint(PanelFocus::Daily);
+    let hint = Paragraph::new(line).style(Style::default().fg(theme.muted_text));
+    frame.render_widget(hint, rows[0]);
+    rows[1]
 }
 
 fn build_daily_table(

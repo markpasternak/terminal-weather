@@ -1,6 +1,5 @@
 ---
 source: tests/render_snapshots.rs
-assertion_line: 171
 expression: "render_to_string(19, 9, 0)"
 ---
 ┌terminal weather─┐
@@ -9,6 +8,6 @@ expression: "render_to_string(19, 9, 0)"
 │ (tw)---(wx)     │
 │ '--'   '--'     │
 │                 │
-│Too small for ful│
-│Need 20x10+      │
+│7° Clear sky     │
+│Now action: keep │
 └─────────────────┘

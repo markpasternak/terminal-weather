@@ -144,6 +144,55 @@ async fn handle_char_command_cycles_hourly_view() {
 }
 
 #[test]
+fn panel_focus_keys_cycle_focus() {
+    let mut state = state();
+    assert_eq!(state.panel_focus, PanelFocus::Hourly);
+    assert!(state.handle_panel_focus_key(KeyCode::Tab));
+    assert_eq!(state.panel_focus, PanelFocus::Daily);
+    assert!(state.handle_panel_focus_key(KeyCode::BackTab));
+    assert_eq!(state.panel_focus, PanelFocus::Hourly);
+}
+
+#[tokio::test]
+async fn command_bar_executes_view_command() {
+    let mut state = state();
+    let (tx, _rx) = mpsc::channel(4);
+    let cli = crate::test_support::state_test_cli();
+
+    state
+        .handle_main_key_press(
+            KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE),
+            &tx,
+            &cli,
+        )
+        .await
+        .expect("open command bar");
+    assert!(state.command_bar.open);
+
+    state.command_bar.buffer = ":view chart".to_string();
+    state.execute_command_bar(&tx, &cli).await;
+    assert_eq!(state.hourly_view_mode, HourlyViewMode::Chart);
+    assert!(!state.command_bar.open);
+}
+
+#[test]
+fn parse_helpers_accept_known_values() {
+    assert_eq!(parse_units_command("c"), Some(Units::Celsius));
+    assert_eq!(parse_units_command("fahrenheit"), Some(Units::Fahrenheit));
+    assert_eq!(parse_units_command("kelvin"), None);
+
+    assert_eq!(
+        parse_hourly_view_command("table"),
+        Some(HourlyViewMode::Table)
+    );
+    assert_eq!(
+        parse_hourly_view_command("hybrid"),
+        Some(HourlyViewMode::Hybrid)
+    );
+    assert_eq!(parse_hourly_view_command("bad"), None);
+}
+
+#[test]
 fn try_select_pending_location_requires_selecting_mode() {
     let mut state = state();
     let location = Location::from_coords(59.3, 18.0);

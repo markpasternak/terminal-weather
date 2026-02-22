@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 use terminal_weather::{
     app::{
         events::AppEvent,
-        state::{AppState, SettingsSelection},
+        state::{AppState, PanelFocus, SettingsSelection},
     },
     cli::{Cli, HourlyViewArg},
     domain::weather::{HourlyViewMode, Units},
@@ -218,14 +218,46 @@ async fn flow_v_cycles_hourly_view_and_wraps() {
 async fn flow_settings_hourly_view_updates_runtime_mode() {
     let mut harness = FlowHarness::fresh();
     harness.state.settings_open = true;
-    for _ in 0..5 {
-        harness.key(KeyCode::Down).await;
-    }
+    harness.state.settings_selected = SettingsSelection::HourlyView;
 
     harness.key(KeyCode::Right).await;
 
     assert_eq!(harness.state.hourly_view_mode, HourlyViewMode::Hybrid);
     assert_eq!(harness.state.settings.hourly_view, HourlyViewMode::Hybrid);
+}
+
+#[tokio::test]
+async fn flow_colon_opens_command_bar_and_executes_quit() {
+    let mut harness = FlowHarness::fresh();
+    harness.key(KeyCode::Char(':')).await;
+    assert!(harness.state.command_bar.open);
+
+    for ch in ['q', 'u', 'i', 't'] {
+        harness.key(KeyCode::Char(ch)).await;
+    }
+    harness.key(KeyCode::Enter).await;
+
+    let event = harness.recv().await;
+    assert!(matches!(event, AppEvent::Quit));
+}
+
+#[tokio::test]
+async fn flow_command_bar_captures_keys_without_opening_modals() {
+    let mut harness = FlowHarness::fresh();
+    harness.key(KeyCode::Char(':')).await;
+    harness.key(KeyCode::Char('s')).await;
+    assert!(harness.state.command_bar.open);
+    assert!(!harness.state.settings_open);
+}
+
+#[tokio::test]
+async fn flow_tab_cycles_panel_focus() {
+    let mut harness = FlowHarness::fresh();
+    assert_eq!(harness.state.panel_focus, PanelFocus::Hourly);
+    harness.key(KeyCode::Tab).await;
+    assert_eq!(harness.state.panel_focus, PanelFocus::Daily);
+    harness.key(KeyCode::BackTab).await;
+    assert_eq!(harness.state.panel_focus, PanelFocus::Hourly);
 }
 
 #[test]

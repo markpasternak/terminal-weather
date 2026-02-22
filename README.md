@@ -46,6 +46,7 @@ terminal-weather --units fahrenheit Tokyo
 terminal-weather --theme midnight-cyan --hero-visual gauge-cluster "San Diego"
 terminal-weather --hero-visual sky-observatory --reduced-motion London
 terminal-weather --ascii-icons --no-animation Reykjavik
+terminal-weather --nerd-font Stockholm                   # use Nerd Font weather icons
 terminal-weather --lat 59.3293 --lon 18.0686
 terminal-weather --one-shot Tokyo                        # snapshot to stdout and exit
 terminal-weather --one-shot | head -10                   # pipe-friendly
@@ -68,6 +69,7 @@ Options:
   --no-flash                            Disable thunder flash
   --ascii-icons                         Force ASCII icons
   --emoji-icons                         Force emoji icons
+  --nerd-font                           Use Nerd Font weather icons
   --color <auto|always|never>           Color policy (default: auto)
   --no-color                            Alias for --color never
   --hourly-view <table|hybrid|chart>    Hourly panel mode
@@ -115,7 +117,7 @@ Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` 
 
 Settings persist to `~/.config/terminal-weather/settings.json`. Override the directory with `TERMINAL_WEATHER_CONFIG_DIR` (legacy `ATMOS_TUI_CONFIG_DIR` is also supported).
 
-Persisted values: units, theme, motion (`full`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`), hourly view, hero visual, refresh interval, recent locations.
+Persisted values: units, theme, motion (`full`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`/`nerd-font`), hourly view, hero visual, refresh interval, recent locations.
 
 Color detection falls back TrueColor → xterm-256 → 16-color based on `COLORTERM` and `TERM`. `NO_COLOR` is honored in `auto` mode.
 

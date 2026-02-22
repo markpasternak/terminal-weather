@@ -20,7 +20,10 @@ use crate::{
         AirQualityCategory, ForecastBundle, HourlyForecast, convert_temp, round_temp,
         round_wind_speed, weather_code_to_category, weather_label_for_time,
     },
-    ui::theme::{Theme, condition_color},
+    ui::{
+        narrative::build_narrative,
+        theme::{Theme, condition_color},
+    },
 };
 
 mod trends;
@@ -46,6 +49,9 @@ struct ExpandedTopData {
     freshness_color: Color,
     updated: String,
     fetch_context: Option<String>,
+    action_text: String,
+    next_change_text: Option<String>,
+    confidence_text: String,
 }
 
 #[derive(Debug)]
@@ -155,6 +161,7 @@ fn build_expanded_top_data(
     code: u8,
 ) -> ExpandedTopData {
     let (freshness, freshness_color) = freshness_status(state, theme);
+    let narrative = build_narrative(state, weather);
     ExpandedTopData {
         temp: weather.current_temp(state.units),
         unit_symbol: if state.units == crate::domain::weather::Units::Celsius {
@@ -170,6 +177,14 @@ fn build_expanded_top_data(
         freshness_color,
         updated: last_updated_label(state, weather),
         fetch_context: expanded_fetch_context(state),
+        action_text: narrative.now_action,
+        next_change_text: Some(narrative.next_change),
+        confidence_text: format!(
+            "{} Confidence {} · {}",
+            narrative.confidence_symbol,
+            narrative.confidence.label(),
+            narrative.reliability
+        ),
     }
 }
 
@@ -273,6 +288,22 @@ fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'s
     ]));
     top_lines.push(Line::from(Span::styled(
         data.updated.clone(),
+        Style::default().fg(theme.muted_text),
+    )));
+    top_lines.push(Line::from(Span::styled(
+        data.action_text.clone(),
+        Style::default()
+            .fg(theme.accent)
+            .add_modifier(Modifier::BOLD),
+    )));
+    if let Some(next_change) = &data.next_change_text {
+        top_lines.push(Line::from(Span::styled(
+            next_change.clone(),
+            Style::default().fg(theme.info),
+        )));
+    }
+    top_lines.push(Line::from(Span::styled(
+        data.confidence_text.clone(),
         Style::default().fg(theme.muted_text),
     )));
     if let Some(fetch_context) = &data.fetch_context {

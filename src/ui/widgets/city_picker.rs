@@ -124,29 +124,56 @@ fn recent_city_list(
 }
 
 fn render_status_line(frame: &mut Frame, area: Rect, state: &AppState, theme: Theme) {
-    let status_text = state.city_status.as_deref().unwrap_or(
-        "Shortcuts: Enter search/switch · ↑/↓ history · Del clear all · Backspace edit · Esc close",
-    );
-    let status = Paragraph::new(status_text).style(Style::default().fg(theme.popup_muted_text));
+    let status = Paragraph::new(city_picker_state_line(state))
+        .style(Style::default().fg(theme.popup_muted_text));
     frame.render_widget(status, area);
 }
 
 fn format_recent_location(index: usize, saved: &RecentLocation, state: &AppState) -> String {
     let timezone = saved.timezone.as_deref().unwrap_or("--");
+    let region = match (&saved.country, &saved.admin1) {
+        (Some(country), Some(admin)) => format!("{country} · {admin}"),
+        (Some(country), None) => country.clone(),
+        (None, Some(admin)) => admin.clone(),
+        (None, None) => "--".to_string(),
+    };
     let marker = if is_selected_location(saved, state) {
         "* "
     } else {
         ""
     };
     format!(
-        "{}. {}{} · {:.2}, {:.2} · TZ {}",
+        "{}. {}{} · {} · TZ {} · {:.2}, {:.2}",
         index + 1,
         marker,
         saved.display_name(),
+        region,
+        timezone,
         saved.latitude,
-        saved.longitude,
-        timezone
+        saved.longitude
     )
+}
+
+fn city_picker_state_line(state: &AppState) -> String {
+    let detail = state.city_status.as_deref().unwrap_or(
+        "Enter search/switch · ↑/↓ history · Del clear all · Backspace edit · Esc close",
+    );
+    let kind = city_status_kind(detail);
+    format!("State: {kind} · {detail}")
+}
+
+fn city_status_kind(status: &str) -> &'static str {
+    if status.contains("Searching") {
+        "Searching"
+    } else if status.contains("No results") {
+        "No results"
+    } else if status.contains("Ambiguous") {
+        "Ambiguous"
+    } else if status.contains("Failed") {
+        "Failed"
+    } else {
+        "Ready"
+    }
 }
 
 fn is_selected_location(saved: &RecentLocation, state: &AppState) -> bool {
@@ -305,8 +332,13 @@ mod tests {
     fn render_status_line_uses_custom_status_when_present() {
         let mut state = make_state();
         state.city_status = Some("Searching...".to_string());
-        let status_text = state.city_status.as_deref().unwrap_or("default");
-        assert_eq!(status_text, "Searching...");
+        let status_text = city_picker_state_line(&state);
+        assert!(status_text.contains("State: Searching"));
+    }
+
+    #[test]
+    fn city_status_kind_detects_failure() {
+        assert_eq!(city_status_kind("Failed to fetch weather"), "Failed");
     }
 
     #[test]

@@ -20,7 +20,7 @@ fn paint_fog_bands(
     width: usize,
     height: usize,
 ) {
-    let density_chars = ['░', '░', '▒', '░'];
+    let density_chars = ['≡', '≋', '▒', '≡'];
     for band in 0..4 {
         let base_y = horizon_y.saturating_sub(3) + band;
         if base_y >= height {

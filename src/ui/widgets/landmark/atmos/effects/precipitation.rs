@@ -8,6 +8,7 @@ pub(in super::super) fn paint_rain(
     if w == 0 || horizon_y < 3 {
         return;
     }
+    let phase = phase / 3;
     let profile = rain_profile(precip_mm);
     for x in 0..w {
         if !(x + phase).is_multiple_of(profile.density) {
@@ -72,8 +73,8 @@ fn paint_rain_splashes(
         return;
     }
     for (x, cell) in canvas[horizon_y].iter_mut().enumerate().take(width) {
-        if (x + phase / 2).is_multiple_of(density + 1) && matches!(*cell, '─' | ' ') {
-            *cell = '.';
+        if (x + phase / 5).is_multiple_of(density + 1) && matches!(*cell, '─' | ' ') {
+            *cell = '≈';
         }
     }
 }
@@ -88,7 +89,8 @@ pub(in super::super) fn paint_snowfall(
         return;
     }
     let h = canvas.len();
-    let flakes = ['·', '*', '✧', '·', '·', '*'];
+    let phase = phase / 20;
+    let flakes = ['*', '✶', '✦', '❅', '❆', '*'];
     for layer in 0..3 {
         paint_snow_layer(canvas, phase, horizon_y, w, h, &flakes, layer);
     }
@@ -104,6 +106,7 @@ pub(in super::super) fn paint_hail(
     if w == 0 || horizon_y < 3 {
         return;
     }
+    let phase = phase / 2;
     let h = canvas.len();
     paint_hailstones(canvas, phase, horizon_y, w, h);
     paint_hail_bounce_marks(canvas, phase, horizon_y, w, h);
@@ -116,7 +119,7 @@ fn paint_hailstones(canvas: &mut [Vec<char>], phase: usize, horizon_y: usize, w:
         }
         let y = 1 + (phase + x * 3) % horizon_y.max(2);
         if let Some(cell) = hailstone_cell(canvas, x, y, horizon_y, h) {
-            *cell = 'o';
+            *cell = '●';
         }
     }
 }
@@ -132,7 +135,7 @@ fn hailstone_cell(
         return None;
     }
     let cell = canvas.get_mut(y).and_then(|row| row.get_mut(x))?;
-    if matches!(*cell, ' ' | '·') {
+    if matches!(*cell, ' ' | '░' | '▒') {
         Some(cell)
     } else {
         None
@@ -150,8 +153,8 @@ fn paint_hail_bounce_marks(
         return;
     }
     for (x, cell) in canvas[horizon_y].iter_mut().enumerate().take(width) {
-        if (x + phase / 2).is_multiple_of(5) && *cell == '─' {
-            *cell = '•';
+        if (x + phase / 4).is_multiple_of(5) && *cell == '─' {
+            *cell = '●';
         }
     }
 }
@@ -165,13 +168,13 @@ fn paint_snow_layer(
     flakes: &[char],
     layer: usize,
 ) {
-    let speed = layer + 1;
-    let spacing = 3 + layer;
+    let speed = 1 + layer;
+    let spacing = 5 + layer * 2;
     for x in 0..width {
         if !(x + layer * 7).is_multiple_of(spacing) {
             continue;
         }
-        let y_off = (phase * speed / 2 + x * 5 + layer * 11) % horizon_y.max(2);
+        let y_off = (phase * speed + x * 5 + layer * 11) % horizon_y.max(2);
         let y = 1 + y_off;
         if y < height && y < horizon_y && matches!(canvas[y][x], ' ' | '░' | '▒' | '▓') {
             let flake = flakes[(x + layer + phase) % flakes.len()];
@@ -192,7 +195,7 @@ fn paint_snow_accumulation(
     }
     for cell in canvas[top].iter_mut().take(width) {
         if matches!(*cell, '▁' | ' ') {
-            *cell = '∴';
+            *cell = '·';
         }
     }
 }

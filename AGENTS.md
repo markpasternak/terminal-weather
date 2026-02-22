@@ -207,7 +207,7 @@ Rust 2024 edition idioms. Match the surrounding code's style exactly before addi
 
 - Every non-trivial behavioral change needs a test or a snapshot update
 - Snapshot tests live in `tests/render_snapshots.rs` — update intentionally with `INSTA_UPDATE=always`
-- Unit tests go in `#[cfg(test)]` blocks in the same file as the code
+- Unit tests for small/medium modules go in `#[cfg(test)]` blocks in the same file; for files over ~500 lines, put tests in a dedicated `<module>/tests.rs` subfile declared with `#[cfg(test)] mod tests;`
 - Integration tests go in `tests/`
 - Don't delete tests to make the suite green — fix the underlying issue
 

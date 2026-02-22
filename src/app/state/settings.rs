@@ -54,9 +54,10 @@ pub enum SettingsSelection {
     #[default]
     Units,
     Theme,
-    Motion,
     Flash,
     Icons,
+    InlineHints,
+    CommandBar,
     HourlyView,
     HeroVisual,
     RefreshInterval,
@@ -83,12 +84,13 @@ impl SettingsSelection {
     }
 }
 
-const SETTINGS_ORDER: [SettingsSelection; 10] = [
+const SETTINGS_ORDER: [SettingsSelection; 11] = [
     SettingsSelection::Units,
     SettingsSelection::Theme,
-    SettingsSelection::Motion,
     SettingsSelection::Flash,
     SettingsSelection::Icons,
+    SettingsSelection::InlineHints,
+    SettingsSelection::CommandBar,
     SettingsSelection::HourlyView,
     SettingsSelection::HeroVisual,
     SettingsSelection::RefreshInterval,
@@ -109,13 +111,30 @@ impl AppState {
         vec![
             settings_entry("Units", units_name(self.settings.units), true),
             settings_entry("Theme", theme_name(self.settings.theme), true),
-            settings_entry("Motion", motion_name(self.settings.motion), true),
             settings_entry(
                 "Thunder Flash",
                 if self.settings.no_flash { "Off" } else { "On" },
                 true,
             ),
             settings_entry("Icons", icon_mode_name(self.settings.icon_mode), true),
+            settings_entry(
+                "Inline Hints",
+                if self.settings.inline_hints {
+                    "Enabled"
+                } else {
+                    "Disabled"
+                },
+                true,
+            ),
+            settings_entry(
+                "Command Bar",
+                if self.settings.command_bar_enabled {
+                    "Enabled"
+                } else {
+                    "Disabled"
+                },
+                true,
+            ),
             settings_entry("Hourly View", hourly_view_name(self.hourly_view_mode), true),
             settings_entry(
                 "Hero Visual",
@@ -161,11 +180,12 @@ pub(crate) fn adjust_setting_selection(
 
 type SettingAdjuster = fn(&mut AppState, i8) -> bool;
 
-const SETTING_ADJUSTERS: [(SettingsSelection, SettingAdjuster); 7] = [
+const SETTING_ADJUSTERS: [(SettingsSelection, SettingAdjuster); 8] = [
     (SettingsSelection::Units, adjust_units_setting),
     (SettingsSelection::Theme, adjust_theme_setting),
-    (SettingsSelection::Motion, adjust_motion_setting),
     (SettingsSelection::Icons, adjust_icon_setting),
+    (SettingsSelection::InlineHints, adjust_inline_hints_setting),
+    (SettingsSelection::CommandBar, adjust_command_bar_setting),
     (SettingsSelection::HourlyView, adjust_hourly_view_setting),
     (SettingsSelection::HeroVisual, adjust_hero_visual_setting),
     (
@@ -195,24 +215,30 @@ fn adjust_theme_setting(state: &mut AppState, direction: i8) -> bool {
     adjust_cycle_setting(&mut state.settings.theme, &THEME_OPTIONS, direction)
 }
 
-fn adjust_motion_setting(state: &mut AppState, direction: i8) -> bool {
+fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
     adjust_cycle_setting(
-        &mut state.settings.motion,
+        &mut state.settings.icon_mode,
         &[
-            MotionSetting::Full,
-            MotionSetting::Reduced,
-            MotionSetting::Off,
+            IconMode::Unicode,
+            IconMode::Ascii,
+            IconMode::Emoji,
+            IconMode::NerdFont,
         ],
         direction,
     )
 }
 
-fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
-    adjust_cycle_setting(
-        &mut state.settings.icon_mode,
-        &[IconMode::Unicode, IconMode::Ascii, IconMode::Emoji],
-        direction,
-    )
+fn adjust_inline_hints_setting(state: &mut AppState, _direction: i8) -> bool {
+    state.settings.inline_hints = !state.settings.inline_hints;
+    true
+}
+
+fn adjust_command_bar_setting(state: &mut AppState, _direction: i8) -> bool {
+    state.settings.command_bar_enabled = !state.settings.command_bar_enabled;
+    if !state.settings.command_bar_enabled {
+        state.command_bar.close();
+    }
+    true
 }
 
 fn adjust_hourly_view_setting(state: &mut AppState, direction: i8) -> bool {
@@ -298,19 +324,12 @@ fn theme_name(theme: ThemeArg) -> &'static str {
     "Auto"
 }
 
-fn motion_name(motion: MotionSetting) -> &'static str {
-    match motion {
-        MotionSetting::Full => "Full",
-        MotionSetting::Reduced => "Reduced",
-        MotionSetting::Off => "Off",
-    }
-}
-
 fn icon_mode_name(mode: IconMode) -> &'static str {
     match mode {
         IconMode::Unicode => "Unicode",
         IconMode::Ascii => "ASCII",
         IconMode::Emoji => "Emoji",
+        IconMode::NerdFont => "Nerd Font",
     }
 }
 
@@ -349,10 +368,13 @@ fn settings_hint_for_selection(selected: SettingsSelection) -> &'static str {
         SettingsSelection::Theme => {
             "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status"
         }
-        SettingsSelection::Motion => {
-            "Motion controls the moving effects: weather particles + animated hero scene (Full/Reduced/Off)"
+        SettingsSelection::Icons => {
+            "Icon mode affects weather symbols. Nerd Font requires a patched font."
         }
-        SettingsSelection::Icons => "Icon mode affects weather symbols in Hourly and 7-Day panels",
+        SettingsSelection::InlineHints => "Inline hints add local guidance in panels and overlays",
+        SettingsSelection::CommandBar => {
+            "Command Bar adds ':' shortcuts (city/theme/view/units/refresh/quit)"
+        }
         SettingsSelection::HourlyView => {
             "Hourly View controls the Hourly panel: Table, Hybrid cards+charts, or Chart"
         }
@@ -389,12 +411,12 @@ mod tests {
     fn settings_entries_include_actions_and_editable_rows() {
         let state = state();
         let entries = state.settings_entries();
-        assert_eq!(entries.len(), 10);
+        assert_eq!(entries.len(), 11);
         assert!(entries[0].editable);
-        assert_eq!(entries[8].label, "Action");
-        assert!(!entries[8].editable);
-        assert_eq!(entries[9].label, "Panel");
+        assert_eq!(entries[9].label, "Action");
         assert!(!entries[9].editable);
+        assert_eq!(entries[10].label, "Panel");
+        assert!(!entries[10].editable);
     }
 
     #[test]
@@ -405,6 +427,9 @@ mod tests {
 
         state.settings_selected = SettingsSelection::HeroVisual;
         assert!(state.settings_hint().contains("Current panel right side"));
+
+        state.settings_selected = SettingsSelection::Icons;
+        assert!(state.settings_hint().contains("Nerd Font requires"));
     }
 
     #[test]
@@ -450,14 +475,6 @@ mod tests {
         ));
         assert_ne!(state.settings.theme, theme_before);
 
-        let motion_before = state.settings.motion;
-        assert!(adjust_setting_selection(
-            &mut state,
-            SettingsSelection::Motion,
-            1
-        ));
-        assert_ne!(state.settings.motion, motion_before);
-
         let icon_before = state.settings.icon_mode;
         assert!(adjust_setting_selection(
             &mut state,
@@ -465,6 +482,14 @@ mod tests {
             1
         ));
         assert_ne!(state.settings.icon_mode, icon_before);
+
+        let inline_hints_before = state.settings.inline_hints;
+        assert!(adjust_setting_selection(
+            &mut state,
+            SettingsSelection::InlineHints,
+            1
+        ));
+        assert_ne!(state.settings.inline_hints, inline_hints_before);
     }
 
     #[test]

@@ -43,14 +43,14 @@ pub(in super::super) fn paint_ice_glaze(canvas: &mut [Vec<char>], horizon_y: usi
 }
 
 fn paint_heat_shimmer_row(row: &mut [char], phase: usize, width: usize) {
+    let phase = phase / 4;
     for (x, cell) in row.iter_mut().enumerate().take(width) {
-        let wave = ((x + phase) as f32 * 0.4).sin();
-        if wave > 0.6 && *cell == ' ' {
-            *cell = if (x + phase).is_multiple_of(3) {
-                '.'
-            } else {
-                ','
-            };
+        if !(x + phase).is_multiple_of(6) {
+            continue;
+        }
+        let wave = ((x as f32 * 0.18) + phase as f32 * 0.05).sin();
+        if wave > 0.85 && *cell == ' ' {
+            *cell = '~';
         }
     }
 }
@@ -84,7 +84,7 @@ fn paint_surface_ice(canvas: &mut [Vec<char>], horizon_y: usize, width: usize) {
         if !x.is_multiple_of(2) {
             continue;
         }
-        if matches!(*cell, '─' | '.' | ',' | ' ') {
+        if matches!(*cell, '─' | '.' | ',' | ' ' | '∴') {
             *cell = '❆';
         }
     }
@@ -97,7 +97,7 @@ fn paint_above_ice(canvas: &mut [Vec<char>], horizon_y: usize, width: usize) {
     }
     for (x, cell) in canvas[above].iter_mut().enumerate().take(width) {
         if x.is_multiple_of(4) && *cell == ' ' {
-            *cell = '·';
+            *cell = '░';
         }
     }
 }

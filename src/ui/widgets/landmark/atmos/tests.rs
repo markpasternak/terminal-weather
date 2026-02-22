@@ -1,8 +1,8 @@
 use super::{
-    AmbientSkyLifeContext, overlay_horizon_line, paint_ambient_sky_life, paint_cloud_layer,
-    paint_fog_banks, paint_hail, paint_heat_shimmer, paint_horizon_haze, paint_ice_glaze,
-    paint_lightning_bolts, paint_rain, paint_snowfall, paint_starfield, place_celestial_body,
-    scene_for_weather,
+    AmbientSkyLifeContext, moon_visible, overlay_horizon_line, paint_ambient_sky_life,
+    paint_cloud_layer, paint_fog_banks, paint_hail, paint_heat_shimmer, paint_horizon_haze,
+    paint_ice_glaze, paint_lightning_bolts, paint_rain, paint_snowfall, paint_starfield,
+    place_celestial_body, scene_for_weather,
 };
 use crate::domain::weather::{Units, WeatherCategory};
 
@@ -14,7 +14,7 @@ fn ambient_marks(canvas: &[Vec<char>]) -> usize {
     canvas
         .iter()
         .flatten()
-        .filter(|ch| matches!(**ch, 'v' | 'V' | '=' | '>' | '-'))
+        .filter(|ch| matches!(**ch, '<' | '^' | '~' | '>'))
         .count()
 }
 
@@ -41,8 +41,12 @@ fn ambient_sky_life_not_rendered_at_night() {
 }
 
 #[test]
-fn ambient_sky_life_not_rendered_in_rain_or_thunder() {
-    for category in [WeatherCategory::Rain, WeatherCategory::Thunder] {
+fn ambient_sky_life_not_rendered_outside_clear_sky() {
+    for category in [
+        WeatherCategory::Rain,
+        WeatherCategory::Thunder,
+        WeatherCategory::Cloudy,
+    ] {
         let mut canvas = blank_canvas(40, 16);
         let mut ctx = base_ctx();
         ctx.category = category;
@@ -55,24 +59,24 @@ fn ambient_sky_life_not_rendered_in_rain_or_thunder() {
 fn ambient_sky_life_renders_when_clear_day_and_phase_nonzero() {
     let mut canvas = blank_canvas(48, 16);
     let mut ctx = base_ctx();
-    ctx.cloud_pct = 28.0;
-    ctx.wind_speed = 12.0;
+    ctx.cloud_pct = 15.0;
+    ctx.wind_speed = 6.0;
     ctx.phase = 20;
-    ctx.width = 48;
+    ctx.width = 96;
     paint_ambient_sky_life(&mut canvas, ctx);
     assert!(ambient_marks(&canvas) > 0);
 }
 
 #[test]
 fn ambient_sky_life_deterministic_for_same_inputs() {
-    let mut first = blank_canvas(48, 16);
-    let mut second = blank_canvas(48, 16);
+    let mut first = blank_canvas(96, 16);
+    let mut second = blank_canvas(96, 16);
     let mut ctx = base_ctx();
-    ctx.category = WeatherCategory::Cloudy;
-    ctx.cloud_pct = 35.0;
-    ctx.wind_speed = 14.0;
+    ctx.category = WeatherCategory::Clear;
+    ctx.cloud_pct = 12.0;
+    ctx.wind_speed = 5.0;
     ctx.phase = 37;
-    ctx.width = 48;
+    ctx.width = 96;
     paint_ambient_sky_life(&mut first, ctx);
     paint_ambient_sky_life(&mut second, ctx);
     assert_eq!(first, second);
@@ -99,7 +103,7 @@ fn paint_rain_light_writes_rain_chars() {
     let rain = canvas
         .iter()
         .flatten()
-        .filter(|c| matches!(**c, '/' | '╱' | '.'))
+        .filter(|c| matches!(**c, '/' | '╱' | '≈'))
         .count();
     assert!(rain > 0, "expected rain chars in canvas");
 }
@@ -141,7 +145,7 @@ fn paint_snowfall_writes_flake_chars() {
     let flakes = canvas
         .iter()
         .flatten()
-        .filter(|c| matches!(**c, '·' | '*' | '✧' | '∴'))
+        .filter(|c| matches!(**c, '*' | '✶' | '✦' | '·'))
         .count();
     assert!(flakes > 0, "expected snowflake chars");
 }
@@ -158,11 +162,7 @@ fn paint_hail_zero_width_no_panic() {
 fn paint_hail_writes_hailstone_chars() {
     let mut canvas = blank_canvas(40, 16);
     paint_hail(&mut canvas, 0, 12, 40);
-    let stones = canvas
-        .iter()
-        .flatten()
-        .filter(|c| **c == 'o' || **c == '•')
-        .count();
+    let stones = canvas.iter().flatten().filter(|c| **c == '●').count();
     assert!(stones > 0, "expected hail chars");
 }
 
@@ -181,7 +181,7 @@ fn paint_fog_banks_writes_fog_chars() {
     let fog = canvas
         .iter()
         .flatten()
-        .filter(|c| matches!(**c, '░' | '▒' | '·'))
+        .filter(|c| matches!(**c, '░' | '▒'))
         .count();
     assert!(fog > 0, "expected fog chars");
 }
@@ -227,7 +227,7 @@ fn paint_heat_shimmer_writes_shimmer_chars() {
     let shimmer = canvas
         .iter()
         .flatten()
-        .filter(|c| matches!(**c, '.' | ','))
+        .filter(|c| matches!(**c, '~'))
         .count();
     assert!(shimmer > 0, "expected shimmer chars");
 }
@@ -253,7 +253,7 @@ fn paint_ice_glaze_writes_ice_chars() {
     let ice = canvas
         .iter()
         .flatten()
-        .filter(|c| **c == '❆' || **c == '·')
+        .filter(|c| **c == '❆' || **c == '░')
         .count();
     assert!(ice > 0, "expected ice chars");
 }
@@ -416,46 +416,93 @@ fn paint_horizon_haze_with_zero_haze_y_no_panic() {
 fn paint_horizon_haze_writes_dots_at_normal_horizon() {
     let mut canvas = blank_canvas(40, 16);
     paint_horizon_haze(&mut canvas, 10, 40);
-    // Should write some '·' chars in the haze row
-    let dots = canvas.iter().flatten().filter(|c| **c == '·').count();
-    assert!(dots > 0, "expected haze dots");
+    // Should write some '░' chars in the haze row
+    let haze = canvas.iter().flatten().filter(|c| **c == '░').count();
+    assert!(haze > 0, "expected haze marks");
 }
 
 #[test]
 fn paint_starfield_small_canvas_no_panic() {
     let mut canvas = blank_canvas(4, 4);
     // horizon_y < 2 → early return
-    paint_starfield(&mut canvas, 4, 1, 0);
+    paint_starfield(&mut canvas, 4, 1, 0, 0.0);
     // w == 0 → early return
-    paint_starfield(&mut canvas, 0, 4, 0);
+    paint_starfield(&mut canvas, 0, 4, 0, 0.0);
 }
 
 #[test]
 fn paint_starfield_normal_canvas_writes_stars() {
     let mut canvas = blank_canvas(40, 16);
-    paint_starfield(&mut canvas, 40, 10, 5);
+    paint_starfield(&mut canvas, 40, 10, 5, 10.0);
     let stars = canvas
         .iter()
         .flatten()
-        .filter(|c| matches!(**c, '·' | '*' | '✦' | '✧'))
+        .filter(|c| matches!(**c, '*' | '✶' | '✦'))
         .count();
     assert!(stars > 0, "expected stars in canvas");
+}
+
+#[test]
+fn paint_starfield_overcast_skips_stars() {
+    let mut canvas = blank_canvas(40, 16);
+    paint_starfield(&mut canvas, 40, 10, 5, 95.0);
+    let stars = canvas
+        .iter()
+        .flatten()
+        .filter(|c| matches!(**c, '*' | '✶' | '✦'))
+        .count();
+    assert_eq!(stars, 0);
 }
 
 #[test]
 fn place_celestial_body_small_canvas_no_panic() {
     let mut canvas = blank_canvas(4, 4);
     // w < 4 or horizon_y < 3 → early return
-    place_celestial_body(&mut canvas, true, 12, 2, 4);
-    place_celestial_body(&mut canvas, true, 12, 4, 3);
+    place_celestial_body(&mut canvas, true, false, 12, 2, 4);
+    place_celestial_body(&mut canvas, true, false, 12, 4, 3);
 }
 
 #[test]
 fn place_celestial_body_normal_canvas_writes_symbol() {
     let mut canvas = blank_canvas(40, 16);
-    place_celestial_body(&mut canvas, true, 12, 10, 40);
+    place_celestial_body(&mut canvas, true, false, 12, 10, 40);
     let has_char = canvas.iter().flatten().any(|c| *c != ' ');
     assert!(has_char, "expected celestial body drawn");
+}
+
+#[test]
+fn place_celestial_body_night_skips_when_moon_not_visible() {
+    let mut canvas = blank_canvas(40, 16);
+    place_celestial_body(&mut canvas, false, false, 12, 10, 40);
+    let has_char = canvas.iter().flatten().any(|c| *c != ' ');
+    assert!(!has_char, "night celestial glyph should not be drawn");
+}
+
+#[test]
+fn place_celestial_body_night_renders_when_moon_visible() {
+    let mut canvas = blank_canvas(40, 16);
+    place_celestial_body(&mut canvas, false, true, 22, 10, 40);
+    let has_char = canvas.iter().flatten().any(|c| *c != ' ');
+    assert!(has_char, "moon should render when visible");
+}
+
+#[test]
+fn moon_visible_uses_sun_window() {
+    use chrono::NaiveDateTime;
+
+    fn fixture_dt(value: &str) -> NaiveDateTime {
+        NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M").expect("valid fixture time")
+    }
+
+    let day_bundle = bundle_for_category(0, true);
+    assert!(!moon_visible(&day_bundle, 23));
+
+    let mut night_bundle = bundle_for_category(0, false);
+    night_bundle.daily[0].sunrise = Some(fixture_dt("2026-02-12T06:10"));
+    night_bundle.daily[0].sunset = Some(fixture_dt("2026-02-12T17:40"));
+    assert!(moon_visible(&night_bundle, 23));
+    assert!(moon_visible(&night_bundle, 2));
+    assert!(!moon_visible(&night_bundle, 12));
 }
 
 #[test]

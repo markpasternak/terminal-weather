@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::state::AppState,
+    app::state::{AppState, SettingsSelection},
     ui::theme::{Theme, resolved_theme},
 };
 
@@ -32,10 +32,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     ])
     .split(inner);
 
-    let items = settings_items(state);
+    let rows = settings_rows(state, theme);
+    let selected_index = rows
+        .iter()
+        .position(|row| row.selection == Some(state.settings_selected))
+        .unwrap_or(0);
+    let items = rows
+        .into_iter()
+        .map(|row| row.item)
+        .collect::<Vec<ListItem<'static>>>();
 
-    let mut list_state =
-        ListState::default().with_selected(Some(state.settings_selected.to_usize()));
+    let mut list_state = ListState::default().with_selected(Some(selected_index));
     let list = settings_list(items, panel_style, theme);
     frame.render_stateful_widget(list, chunks[0], &mut list_state);
 
@@ -43,19 +50,86 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     render_hint(frame, chunks[2], state, theme);
 }
 
+struct SettingsRow {
+    selection: Option<SettingsSelection>,
+    item: ListItem<'static>,
+}
+
+fn settings_rows(state: &AppState, theme: Theme) -> Vec<SettingsRow> {
+    let entries = state.settings_entries();
+    let mut rows = Vec::new();
+    push_section_header(&mut rows, "Visual", theme);
+    push_setting_row(&mut rows, &entries, SettingsSelection::Theme);
+    push_setting_row(&mut rows, &entries, SettingsSelection::Flash);
+    push_setting_row(&mut rows, &entries, SettingsSelection::Icons);
+    push_setting_row(&mut rows, &entries, SettingsSelection::HeroVisual);
+
+    push_section_header(&mut rows, "Interaction", theme);
+    push_setting_row(&mut rows, &entries, SettingsSelection::InlineHints);
+    push_setting_row(&mut rows, &entries, SettingsSelection::CommandBar);
+    push_setting_row(&mut rows, &entries, SettingsSelection::HourlyView);
+
+    push_section_header(&mut rows, "System", theme);
+    push_setting_row(&mut rows, &entries, SettingsSelection::Units);
+    push_setting_row(&mut rows, &entries, SettingsSelection::RefreshInterval);
+    push_setting_row(&mut rows, &entries, SettingsSelection::RefreshNow);
+    push_setting_row(&mut rows, &entries, SettingsSelection::Close);
+    rows
+}
+
+#[cfg(test)]
 fn settings_items(state: &AppState) -> Vec<ListItem<'static>> {
-    state
-        .settings_entries()
+    settings_rows(state, resolved_theme(state))
         .into_iter()
-        .map(|entry| {
-            let label = if entry.editable {
-                format!("{:<16} {}", entry.label, entry.value)
-            } else {
-                format!("{:<16} [{}]", entry.label, entry.value)
-            };
-            ListItem::new(Line::from(label))
-        })
+        .map(|row| row.item)
         .collect::<Vec<_>>()
+}
+
+fn push_section_header(rows: &mut Vec<SettingsRow>, title: &str, theme: Theme) {
+    rows.push(SettingsRow {
+        selection: None,
+        item: ListItem::new(Line::from(format!("-- {title} --"))).style(
+            Style::default()
+                .fg(theme.popup_muted_text)
+                .add_modifier(Modifier::BOLD),
+        ),
+    });
+}
+
+fn push_setting_row(
+    rows: &mut Vec<SettingsRow>,
+    entries: &[crate::app::state::SettingsEntry],
+    selection: SettingsSelection,
+) {
+    let idx = selection_entry_index(selection);
+    let Some(entry) = entries.get(idx) else {
+        return;
+    };
+    let label = if entry.editable {
+        format!("{:<16} {}", entry.label, entry.value)
+    } else {
+        format!("{:<16} [{}]", entry.label, entry.value)
+    };
+    rows.push(SettingsRow {
+        selection: Some(selection),
+        item: ListItem::new(Line::from(label)),
+    });
+}
+
+const fn selection_entry_index(selection: SettingsSelection) -> usize {
+    match selection {
+        SettingsSelection::Units => 0,
+        SettingsSelection::Theme => 1,
+        SettingsSelection::Flash => 2,
+        SettingsSelection::Icons => 3,
+        SettingsSelection::InlineHints => 4,
+        SettingsSelection::CommandBar => 5,
+        SettingsSelection::HourlyView => 6,
+        SettingsSelection::HeroVisual => 7,
+        SettingsSelection::RefreshInterval => 8,
+        SettingsSelection::RefreshNow => 9,
+        SettingsSelection::Close => 10,
+    }
 }
 
 fn settings_list(items: Vec<ListItem<'static>>, panel_style: Style, theme: Theme) -> List<'static> {
@@ -78,7 +152,10 @@ fn render_controls(frame: &mut Frame, area: Rect, theme: Theme) {
 fn render_hint(frame: &mut Frame, area: Rect, state: &AppState, theme: Theme) {
     let hint_text = settings_hint_text(state);
     let hint_style = settings_hint_style(&hint_text, theme);
-    frame.render_widget(Paragraph::new(hint_text).style(hint_style), area);
+    frame.render_widget(
+        Paragraph::new(format!("Preview: {hint_text}")).style(hint_style),
+        area,
+    );
 }
 
 fn settings_hint_text(state: &AppState) -> String {

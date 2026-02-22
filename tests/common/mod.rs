@@ -28,6 +28,7 @@ pub fn stockholm_cli() -> Cli {
         no_flash: true,
         ascii_icons: false,
         emoji_icons: false,
+        nerd_font: false,
         color: ColorArg::Auto,
         no_color: false,
         hourly_view: None,

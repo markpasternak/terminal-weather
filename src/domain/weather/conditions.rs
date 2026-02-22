@@ -74,11 +74,12 @@ pub fn weather_label_for_time(code: u8, is_day: bool) -> &'static str {
 
 #[must_use]
 pub fn weather_icon(code: u8, mode: IconMode, is_day: bool) -> &'static str {
-    let (ascii, emoji, unicode) = icon_tokens(weather_code_to_category(code), is_day);
+    let (ascii, emoji, unicode, nerd) = icon_tokens(weather_code_to_category(code), is_day);
     match mode {
         IconMode::Ascii => ascii,
         IconMode::Emoji => emoji,
         IconMode::Unicode => unicode,
+        IconMode::NerdFont => nerd,
     }
 }
 
@@ -120,28 +121,34 @@ fn weather_label_lookup(code: u8) -> Option<&'static str> {
 fn icon_tokens(
     category: WeatherCategory,
     is_day: bool,
-) -> (&'static str, &'static str, &'static str) {
+) -> (&'static str, &'static str, &'static str, &'static str) {
     if matches!(category, WeatherCategory::Clear) {
         return clear_icon_tokens(is_day);
     }
     non_clear_icon_tokens(category)
 }
 
-fn clear_icon_tokens(is_day: bool) -> (&'static str, &'static str, &'static str) {
+fn clear_icon_tokens(is_day: bool) -> (&'static str, &'static str, &'static str, &'static str) {
+    use nerd_font_symbols::weather::{WEATHER_DAY_SUNNY, WEATHER_NIGHT_CLEAR};
     if is_day {
-        ("SUN", "☀️", "☀")
+        ("SUN", "☀️", "☀", WEATHER_DAY_SUNNY)
     } else {
-        ("MON", "🌙", "☾")
+        ("MON", "🌙", "☾", WEATHER_NIGHT_CLEAR)
     }
 }
 
-fn non_clear_icon_tokens(category: WeatherCategory) -> (&'static str, &'static str, &'static str) {
+fn non_clear_icon_tokens(
+    category: WeatherCategory,
+) -> (&'static str, &'static str, &'static str, &'static str) {
+    use nerd_font_symbols::weather::{
+        WEATHER_CLOUDY, WEATHER_FOG, WEATHER_RAIN, WEATHER_SNOW, WEATHER_THUNDERSTORM,
+    };
     match category {
-        WeatherCategory::Cloudy => ("CLD", "☁️", "☁"),
-        WeatherCategory::Rain => ("RAN", "🌧️", "☂"),
-        WeatherCategory::Snow => ("SNW", "🌨️", "❄"),
-        WeatherCategory::Fog => ("FOG", "🌫️", "░"),
-        WeatherCategory::Thunder => ("THN", "⛈️", "⚡"),
-        WeatherCategory::Unknown | WeatherCategory::Clear => ("---", "☁️", "☁"),
+        WeatherCategory::Cloudy => ("CLD", "☁️", "☁", WEATHER_CLOUDY),
+        WeatherCategory::Rain => ("RAN", "🌧️", "🌧", WEATHER_RAIN),
+        WeatherCategory::Snow => ("SNW", "🌨️", "❄", WEATHER_SNOW),
+        WeatherCategory::Fog => ("FOG", "🌫️", "≡", WEATHER_FOG),
+        WeatherCategory::Thunder => ("THN", "⛈️", "⚡", WEATHER_THUNDERSTORM),
+        WeatherCategory::Unknown | WeatherCategory::Clear => ("---", "☁️", "☁", WEATHER_CLOUDY),
     }
 }

@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn format_alert_entry_uses_decision_why_details_order() {
         let alert = WeatherAlert {
-            icon: "░",
+            icon: "≡",
             message: "Low visibility: 0.8km".to_string(),
             eta_hours: Some(2),
             severity: AlertSeverity::Warning,

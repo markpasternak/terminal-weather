@@ -37,9 +37,16 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     let (is_day, code, theme) = hero_context(state);
     render_hero_background(frame, area, state, theme);
 
+    let title_prefix = if state.panel_focus == crate::app::state::PanelFocus::Hero {
+        "▶ "
+    } else {
+        ""
+    };
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Current · L cities · S settings · ? help")
+        .title(format!(
+            "{title_prefix}Current · L cities · S settings · ? help"
+        ))
         .border_style(Style::default().fg(theme.border));
     let inner = block.inner(area);
     frame.render_widget(block, area);

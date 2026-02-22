@@ -206,7 +206,7 @@ fn descriptor_secondary(
             color: theme.warning,
         },
         MetricSlot::RainChance => MetricDescriptor {
-            label: "Rain chance ",
+            label: "Precip chance ",
             value: data.precip_probability.clone(),
             color: theme.info,
         },

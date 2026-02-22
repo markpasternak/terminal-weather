@@ -9,6 +9,7 @@ use crate::resilience::freshness::FreshnessState;
 
 mod conditions;
 mod conversions;
+mod insights;
 
 pub use conditions::{
     ParticleKind, WeatherCategory, weather_code_to_category, weather_code_to_particle,
@@ -17,6 +18,10 @@ pub use conditions::{
 pub use conversions::{
     convert_temp, convert_wind_speed, evaluate_freshness, parse_date, parse_datetime, round_temp,
     round_wind_speed,
+};
+pub use insights::{
+    ActionCue, ChangeEvent, ChangeKind, InsightConfidence, NowcastInsight, ReliabilitySummary,
+    derive_nowcast_insight, next_notable_change,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

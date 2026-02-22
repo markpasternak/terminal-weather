@@ -14,22 +14,18 @@ use crate::{
     domain::weather::{HourlyViewMode, Location, Units},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MotionSetting {
-    Full,
-    Reduced,
-    Off,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RuntimeSettings {
     pub units: Units,
     pub theme: ThemeArg,
-    pub motion: MotionSetting,
     pub no_flash: bool,
     pub icon_mode: IconMode,
     pub hourly_view: HourlyViewMode,
+    #[serde(default = "default_inline_hints")]
+    pub inline_hints: bool,
+    #[serde(default = "default_command_bar_enabled")]
+    pub command_bar_enabled: bool,
     #[serde(default, alias = "silhouette_source", alias = "silhouetteSource")]
     pub hero_visual: HeroVisualArg,
     pub refresh_interval_secs: u64,
@@ -43,17 +39,12 @@ impl RuntimeSettings {
             UnitsArg::Celsius => Units::Celsius,
             UnitsArg::Fahrenheit => Units::Fahrenheit,
         };
-        let motion = if cli.no_animation {
-            MotionSetting::Off
-        } else if cli.reduced_motion {
-            MotionSetting::Reduced
-        } else {
-            MotionSetting::Full
-        };
         let icon_mode = if cli.ascii_icons {
             IconMode::Ascii
         } else if cli.emoji_icons {
             IconMode::Emoji
+        } else if cli.nerd_font {
+            IconMode::NerdFont
         } else {
             IconMode::Unicode
         };
@@ -61,10 +52,11 @@ impl RuntimeSettings {
         Self {
             units,
             theme: cli.theme,
-            motion,
             no_flash: cli.no_flash,
             icon_mode,
             hourly_view: HourlyViewMode::Table,
+            inline_hints: true,
+            command_bar_enabled: true,
             hero_visual: cli.hero_visual,
             refresh_interval_secs: cli.refresh_interval,
             recent_locations: Vec::new(),
@@ -77,10 +69,11 @@ impl Default for RuntimeSettings {
         Self {
             units: Units::Celsius,
             theme: ThemeArg::Auto,
-            motion: MotionSetting::Full,
             no_flash: false,
             icon_mode: IconMode::Unicode,
             hourly_view: HourlyViewMode::Table,
+            inline_hints: true,
+            command_bar_enabled: true,
             hero_visual: HeroVisualArg::AtmosCanvas,
             refresh_interval_secs: 600,
             recent_locations: Vec::new(),
@@ -179,7 +172,6 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
 fn apply_cli_overrides(settings: &mut RuntimeSettings, cli: &Cli) {
     override_units(settings, cli);
     override_theme(settings, cli);
-    override_motion(settings, cli);
     override_flash(settings, cli);
     override_icon_mode(settings, cli);
     override_hero_visual(settings, cli);
@@ -198,14 +190,6 @@ fn override_theme(settings: &mut RuntimeSettings, cli: &Cli) {
     }
 }
 
-fn override_motion(settings: &mut RuntimeSettings, cli: &Cli) {
-    if cli.no_animation {
-        settings.motion = MotionSetting::Off;
-    } else if cli.reduced_motion {
-        settings.motion = MotionSetting::Reduced;
-    }
-}
-
 fn override_flash(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.no_flash {
         settings.no_flash = true;
@@ -217,6 +201,8 @@ fn override_icon_mode(settings: &mut RuntimeSettings, cli: &Cli) {
         settings.icon_mode = IconMode::Ascii;
     } else if cli.emoji_icons {
         settings.icon_mode = IconMode::Emoji;
+    } else if cli.nerd_font {
+        settings.icon_mode = IconMode::NerdFont;
     }
 }
 
@@ -230,6 +216,14 @@ fn override_refresh_interval(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.refresh_interval != 600 {
         settings.refresh_interval_secs = cli.refresh_interval;
     }
+}
+
+const fn default_inline_hints() -> bool {
+    true
+}
+
+const fn default_command_bar_enabled() -> bool {
+    true
 }
 
 #[must_use]

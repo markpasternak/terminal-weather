@@ -25,34 +25,24 @@ fn from_cli_defaults_basic_mapping() {
 }
 
 #[test]
-fn from_cli_defaults_motion_logic() {
-    let cli = default_cli();
-    assert_eq!(
-        RuntimeSettings::from_cli_defaults(&cli).motion,
-        MotionSetting::Full
-    );
+fn from_cli_defaults_ignores_animation_flags() {
+    let baseline = RuntimeSettings::from_cli_defaults(&default_cli());
 
     let mut reduced = default_cli();
     reduced.reduced_motion = true;
-    assert_eq!(
-        RuntimeSettings::from_cli_defaults(&reduced).motion,
-        MotionSetting::Reduced
-    );
+    let reduced_settings = RuntimeSettings::from_cli_defaults(&reduced);
+    assert_eq!(reduced_settings.units, baseline.units);
+    assert_eq!(reduced_settings.theme, baseline.theme);
+    assert_eq!(reduced_settings.icon_mode, baseline.icon_mode);
+    assert_eq!(reduced_settings.hourly_view, baseline.hourly_view);
 
     let mut off = default_cli();
     off.no_animation = true;
-    assert_eq!(
-        RuntimeSettings::from_cli_defaults(&off).motion,
-        MotionSetting::Off
-    );
-
-    let mut precedence = default_cli();
-    precedence.no_animation = true;
-    precedence.reduced_motion = true;
-    assert_eq!(
-        RuntimeSettings::from_cli_defaults(&precedence).motion,
-        MotionSetting::Off
-    );
+    let off_settings = RuntimeSettings::from_cli_defaults(&off);
+    assert_eq!(off_settings.units, baseline.units);
+    assert_eq!(off_settings.theme, baseline.theme);
+    assert_eq!(off_settings.icon_mode, baseline.icon_mode);
+    assert_eq!(off_settings.hourly_view, baseline.hourly_view);
 }
 
 #[test]
@@ -75,6 +65,13 @@ fn from_cli_defaults_icon_mode_logic() {
     assert_eq!(
         RuntimeSettings::from_cli_defaults(&ascii).icon_mode,
         IconMode::Ascii
+    );
+
+    let mut nerd = default_cli();
+    nerd.nerd_font = true;
+    assert_eq!(
+        RuntimeSettings::from_cli_defaults(&nerd).icon_mode,
+        IconMode::NerdFont
     );
 
     let mut precedence = default_cli();

@@ -2,7 +2,7 @@ use super::{
     AppState, SettingsSelection, adjust_setting_selection, initial_selected_location, is_city_char,
 };
 use crate::{
-    app::settings::{MotionSetting, RecentLocation, RuntimeSettings},
+    app::settings::{RecentLocation, RuntimeSettings},
     cli::{HeroVisualArg, IconMode},
 };
 use std::fmt::Debug;
@@ -62,16 +62,6 @@ fn apply_runtime_settings_updates_refresh_interval_runtime() {
 #[test]
 fn adjust_setting_cycles_forward_and_backward() {
     let mut state = AppState::new(&crate::test_support::state_test_cli());
-    state.settings.motion = MotionSetting::Off;
-    assert_cycle(
-        &mut state,
-        SettingsSelection::Motion,
-        MotionSetting::Off,
-        MotionSetting::Full,
-        MotionSetting::Reduced,
-        MotionSetting::Full,
-        |s| s.settings.motion,
-    );
     state.settings.icon_mode = IconMode::Unicode;
     assert_cycle(
         &mut state,
@@ -92,6 +82,14 @@ fn adjust_setting_cycles_forward_and_backward() {
         HeroVisualArg::GaugeCluster,
         |s| s.settings.hero_visual,
     );
+
+    let inline_hints_before = state.settings.inline_hints;
+    assert!(adjust_setting_selection(
+        &mut state,
+        SettingsSelection::InlineHints,
+        1
+    ));
+    assert_ne!(state.settings.inline_hints, inline_hints_before);
 }
 
 fn assert_cycle<T, F>(

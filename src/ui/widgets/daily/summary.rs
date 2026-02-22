@@ -8,8 +8,8 @@ use utils::{day_cue, first_day_shifted_time, first_day_time, profile_bar};
 
 #[cfg(test)]
 use accumulator::{
-    average_duration, average_precip_hours, format_best_day, format_day_value_mm,
-    format_day_value_mps, format_uv_peak, week_thermal_span,
+    average_duration, average_precip_hours, format_day_value_mm, format_day_value_mps,
+    format_uv_peak, week_thermal_span,
 };
 
 pub(super) fn render_week_summary(
@@ -54,7 +54,6 @@ pub(super) struct WeekSummaryData {
     pub(super) precip: Vec<f32>,
     pub(super) gusts: Vec<f32>,
 }
-
 
 pub(super) fn summarize_week(bundle: &ForecastBundle, units: Units) -> WeekSummaryData {
     let mut accumulator = WeekAccumulator::default();

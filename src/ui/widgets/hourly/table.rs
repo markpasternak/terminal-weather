@@ -47,7 +47,133 @@ pub(super) fn render_table_mode(
     let table = Table::new(rows, widths)
         .column_spacing(column_spacing)
         .style(panel_style);
-    frame.render_widget(table, area);
+
+    let insight =
+        crate::domain::weather::derive_nowcast_insight(bundle, state.units, &state.refresh_meta);
+    let (table_area, detail_area, window_area) = split_table_and_detail_areas(area);
+    frame.render_widget(table, table_area);
+    let detail_text = cursor_detail_text(
+        state,
+        bundle,
+        slice,
+        offset,
+        cursor_in_view,
+        &insight.action_text,
+    );
+    render_cursor_detail_line(frame, detail_area, detail_text, theme);
+    render_window_summary_line(frame, window_area, &insight.next_6h_summary, theme);
+}
+
+fn split_table_and_detail_areas(area: Rect) -> (Rect, Option<Rect>, Option<Rect>) {
+    if area.height < 8 {
+        return (area, None, None);
+    }
+    if area.height >= 9 && area.width >= 96 {
+        let chunks = Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(area);
+        return (chunks[0], Some(chunks[1]), Some(chunks[2]));
+    }
+    let chunks = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(area);
+    (chunks[0], Some(chunks[1]), None)
+}
+
+fn render_cursor_detail_line(
+    frame: &mut Frame,
+    area: Option<Rect>,
+    detail_text: Option<String>,
+    theme: Theme,
+) {
+    let Some(area) = area else {
+        return;
+    };
+    let Some(detail) = detail_text else {
+        return;
+    };
+    frame.render_widget(
+        Paragraph::new(detail).style(Style::default().fg(theme.muted_text)),
+        area,
+    );
+}
+
+fn cursor_detail_text(
+    state: &AppState,
+    bundle: &ForecastBundle,
+    slice: &[&HourlyForecast],
+    offset: usize,
+    cursor_in_view: Option<usize>,
+    action_text: &str,
+) -> Option<String> {
+    let cursor_idx = cursor_in_view
+        .or_else(|| (!slice.is_empty()).then_some(0))
+        .unwrap_or(0);
+    let hour = slice.get(cursor_idx).copied()?;
+    let code = hour.weather_code.unwrap_or(bundle.current.weather_code);
+    let is_day = hour.is_day.unwrap_or(bundle.current.is_day);
+    let temp = hour.temperature_2m_c.map_or_else(
+        || "--".to_string(),
+        |value| format!("{}°", round_temp(convert_temp(value, state.units))),
+    );
+    let gust = wind_reference(hour).map_or_else(
+        || "--".to_string(),
+        |value| format!("{}m/s", crate::domain::weather::round_wind_speed(value)),
+    );
+    let precip = hour
+        .precipitation_probability
+        .map_or_else(|| "--".to_string(), |value| format!("{value:.0}%"));
+    let mm = hour.precipitation_mm.map_or_else(
+        || "--.-".to_string(),
+        |value| format!("{:.1}", value.max(0.0)),
+    );
+    let decision = strip_action_prefix(action_text);
+    let why = format!(
+        "focus {} {} is {}",
+        offset + cursor_idx,
+        hour.time.format("%a %H:%M"),
+        weather_label_for_time(code, is_day),
+    );
+    let details = format!("temp {temp} · P% {precip} · P {mm}mm · gust {gust}");
+    Some(format_decision_line(decision, &why, &details))
+}
+
+fn render_window_summary_line(
+    frame: &mut Frame,
+    area: Option<Rect>,
+    next_6h_summary: &str,
+    theme: Theme,
+) {
+    let Some(area) = area else {
+        return;
+    };
+    let summary = format_window_details(next_6h_summary);
+    frame.render_widget(
+        Paragraph::new(summary).style(Style::default().fg(theme.info)),
+        area,
+    );
+}
+
+fn strip_action_prefix(action_text: &str) -> &str {
+    action_text
+        .strip_prefix("Now action: ")
+        .unwrap_or(action_text)
+}
+
+fn format_decision_line(decision: &str, why: &str, details: &str) -> String {
+    format!("Do: {decision} · Why: {why} · Details: {details}")
+}
+
+fn format_window_details(next_6h_summary: &str) -> String {
+    let summary = next_6h_summary
+        .strip_prefix("Next 6h: ")
+        .unwrap_or(next_6h_summary);
+    format!("Details: next 6h {summary}")
+}
+
+fn wind_reference(hour: &HourlyForecast) -> Option<f32> {
+    hour.wind_gusts_10m.or(hour.wind_speed_10m)
 }
 
 type HourlyMetricFormatter = fn(&HourlyForecast) -> String;
@@ -138,10 +264,10 @@ pub(super) fn build_optional_date_row(
     cells.extend(slice.iter().map(|h| {
         let date = h.time.date();
         if last_shown_date == Some(date) {
-            Cell::from("·").style(Style::default().fg(theme.muted_text))
+            Cell::from("│").style(Style::default().fg(theme.muted_text))
         } else {
             last_shown_date = Some(date);
-            Cell::from(date.format("%a %d").to_string()).style(
+            Cell::from(format!("▌{}", date.format("%a %d"))).style(
                 Style::default()
                     .fg(theme.accent)
                     .add_modifier(Modifier::BOLD),
@@ -242,5 +368,33 @@ pub(super) fn sanitize_precip_mm(value: f32) -> f32 {
         0.0
     } else {
         non_negative
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{format_decision_line, format_window_details, strip_action_prefix};
+
+    #[test]
+    fn strip_action_prefix_removes_now_action_label() {
+        assert_eq!(
+            strip_action_prefix("Now action: layer up for cold (2°C)"),
+            "layer up for cold (2°C)"
+        );
+    }
+
+    #[test]
+    fn format_decision_line_orders_sections_consistently() {
+        let line = format_decision_line("layer up", "focus Sun 23:00 is overcast", "temp -2°");
+        assert_eq!(
+            line,
+            "Do: layer up · Why: focus Sun 23:00 is overcast · Details: temp -2°"
+        );
+    }
+
+    #[test]
+    fn format_window_details_strips_existing_prefix() {
+        let details = format_window_details("Next 6h: P 1.2mm · Pmax 70%");
+        assert_eq!(details, "Details: next 6h P 1.2mm · Pmax 70%");
     }
 }

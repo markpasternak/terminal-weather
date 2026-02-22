@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::atomic::Ordering;
 
 impl AppState {
     pub(crate) async fn handle_settings_key(
@@ -173,14 +174,14 @@ impl AppState {
     pub(crate) fn apply_runtime_settings(&mut self) {
         self.units = self.settings.units;
         self.hourly_view_mode = self.settings.hourly_view;
-        self.animate_ui = matches!(self.settings.motion, MotionSetting::Full);
+        self.animate_ui = true;
+        if !self.settings.command_bar_enabled {
+            self.command_bar.close();
+        }
         self.refresh_interval_secs_runtime
             .store(self.settings.refresh_interval_secs, Ordering::Relaxed);
-        self.particles.set_options(
-            matches!(self.settings.motion, MotionSetting::Off),
-            matches!(self.settings.motion, MotionSetting::Reduced),
-            self.settings.no_flash,
-        );
+        self.particles
+            .set_options(false, false, self.settings.no_flash);
     }
 
     pub(crate) fn persist_settings(&mut self) {

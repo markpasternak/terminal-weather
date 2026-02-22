@@ -17,11 +17,12 @@ pub enum SemanticSymbol {
 }
 
 #[must_use]
-pub const fn symbol(symbol: SemanticSymbol, mode: IconMode) -> &'static str {
+pub fn symbol(symbol: SemanticSymbol, mode: IconMode) -> &'static str {
     match mode {
         IconMode::Unicode => unicode_symbol(symbol),
         IconMode::Ascii => ascii_symbol(symbol),
         IconMode::Emoji => emoji_symbol(symbol),
+        IconMode::NerdFont => nerd_font_symbol(symbol),
     }
 }
 
@@ -83,6 +84,21 @@ const fn emoji_symbol(symbol: SemanticSymbol) -> &'static str {
     }
 }
 
+fn nerd_font_symbol(symbol: SemanticSymbol) -> &'static str {
+    use nerd_font_symbols::weather::WEATHER_STRONG_WIND;
+    match symbol {
+        SemanticSymbol::Fresh | SemanticSymbol::ConfidenceHigh => "●",
+        SemanticSymbol::Stale | SemanticSymbol::ConfidenceMedium => "◐",
+        SemanticSymbol::Offline | SemanticSymbol::ConfidenceLow => "○",
+        SemanticSymbol::TrendUp => "↑",
+        SemanticSymbol::TrendDown => "↓",
+        SemanticSymbol::SeverityInfo => "ℹ",
+        SemanticSymbol::SeverityWarning => "⚠",
+        SemanticSymbol::SeverityDanger => "⛔",
+        SemanticSymbol::Wind => WEATHER_STRONG_WIND,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{SemanticSymbol, symbol};
@@ -109,6 +125,7 @@ mod tests {
             assert!(!symbol(value, IconMode::Unicode).is_empty());
             assert!(!symbol(value, IconMode::Ascii).is_empty());
             assert!(!symbol(value, IconMode::Emoji).is_empty());
+            assert!(!symbol(value, IconMode::NerdFont).is_empty());
         }
     }
 }

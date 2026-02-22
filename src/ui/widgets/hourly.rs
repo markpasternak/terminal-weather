@@ -14,7 +14,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::state::AppState,
+    app::state::{AppState, PanelFocus},
     cli::Cli,
     domain::weather::{
         Daypart, DaypartSummary, ForecastBundle, HourlyForecast, HourlyViewMode, Units,
@@ -22,6 +22,7 @@ use crate::{
         weather_label_for_time,
     },
     ui::layout::visible_hour_count,
+    ui::narrative::build_narrative,
     ui::theme::{Theme, detect_color_capability, icon_color, temp_color, theme_for},
 };
 
@@ -57,7 +58,13 @@ fn render_hourly_loading(
     let panel_style = Style::default().fg(theme.text).bg(theme.surface);
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Hourly")
+        .title(
+            if state.panel_focus == crate::app::state::PanelFocus::Hourly {
+                "▶ Hourly"
+            } else {
+                "Hourly"
+            },
+        )
         .style(panel_style)
         .border_style(Style::default().fg(theme.border).bg(theme.surface));
     let inner = block.inner(area);
@@ -88,7 +95,11 @@ fn render_hourly_with_bundle(
     let panel_style = Style::default().fg(theme.text).bg(theme.surface);
     let effective_mode = effective_hourly_mode(state.hourly_view_mode, area);
     let slice = hourly_slice(bundle, state.hourly_offset, area.width);
-    let title = hourly_panel_title(effective_mode, &slice);
+    let title = hourly_panel_title(
+        effective_mode,
+        &slice,
+        state.panel_focus == crate::app::state::PanelFocus::Hourly,
+    );
 
     let block = Block::default()
         .borders(Borders::ALL)
@@ -110,7 +121,35 @@ fn render_hourly_with_bundle(
         return;
     }
 
-    render_hourly_mode(frame, inner, state, bundle, &slice, theme, effective_mode);
+    let content_area = render_hourly_context_strip(frame, inner, state, bundle, theme);
+    render_hourly_mode(
+        frame,
+        content_area,
+        state,
+        bundle,
+        &slice,
+        theme,
+        effective_mode,
+    );
+}
+
+fn render_hourly_context_strip(
+    frame: &mut Frame,
+    inner: Rect,
+    state: &AppState,
+    bundle: &ForecastBundle,
+    theme: Theme,
+) -> Rect {
+    if !state.settings.inline_hints || state.panel_focus != PanelFocus::Hourly || inner.height < 8 {
+        return inner;
+    }
+
+    let rows = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(inner);
+    let narrative = build_narrative(state, bundle);
+    let line = narrative.compact_triage_line(rows[0].width);
+    let hint = Paragraph::new(line).style(Style::default().fg(theme.muted_text));
+    frame.render_widget(hint, rows[0]);
+    rows[1]
 }
 
 fn hourly_slice(bundle: &ForecastBundle, offset: usize, area_width: u16) -> Vec<&HourlyForecast> {
@@ -124,22 +163,23 @@ fn hourly_slice(bundle: &ForecastBundle, offset: usize, area_width: u16) -> Vec<
         .collect::<Vec<_>>()
 }
 
-fn hourly_panel_title(mode: HourlyViewMode, slice: &[&HourlyForecast]) -> String {
+fn hourly_panel_title(mode: HourlyViewMode, slice: &[&HourlyForecast], focused: bool) -> String {
     let mode_label = match mode {
         HourlyViewMode::Table => "Table",
         HourlyViewMode::Hybrid => "Hybrid",
         HourlyViewMode::Chart => "Chart",
     };
+    let focus_prefix = if focused { "▶ " } else { "" };
     if let (Some(first), Some(last)) = (slice.first(), slice.last()) {
         let first_date = first.time.format("%a %d %b");
         let last_date = last.time.format("%a %d %b");
         if first.time.date() == last.time.date() {
-            format!("Hourly · {mode_label} · {first_date}")
+            format!("{focus_prefix}Hourly · {mode_label} · {first_date}")
         } else {
-            format!("Hourly · {mode_label} · {first_date} → {last_date}")
+            format!("{focus_prefix}Hourly · {mode_label} · {first_date} → {last_date}")
         }
     } else {
-        format!("Hourly · {mode_label}")
+        format!("{focus_prefix}Hourly · {mode_label}")
     }
 }
 

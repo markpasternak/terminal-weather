@@ -66,6 +66,7 @@ struct TimelineSeries {
     temps: Vec<Option<f32>>,
     precips: Vec<f32>,
     times: Vec<chrono::NaiveDateTime>,
+    codes: Vec<Option<u8>>,
 }
 
 type TimelineLine = Line<'static>;
@@ -81,6 +82,7 @@ fn timeline_series(slice: &[&HourlyForecast], units: Units) -> TimelineSeries {
             .map(|h| h.precipitation_mm.unwrap_or(0.0).max(0.0))
             .collect::<Vec<_>>(),
         times: slice.iter().map(|h| h.time).collect::<Vec<_>>(),
+        codes: slice.iter().map(|h| h.weather_code).collect::<Vec<_>>(),
     }
 }
 
@@ -97,6 +99,9 @@ fn timeline_lines(
     ];
     if height >= 4 {
         lines.push(hour_timeline_line(series, cols, theme));
+    }
+    if height >= 5 {
+        lines.push(change_timeline_line(series, cols, theme));
     }
     lines.truncate(height as usize);
     lines
@@ -134,7 +139,7 @@ fn tick_timeline_line(series: &TimelineSeries, cols: usize, theme: Theme) -> Tim
 
 fn rain_timeline_line(series: &TimelineSeries, cols: usize, theme: Theme) -> TimelineLine {
     timeline_row(
-        "Rain  ",
+        "Precip",
         barline(&series.precips, cols),
         theme.muted_text,
         theme.info,
@@ -147,6 +152,15 @@ fn hour_timeline_line(series: &TimelineSeries, cols: usize, theme: Theme) -> Tim
         hour_label_line(&series.times, cols),
         theme.muted_text,
         theme.text,
+    )
+}
+
+fn change_timeline_line(series: &TimelineSeries, cols: usize, theme: Theme) -> TimelineLine {
+    timeline_row(
+        "Shift ",
+        condition_change_markers(series, cols),
+        theme.muted_text,
+        theme.warning,
     )
 }
 
@@ -264,6 +278,31 @@ fn hour_label_line(times: &[chrono::NaiveDateTime], width: usize) -> String {
                 if start + offset < width {
                     out[start + offset] = ch;
                 }
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
+fn condition_change_markers(series: &TimelineSeries, width: usize) -> String {
+    if series.times.is_empty() || width == 0 {
+        return String::new();
+    }
+    let mut out = vec!['·'; width];
+    for (col, slot) in out.iter_mut().enumerate().take(width).skip(1) {
+        let current_idx = sample_index(col, width, series.codes.len());
+        let previous_idx = sample_index(col.saturating_sub(1), width, series.codes.len());
+        if current_idx != previous_idx {
+            let current_category = series.codes[current_idx].map_or(
+                crate::domain::weather::WeatherCategory::Unknown,
+                crate::domain::weather::weather_code_to_category,
+            );
+            let previous_category = series.codes[previous_idx].map_or(
+                crate::domain::weather::WeatherCategory::Unknown,
+                crate::domain::weather::weather_code_to_category,
+            );
+            if current_category != previous_category {
+                *slot = '▲';
             }
         }
     }

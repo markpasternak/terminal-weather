@@ -1,7 +1,9 @@
 #![allow(clippy::cast_possible_truncation)]
 
 pub mod layout;
+pub mod narrative;
 pub mod particles;
+pub mod symbols;
 pub mod theme;
 pub mod widgets;
 
@@ -16,9 +18,9 @@ use ratatui::{
 use crate::{
     app::state::{AppMode, AppState},
     cli::Cli,
-    domain::weather::HourlyViewMode,
+    domain::weather::{HourlyViewMode, weather_label_for_time},
     resilience::freshness::FreshnessState,
-    ui::theme::resolved_theme,
+    ui::{narrative::build_narrative, theme::resolved_theme},
 };
 
 const MIN_RENDER_WIDTH: u16 = 20;
@@ -29,7 +31,7 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     let theme = resolved_theme(state);
 
     if area.width < MIN_RENDER_WIDTH || area.height < MIN_RENDER_HEIGHT {
-        render_small_terminal_hint(frame, area, theme);
+        render_small_terminal_hint(frame, area, theme, state);
         return;
     }
 
@@ -44,7 +46,12 @@ pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     render_modal_overlay(frame, area, state, cli);
 }
 
-fn render_small_terminal_hint(frame: &mut Frame, area: Rect, theme: crate::ui::theme::Theme) {
+fn render_small_terminal_hint(
+    frame: &mut Frame,
+    area: Rect,
+    theme: crate::ui::theme::Theme,
+    state: &AppState,
+) {
     let mut lines: Vec<Line> = compact_logo_lines(area.width.saturating_sub(2))
         .into_iter()
         .map(|line| {
@@ -56,6 +63,21 @@ fn render_small_terminal_hint(frame: &mut Frame, area: Rect, theme: crate::ui::t
         })
         .collect();
     lines.push(Line::from(""));
+    if let Some(weather) = &state.weather {
+        lines.push(Line::from(format!(
+            "{}° {}",
+            weather.current_temp(state.units),
+            weather_label_for_time(weather.current.weather_code, weather.current.is_day)
+        )));
+        let narrative = build_narrative(state, weather);
+        lines.push(Line::from(narrative.now_action));
+        lines.push(Line::from(format!(
+            "{} Confidence {} · {}",
+            narrative.confidence_symbol,
+            narrative.confidence.label(),
+            narrative.reliability
+        )));
+    }
     lines.push(Line::from("Too small for full render"));
     lines.push(Line::from(format!(
         "Need {MIN_RENDER_WIDTH}x{MIN_RENDER_HEIGHT}+"
@@ -83,7 +105,7 @@ fn content_area_with_footer(frame: &mut Frame, area: Rect, state: &AppState) -> 
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(1), Constraint::Length(1)])
         .split(area);
-    render_footer(frame, sections[1], state);
+    render_bottom_bar(frame, sections[1], state);
     sections[0]
 }
 
@@ -190,7 +212,7 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
     }
 
     let theme = resolved_theme(state);
-    let text = footer_text_for_width(area.width);
+    let text = footer_text_for_width(area.width, state);
     let footer = Paragraph::new(Line::from(vec![
         Span::styled(text, Style::default().fg(theme.muted_text)),
         Span::raw("  "),
@@ -201,15 +223,52 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(footer, area);
 }
 
-fn footer_text_for_width(width: u16) -> &'static str {
-    if width >= 92 {
-        "r Refresh  v Hourly View  l Cities  s Settings  <-/-> Scroll  q Quit"
-    } else if width >= 72 {
-        "r Refresh  v View  l Cities  s Settings  <-/-> Scroll  q Quit"
-    } else if width >= 52 {
-        "r Refresh  v View  l Cities  s Settings  q Quit"
+fn render_bottom_bar(frame: &mut Frame, area: Rect, state: &AppState) {
+    if state.command_bar.open {
+        render_command_bar(frame, area, state);
     } else {
-        "r Refresh  q Quit"
+        render_footer(frame, area, state);
+    }
+}
+
+fn render_command_bar(frame: &mut Frame, area: Rect, state: &AppState) {
+    let theme = resolved_theme(state);
+    let error_suffix = state
+        .command_bar
+        .parse_error
+        .as_deref()
+        .map_or_else(String::new, |err| format!("  ! {err}"));
+    let line = format!(
+        "{}{}",
+        state.command_bar.buffer.as_str().trim_end(),
+        error_suffix
+    );
+    let content = if line.is_empty() {
+        ":".to_string()
+    } else {
+        line
+    };
+    let widget = Paragraph::new(content).style(Style::default().fg(theme.accent).bg(theme.surface));
+    frame.render_widget(widget, area);
+}
+
+fn footer_text_for_width(width: u16, state: &AppState) -> String {
+    let command_hint = if state.settings.command_bar_enabled {
+        "  : Command"
+    } else {
+        ""
+    };
+    let focus_hint = format!("  Tab Focus({})", state.panel_focus.label());
+    if width >= 92 {
+        format!(
+            "r Refresh  v Hourly View  l Cities  s Settings  <-/-> Scroll  q Quit{focus_hint}{command_hint}"
+        )
+    } else if width >= 72 {
+        format!("r Refresh  v View  l Cities  s Settings  <-/-> Scroll  q Quit{command_hint}")
+    } else if width >= 52 {
+        format!("r Refresh  v View  l Cities  s Settings  q Quit{command_hint}")
+    } else {
+        "r Refresh  q Quit".to_string()
     }
 }
 

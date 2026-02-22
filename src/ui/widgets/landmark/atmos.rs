@@ -76,7 +76,8 @@ fn build_atmos_canvas(
 
     let mut canvas = vec![vec![' '; width]; height];
     let phase = animation_phase(animate, frame_tick);
-    let horizon_y = paint_base_atmos_layers(&mut canvas, bundle, &temps, phase, width, height);
+    let horizon_y =
+        paint_base_atmos_layers(&mut canvas, bundle, &temps, phase, category, width, height);
     paint_effect_atmos_layers(
         &mut canvas,
         bundle,
@@ -97,6 +98,7 @@ fn paint_base_atmos_layers(
     bundle: &ForecastBundle,
     temps: &[f32],
     phase: usize,
+    category: WeatherCategory,
     width: usize,
     height: usize,
 ) -> usize {
@@ -109,8 +111,14 @@ fn paint_base_atmos_layers(
     let terrain_top = compute_terrain(width, temps, min_temp, span, horizon_y, terrain_amp);
     paint_terrain(canvas, &terrain_top, horizon_y, width, height);
     paint_horizon_haze(canvas, horizon_y, width);
-    if is_night(bundle) {
-        paint_starfield(canvas, width, horizon_y, phase);
+    if is_night(bundle) && matches!(category, WeatherCategory::Clear | WeatherCategory::Cloudy) {
+        paint_starfield(
+            canvas,
+            width,
+            horizon_y,
+            phase,
+            bundle.current.cloud_cover.clamp(0.0, 100.0),
+        );
     }
 
     let hour = bundle
@@ -118,10 +126,17 @@ fn paint_base_atmos_layers(
         .first()
         .map_or(12, |hour| hour.time.hour() as usize)
         % 24;
-    place_celestial_body(canvas, bundle.current.is_day, hour, horizon_y, width);
+    place_celestial_body(
+        canvas,
+        bundle.current.is_day,
+        moon_visible(bundle, hour),
+        hour,
+        horizon_y,
+        width,
+    );
 
     // Nighttime star reflections below the horizon (water/ground reflection)
-    if is_night(bundle) {
+    if is_night(bundle) && matches!(category, WeatherCategory::Clear | WeatherCategory::Cloudy) {
         paint_star_reflections(canvas, width, horizon_y, height);
     }
 
@@ -173,6 +188,7 @@ fn paint_effect_atmos_layers(
             category: ctx.category,
             is_day: bundle.current.is_day,
             weather_code: bundle.current.weather_code,
+            temp_c: bundle.current.temperature_2m_c,
             precip_mm: bundle.current.precipitation_mm.max(0.0),
             phase: ctx.phase,
             horizon_y: ctx.horizon_y,
@@ -187,6 +203,7 @@ struct WeatherEffectsContext {
     category: WeatherCategory,
     is_day: bool,
     weather_code: u8,
+    temp_c: f32,
     precip_mm: f32,
     phase: usize,
     horizon_y: usize,
@@ -196,7 +213,7 @@ struct WeatherEffectsContext {
 
 fn animation_phase(animate: bool, frame_tick: u64) -> usize {
     if animate {
-        (frame_tick % 512) as usize
+        ((frame_tick / 6) % 512) as usize
     } else {
         0
     }
@@ -222,7 +239,7 @@ fn paint_weather_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext) {
 }
 
 fn paint_clear_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext) {
-    if ctx.is_day {
+    if ctx.is_day && ctx.temp_c >= 26.0 {
         paint_heat_shimmer(canvas, ctx.phase, ctx.horizon_y, ctx.width);
     }
 }
@@ -336,19 +353,30 @@ fn paint_horizon_haze(canvas: &mut [Vec<char>], horizon_y: usize, w: usize) {
     }
     for (x, cell) in canvas[haze_y].iter_mut().enumerate().take(w) {
         if *cell == ' ' {
-            *cell = if x % 3 == 0 { '·' } else { ' ' };
+            *cell = if x % 3 == 0 { '░' } else { ' ' };
         }
     }
 }
 
-fn paint_starfield(canvas: &mut [Vec<char>], w: usize, horizon_y: usize, phase: usize) {
-    if w == 0 || horizon_y < 2 {
+fn paint_starfield(
+    canvas: &mut [Vec<char>],
+    w: usize,
+    horizon_y: usize,
+    phase: usize,
+    cloud_pct: f32,
+) {
+    if w == 0 || horizon_y < 2 || cloud_pct >= 92.0 {
         return;
     }
     // Dense star field with depth layers
     let sky_h = horizon_y.saturating_sub(1);
-    let star_count = (w * sky_h / 8).max(12);
-    let glyphs = ['·', '·', '·', '*', '✦', '✧'];
+    let base_count = (w * sky_h / 8).max(12);
+    let visibility_factor = (1.0 - cloud_pct / 100.0).clamp(0.08, 1.0);
+    let star_count = ((base_count as f32) * visibility_factor).round() as usize;
+    if star_count == 0 {
+        return;
+    }
+    let glyphs = ['*', '✶', '✦', '*', '✶', '✦'];
     for i in 0..star_count {
         let seed = i.wrapping_mul(7919).wrapping_add(31);
         let x = seed % w;
@@ -372,11 +400,12 @@ fn paint_starfield(canvas: &mut [Vec<char>], w: usize, horizon_y: usize, phase: 
 fn place_celestial_body(
     canvas: &mut [Vec<char>],
     is_day: bool,
+    moon_visible: bool,
     hour: usize,
     horizon_y: usize,
     w: usize,
 ) {
-    if w < 4 || horizon_y < 3 {
+    if w < 4 || horizon_y < 3 || (!is_day && !moon_visible) {
         return;
     }
     // Position based on time of day along a parabolic arc
@@ -388,29 +417,53 @@ fn place_celestial_body(
         .round()
         .clamp(1.0, (horizon_y - 1) as f32) as usize;
 
-    let body = if is_day { '◉' } else { '◐' };
-    paint_char(canvas, x as isize, y as isize, body, true);
+    let glyph = if is_day { '◉' } else { '◕' };
+    paint_char(canvas, x as isize, y as isize, glyph, true);
 
     // Glow around celestial body
-    if is_day {
-        for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
-            paint_char(canvas, x as isize + dx, y as isize + dy, '·', false);
-        }
-        if w >= 50 {
-            for (dx, dy) in [
-                (-2, 0),
-                (2, 0),
-                (0, -2),
-                (0, 2),
-                (-1, -1),
-                (1, -1),
-                (-1, 1),
-                (1, 1),
-            ] {
-                paint_char(canvas, x as isize + dx, y as isize + dy, '·', false);
-            }
+    for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+        paint_char(canvas, x as isize + dx, y as isize + dy, '░', false);
+    }
+    if w >= 50 {
+        for (dx, dy) in [
+            (-2, 0),
+            (2, 0),
+            (0, -2),
+            (0, 2),
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
+        ] {
+            paint_char(canvas, x as isize + dx, y as isize + dy, '░', false);
         }
     }
+}
+
+fn moon_visible(bundle: &ForecastBundle, hour: usize) -> bool {
+    if bundle.current.is_day {
+        return false;
+    }
+    let Some(day) = bundle.daily.first() else {
+        return true;
+    };
+    let (Some(sunrise), Some(sunset)) = (day.sunrise, day.sunset) else {
+        return true;
+    };
+    let sunrise_h = hm_to_hour_f32(&sunrise);
+    let sunset_h = hm_to_hour_f32(&sunset);
+    let hour = hour as f32;
+
+    if sunset_h > sunrise_h {
+        hour >= sunset_h || hour < sunrise_h
+    } else {
+        // Handles edge cases where provided times invert (e.g. polar regions).
+        hour >= sunset_h && hour < sunrise_h
+    }
+}
+
+fn hm_to_hour_f32(dt: &chrono::NaiveDateTime) -> f32 {
+    dt.hour() as f32 + dt.minute() as f32 / 60.0
 }
 
 fn paint_cloud_layer(

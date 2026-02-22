@@ -13,10 +13,12 @@ pub(super) fn profile_bar(values: &[f32], width: usize) -> String {
 }
 
 pub(super) fn precipitation_cue(day: &crate::domain::weather::DailyForecast) -> String {
-    let precip = day.precipitation_sum_mm.unwrap_or(0.0);
-    let snow = day.snowfall_sum_cm.unwrap_or(0.0);
+    let precip = day.precipitation_sum_mm.unwrap_or(0.0).max(0.0);
+    let rain = day.rain_sum_mm.unwrap_or(0.0).max(0.0);
+    let snow = day.snowfall_sum_cm.unwrap_or(0.0).max(0.0);
     snow_cue(snow)
-        .or_else(|| rain_cue(precip))
+        .or_else(|| rain_cue(rain))
+        .or_else(|| precip_cue(precip))
         .unwrap_or_else(|| "mostly dry".to_string())
 }
 
@@ -89,14 +91,30 @@ pub(super) fn day_cue(day: &crate::domain::weather::DailyForecast) -> String {
 }
 
 fn snow_cue(snow: f32) -> Option<String> {
-    (snow >= 1.0).then(|| format!("snow {snow:.1}cm"))
+    if snow >= 1.0 {
+        Some(format!("snow {snow:.1}cm"))
+    } else if snow >= 0.2 {
+        Some(format!("light snow {snow:.1}cm"))
+    } else {
+        None
+    }
 }
 
-fn rain_cue(precip: f32) -> Option<String> {
+fn rain_cue(rain: f32) -> Option<String> {
+    if rain >= 6.0 {
+        Some(format!("wet {rain:.1}mm"))
+    } else if rain >= 1.0 {
+        Some(format!("light rain {rain:.1}mm"))
+    } else {
+        None
+    }
+}
+
+fn precip_cue(precip: f32) -> Option<String> {
     if precip >= 6.0 {
         Some(format!("wet {precip:.1}mm"))
     } else if precip >= 1.0 {
-        Some(format!("light rain {precip:.1}mm"))
+        Some(format!("light precip {precip:.1}mm"))
     } else {
         None
     }
@@ -193,6 +211,22 @@ mod tests {
         let day = sample_day(0.0, 0.0, 0.0, 0.0, 1.0);
         let cue = precipitation_cue(&day);
         assert_eq!(cue, "mostly dry");
+    }
+
+    #[test]
+    fn precipitation_cue_light_snow_when_rain_is_zero() {
+        let mut day = sample_day(2.0, 0.4, 0.0, 0.0, 1.0);
+        day.rain_sum_mm = Some(0.0);
+        let cue = precipitation_cue(&day);
+        assert!(cue.contains("light snow"), "got: {cue}");
+    }
+
+    #[test]
+    fn precipitation_cue_light_precip_when_type_not_identified() {
+        let mut day = sample_day(1.8, 0.0, 0.0, 0.0, 1.0);
+        day.rain_sum_mm = Some(0.0);
+        let cue = precipitation_cue(&day);
+        assert!(cue.contains("light precip"), "got: {cue}");
     }
 
     // ── gust_cue ─────────────────────────────────────────────────────────────

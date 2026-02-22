@@ -7,22 +7,22 @@ expression: "render_state_to_string(80, 24, &state, &cli)"
 │Slight rain                                  │    .--.                        │
 │H:9°  L:3°                                   │ .-(____)-.                     │
 │Stockholm, Stockholm, Sweden                 │   / / / /                      │
-│Wind 3/6 m/s SW  Visibility 11.2km           │             RAIN               │
-│Pressure 1008↗                               │                                │
-│Dew 2°  Humidity 73%                         │                                │
-│Rain chance 35%  AQI N/A                     │                                │
+│Now action: keep precipitation gear ready    │             RAIN               │
+│Next change in 8h: Temperature rises to 9°C  │                                │
+│Next 6h: P 3.9mm · Pmax 35% · Gust 6 m/s · ΔT│                                │
+│◐ Confidence medium · Data stale · age 12m · │Now action: keep precipitation g│
 └──────────────────────────────────────────────────────────────────────────────┘
-┌Hourly · Table · Thu 12 Feb───────────────────────────────────────────────────┐
+┌▶ Hourly · Table · Thu 12 Feb─────────────────────────────────────────────────┐
 │Time  Now   11:00 12:00 13:00 14:00 15:00 16:00 17:00 18:00 19:00 20:00 21:00 │
-│Wx    ☂     ☂     ☂     ☂     ☂     ☂     ☂     ☂     ☂     ☂     ☂     ☂     │
+│Wx    🌧     🌧     🌧     🌧     🌧     🌧     🌧     🌧     🌧     🌧     🌧     🌧     │
 │Temp  5°    6°    6°    7°    7°    8°    8°    9°    9°    10°   10°   11°   │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌7-Day Forecast────────────────────────────────────────────────────────────────┐
 │Day  Wx  Low   Range                    High                                  │
-│Thu  ☂   1°    ██████████████·········· 8°                                    │
-│Fri  ☂   1°    ·███████████████········ 9°                                    │
-│Sat  ☂   2°    ·█████████████████······ 10°                                   │
-│Sun  ☂   2°    ··█████████████████····· 11°                                   │
-│Mon  ☂   2°    ··███████████████████··· 12°                                   │
+│Thu  🌧   1°    ██████████████·········· 8°                                    │
+│Fri  🌧   1°    ·███████████████········ 9°                                    │
+│Sat  🌧   2°    ·█████████████████······ 10°                                   │
+│Sun  🌧   2°    ··█████████████████····· 11°                                   │
+│Mon  🌧   2°    ··███████████████████··· 12°                                   │
 └──────────────────────────────────────────────────────────────────────────────┘
-r Refresh  v View  l Cities  s Settings  <-/-> Scroll  q Quit  F1/? Help
+r Refresh  v View  l Cities  s Settings  <-/-> Scroll  q Quit  : Command  F1/? H

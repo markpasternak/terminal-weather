@@ -84,7 +84,7 @@ fn hourly_panel_title_same_day() {
         sample_hour(dt(2026, 2, 20, 15)),
     ];
     let slice: Vec<&HourlyForecast> = hours.iter().collect();
-    let title = hourly_panel_title(HourlyViewMode::Table, &slice);
+    let title = hourly_panel_title(HourlyViewMode::Table, &slice, false);
     assert!(title.contains("Fri 20 Feb"));
     assert!(!title.contains("→"));
 }
@@ -96,7 +96,7 @@ fn hourly_panel_title_multi_day() {
         sample_hour(dt(2026, 2, 21, 15)),
     ];
     let slice: Vec<&HourlyForecast> = hours.iter().collect();
-    let title = hourly_panel_title(HourlyViewMode::Table, &slice);
+    let title = hourly_panel_title(HourlyViewMode::Table, &slice, false);
     assert!(title.contains("→"));
 }
 

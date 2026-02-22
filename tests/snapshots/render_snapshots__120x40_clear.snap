@@ -5,14 +5,14 @@ expression: "render_to_string(120, 40, 0)"
 ┌Current · L cities · S settings · ? help──────────────────────────────────────────────────────────────────────────────┐
 │ 7°C  Clear sky                                          │                                                            │
 │ H:9°  L:3°  Stockholm, Stockholm, Sweden                │  Atmos Canvas · Clear sky                        ‹V›       │
-│ Status Fresh                                            │                         ·                        7°C ☀     │
-│ Last updated --:-- local · City TZ Europe/Stockholm     │                        ···                                 │
-│ Feels 6°  Dew 2°            Pressure 1008hPa↗  Humidity │                       ··◉··                                │
-│ Wind 3/6 m/s SW  Visibility Cloud 42% 16/29/41%  UV 2.0 │                        ···                                 │
-│                             Sunrise 06:10  Sunset 17:40 │                         ·                             ░    │
+│ Status Fresh                                            │                         ░                        7°C ☀     │
+│ Last updated --:-- local · City TZ Europe/Stockholm     │                        ░░░                                 │
+│ Feels 6°  Dew 2°            Pressure 1008hPa↗  Humidity │                       ░░◉░░                                │
+│ Wind 3/6 m/s SW  Visibility Cloud 42% 16/29/41%  UV 2.0 │                        ░░░                                 │
+│                             Sunrise 06:10  Sunset 17:40 │                         ░                             ░    │
 │                                                         │          ░▒▒▒▒░                                     ░░▒    │
-│ Temp   ▁▁▁▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇███      │    ,.,,░░▒▓▓▓▒░    .,,.    ░▒▒▒▒▒░ ,,.,           ▁▁▁▁▁    │
-│ Press  ▁▁▁▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇███      │  · ,·,,·  ·  · ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▃▃▃    │
+│ Temp   ▁▁▁▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇███      │        ░░▒▓▓▓▒░            ░▒▒▒▒▒░                ▁▁▁▁▁    │
+│ Press  ▁▁▁▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇███      │  ░  ░  ░  ░  ░ ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▃▃▃    │
 │ Gust   ▁▁▁▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇███      │  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▅▅▅▅▅    │
 │ Precip ▁▁▁▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇███      │  ▃▃▃▃▃▃▃▃▃▃▃▃▃▃████████████████████████████████████████    │
 │ Cloud  ▁▁▁▁▂▂▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇███      │  ██████████████████████████████████████████████████████    │
@@ -20,7 +20,7 @@ expression: "render_to_string(120, 40, 0)"
 │ 24h span 5°..11°  Δ6°                                   │  Precip clearing by 22:00 · 11mm expected                  │
 │ Next precip now (0.4mm)                                 │                                                            │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌Hourly · Table · Thu 12 Feb───────────────────────────────────────────────────────────────────────────────────────────┐
+┌▶ Hourly · Table · Thu 12 Feb─────────────────────────────────────────────────────────────────────────────────────────┐
 │Time    Now      11:00     12:00    13:00    14:00    15:00     16:00    17:00    18:00    19:00     20:00    21:00   │
 │Wx      ☾        ☾         ☾        ☾        ☾        ☾         ☀        ☀        ☀        ☀         ☀        ☀       │
 │Temp    5°       6°        6°       7°       7°       8°        8°       9°       9°       10°       10°      11°     │
@@ -37,8 +37,8 @@ expression: "render_to_string(120, 40, 0)"
 │Mon   ☀    2°     ····██████████████████████████████████████······  12°     4.9     7                                 │
 │Tue   ☀    3°     ······███████████████████████████████████████···  13°     5.5     8                                 │
 │Wed   ☀    3°     ·······█████████████████████████████████████████  14°     6.1     8                                 │
+│Highlights Precip peak Wed 6.1mm  Windiest Wed 8m/s  Comfort Thu                                                      │
+│Plan Precip-heavy week: prioritize dry windows                                                                        │
 │Totals P 30.1mm  Rain 24.5mm  Snow 0.0cm                                                                              │
-│Avg daylight 09:19  Avg sun 04:16                                                                                     │
-│Breeziest Wed 8m/s  Wettest Wed 6.1mm                                                                                 │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-r Refresh  v Hourly View  l Cities  s Settings  <-/-> Scroll  q Quit  F1/? Help
+r Refresh  v Hourly View  l Cities  s Settings  <-/-> Scroll  q Quit  Tab Focus(Hourly)  : Command  F1/? Help

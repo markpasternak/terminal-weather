@@ -4,31 +4,31 @@ expression: "render_help_to_string(100, 30, 61)"
 ---
 ┌Current · L cities · S settings · ? help──────────────────────────────────────────────────────────┐
 │7°C                                            │  Atmos Canvas · Rain                   ‹V›       │
-│Slight r┌Help────────────────────────────────────────────────────────────────────────────┐C ☂     │
-│H:9°  L:│Global                                                                          │╱       │
-│Stockhol│q / Esc quit  |  Ctrl+C immediate quit                                          │        │
-│Wind 3/6│r refresh now  |  Ctrl+L force redraw                                           │        │
-│Pressure│s settings  |  l city picker  |  f/c units  |  v hourly view                    │▒░      │
-│Dew 2°  │<-/-> scroll hourly  |  ? or F1 toggle help                                     │▁▁▁▁    │
-│Rain cha│                                                                                │▃▃▃▃    │
-│Last upd│Settings Panel                                                                  │████    │
-│        │Up/Down select  |  Left/Right or Enter change                                   │████    │
-│        │Enter on actions runs Refresh now / Close                                       │        │
-└────────│Esc or s closes settings                                                        │────────┘
-┌Hourly ·│                                                                                │────────┐
-│Time   N│City Picker                                                                     │21:00   │
-│Wx     ☂│Type city + Enter search                                                        │☂       │
-│Temp   5│1..9 quick switch recent city                                                   │11°     │
-│        │Up/Down move  |  Del clear all  |  Esc close                                    │        │
+│Slight r┌Help────────────────────────────────────────────────────────────────────────────┐C 🌧     │
+│H:9°  L:│Start here                                                                      │╱       │
+│Stockhol│1) Read top-left triad: now action, next change, confidence/freshness           │        │
+│Now acti│2) Press Tab to focus Hourly or 7-Day for deeper context                        │        │
+│Next cha│3) Use :city <name> or l to switch location quickly                             │▒░      │
+│Next 6h:│                                                                                │▁▁▁▁    │
+│● Confid│Switch city                                                                     │▃▃▃▃    │
+│Wind 3/6│Press l, type city, Enter search                                                │████    │
+│Pressure│Use 1..9 for recent locations                                                   │████    │
+│Dew 2°  │When ambiguous results appear, choose 1..5                                      │        │
 └────────│                                                                                │────────┘
-┌7-Day Fo│Refresh & Status                                                                │────────┐
-│Day  Wx │Fresh: live data  |  Stale: retrying  |  Offline: fetch failed                  │        │
-│Thu  ☂  │Use r to retry immediately while stale/offline                                  │        │
-│Fri  ☂  │                                                                                │        │
-│Sat  ☂  │Color Policy                                                                    │        │
-│Sun  ☂  │Current mode: auto                                                              │        │
-│Mon  ☂  │CLI: --color auto|always|never  |  --no-color                                   │        │
-│Tue  ☂  │Auto mode honors NO_COLOR (non-empty) and TERM=dumb                             │        │
-│Wed  ☂  └────────────────────────────────────────────────────────────────────────────────┘        │
+┌▶ Hourly│Read risk fast                                                                  │────────┐
+│Time   N│Hero shows: now action + next change + confidence                               │21:00   │
+│Wx     🌧│Hourly table adds cursor detail and next 6h summary                             │🌧       │
+│Temp   5│Alerts include severity and ETA context                                         │11°     │
+│        │                                                                                │        │
+└────────│Fix stale/offline                                                               │────────┘
+┌7-Day Fo│Watch status badge: fresh / stale / offline                                     │────────┐
+│Day  Wx │Press r to retry immediately                                                    │        │
+│Thu  🌧  │Reliability lines show data age and retry timer                                 │        │
+│Fri  🌧  │                                                                                │        │
+│Sat  🌧  │Customize visuals                                                               │        │
+│Sun  🌧  │Open settings with s for theme, icons, and hourly view                          │        │
+│Mon  🌧  │Use v to cycle hourly views quickly                                             │        │
+│Tue  🌧  │Type :theme <name> or :view <table|hybrid|chart>                                │        │
+│Wed  🌧  └────────────────────────────────────────────────────────────────────────────────┘        │
 │                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘

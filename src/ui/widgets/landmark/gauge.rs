@@ -273,7 +273,7 @@ fn build_right_lines(data: &GaugeData, category: WeatherCategory, is_day: bool) 
         "24-Hour Overview".to_string(),
         format!("Condition {}", scene_name(category, is_day)),
         format!(
-            "Cloud {:>3.0}%   Rain now {:>3.1}mm",
+            "Cloud {:>3.0}%   Precip now {:>3.1}mm",
             data.cloud, data.precip_now
         ),
         format!("Sun arc {} -> {}", data.sunrise, data.sunset),
@@ -283,7 +283,7 @@ fn build_right_lines(data: &GaugeData, category: WeatherCategory, is_day: bool) 
             temp_range_label(&data.temp_track_display)
         ),
         format!(
-            "24h Rain  {} {}",
+            "24h Precip {} {}",
             sparkline_annotated(&data.precip_track, data.right_trend_width, ""),
             precip_range_label(&data.precip_track)
         ),

@@ -1,7 +1,9 @@
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Constraint, Layout, Rect},
     style::{Modifier, Style},
+    text::Line,
+    widgets::Paragraph,
     widgets::{Block, Borders, Clear, List, ListItem},
 };
 
@@ -33,12 +35,18 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .fg(theme.popup_text)
         .bg(theme.popup_surface);
 
+    let chunks = Layout::vertical([Constraint::Min(4), Constraint::Length(2)]).split(area);
     let items = state
         .pending_locations
         .iter()
         .enumerate()
         .map(|(idx, loc)| ListItem::new(format_selector_location(idx, loc)))
         .collect::<Vec<_>>();
+    let items = if items.is_empty() {
+        vec![ListItem::new("No candidate locations")]
+    } else {
+        items
+    };
 
     let list = List::new(items)
         .style(panel_style)
@@ -50,7 +58,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Select location 1-5")
+                .title("Select location")
                 .style(panel_style)
                 .border_style(
                     Style::default()
@@ -59,24 +67,58 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
                 ),
         );
 
-    frame.render_widget(list, area);
+    frame.render_widget(list, chunks[0]);
+    let state_line = selector_state_line(state);
+    frame.render_widget(
+        Paragraph::new(Line::from(state_line)).style(Style::default().fg(theme.popup_muted_text)),
+        chunks[1],
+    );
 }
 
 fn format_selector_location(index: usize, location: &Location) -> String {
     let timezone = location.timezone.as_deref().unwrap_or("--");
+    let population = location
+        .population
+        .map_or_else(|| "pop --".to_string(), |value| format!("pop {value}"));
+    let region = match (&location.country, &location.admin1) {
+        (Some(country), Some(admin)) => format!("{country} · {admin}"),
+        (Some(country), None) => country.clone(),
+        (None, Some(admin)) => admin.clone(),
+        (None, None) => "--".to_string(),
+    };
     format!(
-        "{}. {} · {:.2}, {:.2} · TZ {}",
+        "{}. {} · {} · {} · TZ {} · {:.2}, {:.2}",
         index + 1,
         location.display_name(),
+        region,
+        population,
+        timezone,
         location.latitude,
-        location.longitude,
-        timezone
+        location.longitude
     )
+}
+
+fn selector_state_line(state: &AppState) -> String {
+    if !state.pending_locations.is_empty() {
+        return "State: Ambiguous · choose 1-5, or Esc to refine search".to_string();
+    }
+    if state
+        .city_status
+        .as_deref()
+        .is_some_and(|status| status.contains("No results"))
+    {
+        return "State: No results · Esc and try a broader city query".to_string();
+    }
+    if state.last_error.is_some() {
+        return "State: Failed · Esc and retry search".to_string();
+    }
+    "State: Ready · Enter number to continue".to_string()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::format_selector_location;
+    use super::{format_selector_location, selector_state_line};
+    use crate::app::state::AppState;
     use crate::domain::weather::Location;
 
     #[test]
@@ -94,5 +136,14 @@ mod tests {
         let text = format_selector_location(0, &location);
         assert!(text.contains("39.80, -89.64"));
         assert!(text.contains("TZ America/Chicago"));
+    }
+
+    #[test]
+    fn selector_state_line_ambiguous_when_candidates_present() {
+        let mut state = AppState::new(&crate::test_support::state_test_cli());
+        state
+            .pending_locations
+            .push(Location::from_coords(1.0, 2.0));
+        assert!(selector_state_line(&state).contains("Ambiguous"));
     }
 }

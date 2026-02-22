@@ -5,7 +5,7 @@ use crate::domain::weather::HourlyViewMode;
 use tempfile::NamedTempFile;
 
 use super::{
-    MotionSetting, RecentLocation, RuntimeSettings, clear_runtime_settings, hourly_view_from_cli,
+    RecentLocation, RuntimeSettings, clear_runtime_settings, hourly_view_from_cli,
     load_runtime_settings, save_runtime_settings, with_settings_path_override,
 };
 

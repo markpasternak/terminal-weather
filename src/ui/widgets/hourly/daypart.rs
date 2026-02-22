@@ -124,6 +124,7 @@ fn build_daypart_rows(
         build_daypart_precip_row(parts, theme),
     ];
     if show_secondary {
+        rows.push(build_daypart_advisory_row(parts, theme));
         rows.push(build_daypart_secondary_row(parts, theme));
     }
     if show_wind {
@@ -133,6 +134,44 @@ fn build_daypart_rows(
         rows.push(build_daypart_visibility_row(parts, theme));
     }
     rows
+}
+
+fn build_daypart_advisory_row(parts: &[DaypartSummary], theme: Theme) -> Row<'static> {
+    Row::new(
+        parts
+            .iter()
+            .map(|summary| {
+                Cell::from(daypart_advisory(summary)).style(
+                    Style::default()
+                        .fg(theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                )
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn daypart_advisory(summary: &DaypartSummary) -> String {
+    if summary.precip_sum_mm >= 2.0 || summary.precip_probability_max.unwrap_or(0.0) >= 60.0 {
+        if is_frozen_precip_code(summary.weather_code) {
+            return "Winter gear".to_string();
+        }
+        return "Rain gear".to_string();
+    }
+    if summary.wind_max_kmh.unwrap_or(0.0) >= 50.0 {
+        return "Windy".to_string();
+    }
+    if summary.visibility_median_m.unwrap_or(10_000.0) < 4_000.0 {
+        return "Low vis".to_string();
+    }
+    if summary.temp_min_c.unwrap_or(2.0) <= 0.0 {
+        return "Cold".to_string();
+    }
+    "Steady".to_string()
+}
+
+fn is_frozen_precip_code(code: u8) -> bool {
+    matches!(code, 56 | 57 | 66 | 67 | 71 | 73 | 75 | 77 | 85 | 86)
 }
 
 fn build_daypart_header_row(theme: Theme) -> Row<'static> {
@@ -264,7 +303,7 @@ fn truncate(value: &str, max_chars: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::daypart_visibility;
+    use super::{daypart_visibility, is_frozen_precip_code};
 
     #[test]
     fn daypart_visibility_correct_for_all_height_bands() {
@@ -274,5 +313,14 @@ mod tests {
         assert_eq!(daypart_visibility(5), (false, true, true));
         assert_eq!(daypart_visibility(6), (true, true, true));
         assert_eq!(daypart_visibility(99), (true, true, true));
+    }
+
+    #[test]
+    fn frozen_precip_code_detection_covers_snow_and_ice() {
+        assert!(is_frozen_precip_code(71));
+        assert!(is_frozen_precip_code(66));
+        assert!(is_frozen_precip_code(85));
+        assert!(!is_frozen_precip_code(61));
+        assert!(!is_frozen_precip_code(3));
     }
 }

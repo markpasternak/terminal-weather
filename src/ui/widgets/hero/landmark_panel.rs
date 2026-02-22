@@ -11,6 +11,7 @@ use ratatui::{
 use crate::{
     app::state::AppState,
     cli::HeroVisualArg,
+    domain::weather::derive_nowcast_insight,
     ui::theme::Theme,
     ui::widgets::landmark::{
         LandmarkTint, scene_for_gauge_cluster, scene_for_sky_observatory, scene_for_weather,
@@ -28,7 +29,14 @@ pub fn render_landmark(
         return;
     }
 
-    let scene = select_scene(state, area, is_day);
+    let mut scene = select_scene(state, area, is_day);
+    if scene.context_line.is_none()
+        && area.height >= 8
+        && let Some(bundle) = &state.weather
+    {
+        scene.context_line =
+            Some(derive_nowcast_insight(bundle, state.units, &state.refresh_meta).action_text);
+    }
     let tint = tint_color(scene.tint, theme);
     let has_title = area.height >= 6;
     let has_context = scene.context_line.is_some() && area.height >= 8;
@@ -242,13 +250,13 @@ fn scene_char_color(ch: char, theme: Theme, base_tint: Color, visual: HeroVisual
 fn scene_char_color_atmos(ch: char, theme: Theme, base_tint: Color) -> Color {
     if char_in(ch, &['█', '▅', '▃', '▁']) {
         theme.accent
-    } else if char_in(ch, &['◉', '◐', 'o', '•']) {
+    } else if char_in(ch, &['◉', '◐', '◕', '●', 'o']) {
         theme.warning
-    } else if char_in(ch, &['v', 'V', '>', '=', '-', '/', '╱', '╲', '.', ',']) {
+    } else if char_in(ch, &['~', '⌒', '/', '╱', '╲', '.']) {
         theme.info
     } else if char_in(ch, &['░', '▒', '▓']) {
         theme.landmark_neutral
-    } else if char_in(ch, &['❆', '*', '✦', '✧']) {
+    } else if char_in(ch, &['❆', '*', '✦', '✧', '✶']) {
         theme.landmark_cool
     } else if char_in(ch, &['·', '∴', '─']) {
         theme.muted_text
@@ -377,13 +385,20 @@ mod tests {
 
         assert_eq!(scene_char_color_atmos('█', theme, base), theme.accent);
         assert_eq!(scene_char_color_atmos('◉', theme, base), theme.warning);
-        assert_eq!(scene_char_color_atmos('v', theme, base), theme.info);
+        assert_eq!(scene_char_color_atmos('◕', theme, base), theme.warning);
+        assert_eq!(scene_char_color_atmos('●', theme, base), theme.warning);
+        assert_eq!(scene_char_color_atmos('~', theme, base), theme.info);
+        assert_eq!(scene_char_color_atmos('⌒', theme, base), theme.info);
         assert_eq!(
             scene_char_color_atmos('░', theme, base),
             theme.landmark_neutral
         );
         assert_eq!(
             scene_char_color_atmos('❆', theme, base),
+            theme.landmark_cool
+        );
+        assert_eq!(
+            scene_char_color_atmos('✶', theme, base),
             theme.landmark_cool
         );
         assert_eq!(scene_char_color_atmos('·', theme, base), theme.muted_text);

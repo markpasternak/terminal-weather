@@ -28,6 +28,7 @@ pub enum IconMode {
     Unicode,
     Ascii,
     Emoji,
+    NerdFont,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,6 +105,10 @@ pub struct Cli {
     /// Force emoji icons
     #[arg(long)]
     pub emoji_icons: bool,
+
+    /// Use Nerd Font weather icons
+    #[arg(long)]
+    pub nerd_font: bool,
 
     /// Color output policy
     #[arg(long, value_enum, default_value_t = ColorArg::Auto, conflicts_with = "no_color")]

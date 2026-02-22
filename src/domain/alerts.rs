@@ -8,6 +8,7 @@ use crate::domain::weather::{
 pub struct WeatherAlert {
     pub icon: &'static str,
     pub message: String,
+    pub eta_hours: Option<usize>,
     pub severity: AlertSeverity,
 }
 
@@ -51,10 +52,14 @@ fn wind_gust_alert(next_24h: &[HourlyForecast]) -> Option<WeatherAlert> {
         .iter()
         .filter_map(|h| h.wind_gusts_10m)
         .max_by(f32::total_cmp)?;
+    let eta_hours = first_hour_index(next_24h, |hour| {
+        hour.wind_gusts_10m.is_some_and(|gust| gust >= 50.0)
+    });
     if max_gust >= 80.0 {
         return Some(WeatherAlert {
             icon: "⚡",
             message: format!("Forecast gusts up to {} m/s", round_wind_speed(max_gust)),
+            eta_hours,
             severity: AlertSeverity::Danger,
         });
     }
@@ -62,6 +67,7 @@ fn wind_gust_alert(next_24h: &[HourlyForecast]) -> Option<WeatherAlert> {
         return Some(WeatherAlert {
             icon: "💨",
             message: format!("Forecast gusts up to {} m/s", round_wind_speed(max_gust)),
+            eta_hours,
             severity: AlertSeverity::Warning,
         });
     }
@@ -74,6 +80,7 @@ fn uv_alert(bundle: &ForecastBundle) -> Option<WeatherAlert> {
         return Some(WeatherAlert {
             icon: "☀",
             message: format!("UV index very high ({uv:.0})"),
+            eta_hours: None,
             severity: AlertSeverity::Danger,
         });
     }
@@ -81,6 +88,7 @@ fn uv_alert(bundle: &ForecastBundle) -> Option<WeatherAlert> {
         return Some(WeatherAlert {
             icon: "☀",
             message: format!("UV index high ({uv:.0})"),
+            eta_hours: None,
             severity: AlertSeverity::Warning,
         });
     }
@@ -96,6 +104,10 @@ fn freezing_alert(next_24h: &[HourlyForecast]) -> Option<WeatherAlert> {
         Some(WeatherAlert {
             icon: "❄",
             message: "Freezing rain/drizzle expected".to_string(),
+            eta_hours: first_hour_index(next_24h, |hour| {
+                hour.weather_code
+                    .is_some_and(|code| matches!(code, 56 | 57 | 66 | 67))
+            }),
             severity: AlertSeverity::Danger,
         })
     } else {
@@ -113,6 +125,9 @@ fn heavy_precip_alert(next_24h: &[HourlyForecast]) -> Option<WeatherAlert> {
         Some(WeatherAlert {
             icon: "🌧",
             message: format!("Heavy precipitation: {total_precip:.1}mm in 24h"),
+            eta_hours: first_hour_index(next_24h, |hour| {
+                hour.precipitation_mm.unwrap_or(0.0).max(0.0) >= 1.0
+            }),
             severity: AlertSeverity::Warning,
         })
     } else {
@@ -127,8 +142,11 @@ fn low_visibility_alert(next_24h: &[HourlyForecast]) -> Option<WeatherAlert> {
         .min_by(f32::total_cmp)?;
     if min_vis < 1000.0 {
         Some(WeatherAlert {
-            icon: "░",
+            icon: "≡",
             message: format!("Low visibility: {:.1}km", min_vis / 1000.0),
+            eta_hours: first_hour_index(next_24h, |hour| {
+                hour.visibility_m.unwrap_or(10_000.0) < 1000.0
+            }),
             severity: AlertSeverity::Warning,
         })
     } else {
@@ -146,6 +164,9 @@ fn extreme_heat_alert(next_24h: &[HourlyForecast], units: Units) -> Option<Weath
         Some(WeatherAlert {
             icon: "🔥",
             message: format!("Extreme heat: up to {display_temp}°{}", unit_label(units)),
+            eta_hours: first_hour_index(next_24h, |hour| {
+                hour.temperature_2m_c.is_some_and(|temp| temp >= 38.0)
+            }),
             severity: AlertSeverity::Danger,
         })
     } else {
@@ -163,6 +184,9 @@ fn extreme_cold_alert(next_24h: &[HourlyForecast], units: Units) -> Option<Weath
         Some(WeatherAlert {
             icon: "❄",
             message: format!("Extreme cold: down to {display_temp}°{}", unit_label(units)),
+            eta_hours: first_hour_index(next_24h, |hour| {
+                hour.temperature_2m_c.is_some_and(|temp| temp <= -15.0)
+            }),
             severity: AlertSeverity::Danger,
         })
     } else {
@@ -178,6 +202,10 @@ fn thunder_alert(next_24h: &[HourlyForecast]) -> Option<WeatherAlert> {
         Some(WeatherAlert {
             icon: "⚡",
             message: "Thunderstorms expected".to_string(),
+            eta_hours: first_hour_index(next_24h, |hour| {
+                hour.weather_code
+                    .is_some_and(|code| matches!(code, 95 | 96 | 99))
+            }),
             severity: AlertSeverity::Warning,
         })
     } else {
@@ -190,6 +218,13 @@ fn unit_label(units: Units) -> &'static str {
         Units::Celsius => "C",
         Units::Fahrenheit => "F",
     }
+}
+
+fn first_hour_index(
+    next_24h: &[HourlyForecast],
+    predicate: impl Fn(&HourlyForecast) -> bool,
+) -> Option<usize> {
+    next_24h.iter().position(predicate)
 }
 
 #[cfg(test)]
