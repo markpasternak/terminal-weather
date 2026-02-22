@@ -161,6 +161,25 @@ detail_complexity_audit() {
   echo "${files} files, ${funcs} fns — ${crit_n} critical, ${med_n} medium"
 }
 
+detail_file_length_audit() {
+  local output_file="$1" rc="$2"
+  _detail_warn=""
+
+  local limit scanned over
+  limit=$(grep -oE 'threshold: > [0-9]+' "$output_file" | head -1 | grep -oE '[0-9]+' || echo "500")
+  scanned=$(grep -oE 'scanned files: [0-9]+' "$output_file" | head -1 | grep -oE '[0-9]+' || echo "?")
+  over=$(grep -oE 'files over threshold: [0-9]+' "$output_file" | head -1 | grep -oE '[0-9]+' || echo "?")
+
+  if [[ "$rc" -eq 0 ]]; then
+    if [[ "$over" =~ ^[0-9]+$ ]] && [[ "$over" -gt 0 ]]; then
+      _detail_warn="WARN"
+    fi
+    echo "${over} file(s) over ${limit} lines (${scanned} scanned)"
+  else
+    echo "file-length audit failed"
+  fi
+}
+
 detail_coverage() {
   local output_file="$1" rc="$2"
   _detail_warn=""
@@ -265,7 +284,9 @@ run_step() {
   # ── extract detail ──
   _detail_warn=""
   local detail
-  detail=$("$detail_fn" "$output_file" "$rc")
+  local detail_file="${step_output_dir}/${step_counter}.detail"
+  "$detail_fn" "$output_file" "$rc" > "$detail_file"
+  detail="$(cat "$detail_file")"
 
   local result icon
   if [[ "$rc" -ne 0 ]]; then
@@ -490,6 +511,11 @@ else
     "line/function/branch thresholds" \
     "cargo-llvm-cov not installed"
 fi
+
+run_step RECOMMENDED "File length audit" \
+  "files over 500 lines" \
+  detail_file_length_audit \
+  "$SCRIPT_DIR/file-length-audit.sh"
 
 # ══════════════════════════════════════════════════════════════
 #  REPORT
