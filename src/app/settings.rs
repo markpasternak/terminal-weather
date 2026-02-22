@@ -247,7 +247,27 @@ pub fn save_runtime_settings(path: &Path, settings: &RuntimeSettings) -> anyhow:
     }
     let payload =
         serde_json::to_string_pretty(&settings).context("serializing settings payload failed")?;
-    fs::write(path, payload).context("writing settings file failed")
+
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .context("opening settings file with strict permissions failed")?
+            .write_all(payload.as_bytes())
+            .context("writing settings file failed")
+    }
+
+    #[cfg(not(unix))]
+    {
+        fs::write(path, payload).context("writing settings file failed")
+    }
 }
 
 pub fn clear_runtime_settings(path: &Path) -> anyhow::Result<()> {
