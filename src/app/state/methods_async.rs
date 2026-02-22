@@ -1,4 +1,5 @@
 use super::*;
+use clap::ValueEnum;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum KeyCommand {
@@ -92,12 +93,7 @@ impl AppState {
         cli: &Cli,
     ) -> Result<()> {
         cli.validate()?;
-        let frame_fps = match self.settings.motion {
-            MotionSetting::Full => cli.fps,
-            MotionSetting::Reduced => cli.fps.min(20),
-            MotionSetting::Off => 15,
-        };
-        start_frame_task(tx.clone(), frame_fps);
+        start_frame_task(tx.clone(), cli.fps);
         start_refresh_task(tx.clone(), self.refresh_interval_secs_runtime.clone());
         if cli.demo {
             start_demo_task(tx.clone());
@@ -164,11 +160,14 @@ impl AppState {
                 self.mode = AppMode::SelectingLocation;
                 self.loading_message = "Choose a location (1-5)".to_string();
                 self.city_picker_open = false;
+                self.city_status =
+                    Some("Ambiguous results: choose a matching location".to_string());
             }
             GeocodeResolution::NotFound(city) => {
                 self.fetch_in_flight = false;
                 self.mode = AppMode::Error;
                 self.last_error = Some(format!("No geocoding result for {city}"));
+                self.city_status = Some(format!("No results for '{city}'"));
             }
         }
     }
@@ -194,7 +193,8 @@ impl AppState {
         self.fetch_in_flight = false;
         self.last_error = Some(err);
         self.mode = AppMode::Error;
-        self.city_status = Some("Search failed; keeping last successful weather".to_string());
+        self.city_status =
+            Some("Failed to fetch weather; keeping last successful data".to_string());
         self.refresh_meta.mark_failure();
         self.refresh_meta.state = evaluate_freshness(
             self.refresh_meta.last_success,
@@ -232,6 +232,10 @@ impl AppState {
         cli: &Cli,
     ) -> Result<()> {
         if self.handle_control_shortcuts(key, tx).await? {
+            return Ok(());
+        }
+        if self.command_bar.open {
+            self.handle_command_bar_key(key, tx, cli).await?;
             return Ok(());
         }
         if self.handle_modal_key_press(key, tx, cli).await? {
@@ -294,7 +298,14 @@ impl AppState {
         tx: &mpsc::Sender<AppEvent>,
         cli: &Cli,
     ) -> Result<()> {
+        if self.settings.command_bar_enabled && matches!(key.code, KeyCode::Char(':')) {
+            self.command_bar.open();
+            return Ok(());
+        }
         if self.handle_global_main_key(key.code, tx).await? {
+            return Ok(());
+        }
+        if self.handle_panel_focus_key(key.code) {
             return Ok(());
         }
         if self.handle_hourly_navigation_key(key.code) {
@@ -433,6 +444,7 @@ impl AppState {
         self.help_open = true;
         self.settings_open = false;
         self.city_picker_open = false;
+        self.command_bar.close();
     }
 
     pub(crate) fn open_settings_panel(&mut self) {
@@ -440,6 +452,7 @@ impl AppState {
         self.help_open = false;
         self.settings_open = true;
         self.settings_selected = SettingsSelection::default();
+        self.command_bar.close();
     }
 
     pub(crate) fn open_city_picker(&mut self) {
@@ -449,6 +462,7 @@ impl AppState {
         self.city_query.clear();
         self.city_history_selected = 0;
         self.city_status = Some("Type a city and press Enter, or pick from history".to_string());
+        self.command_bar.close();
     }
 
     pub(crate) fn set_units(&mut self, units: Units) {
@@ -481,6 +495,114 @@ impl AppState {
             }
         }
     }
+
+    async fn handle_command_bar_key(
+        &mut self,
+        key: KeyEvent,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> Result<()> {
+        match key.code {
+            KeyCode::Esc => {
+                self.command_bar.close();
+            }
+            KeyCode::Backspace => {
+                if self.command_bar.buffer.len() > 1 {
+                    self.command_bar.buffer.pop();
+                }
+            }
+            KeyCode::Enter => {
+                self.execute_command_bar(tx, cli).await;
+            }
+            KeyCode::Char(ch) => {
+                if key
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER)
+                {
+                    return Ok(());
+                }
+                self.command_bar.buffer.push(ch);
+                self.command_bar.parse_error = None;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    async fn execute_command_bar(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) {
+        let raw = self
+            .command_bar
+            .buffer
+            .trim()
+            .trim_start_matches(':')
+            .to_string();
+        if raw.is_empty() {
+            self.command_bar.close();
+            return;
+        }
+        match self.run_command(&raw, tx, cli).await {
+            Ok(()) => self.command_bar.close(),
+            Err(err) => self.command_bar.parse_error = Some(err),
+        }
+    }
+
+    async fn run_command(
+        &mut self,
+        command: &str,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> std::result::Result<(), String> {
+        let action = parse_command_action(command)?;
+        self.execute_command_action(action, tx, cli).await
+    }
+
+    async fn execute_command_action(
+        &mut self,
+        action: CommandAction,
+        tx: &mpsc::Sender<AppEvent>,
+        cli: &Cli,
+    ) -> std::result::Result<(), String> {
+        match action {
+            CommandAction::Refresh => self
+                .start_fetch(tx, cli)
+                .await
+                .map_err(|err| format!("refresh failed: {err}"))?,
+            CommandAction::Quit => tx
+                .send(AppEvent::Quit)
+                .await
+                .map_err(|err| format!("quit failed: {err}"))?,
+            CommandAction::Units(units) => self.set_units(units),
+            CommandAction::View(mode) => {
+                self.settings.hourly_view = mode;
+                self.apply_runtime_settings();
+                self.persist_settings();
+            }
+            CommandAction::Theme(theme) => {
+                self.settings.theme = theme;
+                self.apply_runtime_settings();
+                self.persist_settings();
+            }
+            CommandAction::City(query) => {
+                self.start_city_search(tx, query, cli.country_code.clone());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn handle_panel_focus_key(&mut self, code: KeyCode) -> bool {
+        match code {
+            KeyCode::Tab => {
+                self.panel_focus = self.panel_focus.next();
+                true
+            }
+            KeyCode::BackTab => {
+                self.panel_focus = self.panel_focus.previous();
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 fn command_from_char(cmd: char) -> Option<KeyCommand> {
@@ -497,6 +619,90 @@ fn command_from_char(cmd: char) -> Option<KeyCommand> {
     KEY_COMMANDS
         .iter()
         .find_map(|(target, action)| (*target == cmd).then_some(*action))
+}
+
+fn parse_units_command(value: &str) -> Option<Units> {
+    if value.eq_ignore_ascii_case("c") || value.eq_ignore_ascii_case("celsius") {
+        Some(Units::Celsius)
+    } else if value.eq_ignore_ascii_case("f") || value.eq_ignore_ascii_case("fahrenheit") {
+        Some(Units::Fahrenheit)
+    } else {
+        None
+    }
+}
+
+fn parse_hourly_view_command(value: &str) -> Option<HourlyViewMode> {
+    if value.eq_ignore_ascii_case("table") {
+        Some(HourlyViewMode::Table)
+    } else if value.eq_ignore_ascii_case("hybrid") {
+        Some(HourlyViewMode::Hybrid)
+    } else if value.eq_ignore_ascii_case("chart") {
+        Some(HourlyViewMode::Chart)
+    } else {
+        None
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CommandAction {
+    Refresh,
+    Quit,
+    Units(Units),
+    View(HourlyViewMode),
+    Theme(ThemeArg),
+    City(String),
+}
+
+fn parse_command_action(command: &str) -> std::result::Result<CommandAction, String> {
+    let mut parts = command.split_whitespace();
+    let Some(verb) = parts.next().map(str::to_ascii_lowercase) else {
+        return Ok(CommandAction::Refresh);
+    };
+    let rest: Vec<&str> = parts.collect();
+    match verb.as_str() {
+        "refresh" => Ok(CommandAction::Refresh),
+        "quit" => Ok(CommandAction::Quit),
+        "units" => cmd_units(&rest),
+        "view" => cmd_view(&rest),
+        "theme" => cmd_theme(&rest),
+        "city" => cmd_city(&rest),
+        _ => Err(format!("unknown command: {verb}")),
+    }
+}
+
+fn cmd_units(args: &[&str]) -> std::result::Result<CommandAction, String> {
+    let value = args
+        .first()
+        .ok_or_else(|| "usage: :units c|f".to_string())?;
+    parse_units_command(value)
+        .map(CommandAction::Units)
+        .ok_or_else(|| "usage: :units c|f".to_string())
+}
+
+fn cmd_view(args: &[&str]) -> std::result::Result<CommandAction, String> {
+    let value = args
+        .first()
+        .ok_or_else(|| "usage: :view table|hybrid|chart".to_string())?;
+    parse_hourly_view_command(value)
+        .map(CommandAction::View)
+        .ok_or_else(|| "usage: :view table|hybrid|chart".to_string())
+}
+
+fn cmd_theme(args: &[&str]) -> std::result::Result<CommandAction, String> {
+    let value = args
+        .first()
+        .ok_or_else(|| "usage: :theme <name>".to_string())?;
+    ThemeArg::from_str(value, true)
+        .map(CommandAction::Theme)
+        .map_err(|_| format!("unknown theme: {value}"))
+}
+
+fn cmd_city(args: &[&str]) -> std::result::Result<CommandAction, String> {
+    let query = args.join(" ");
+    if query.trim().is_empty() {
+        return Err("usage: :city <name>".to_string());
+    }
+    Ok(CommandAction::City(query))
 }
 
 #[cfg(test)]

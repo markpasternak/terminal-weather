@@ -71,13 +71,19 @@ impl ParticleEngine {
         let particle_kind = weather_code.map_or(ParticleKind::None, weather_code_to_particle);
         let drift = wind_drift(wind_speed, wind_direction);
         let mut rng = rand::rng();
-        self.spawn_particles(particle_kind, drift, &mut rng);
+        self.spawn_particles(particle_kind, drift, wind_speed, &mut rng);
         self.advance_particles(dt);
         self.maybe_trigger_flash(particle_kind, &mut rng);
         self.flash_timer = (self.flash_timer - dt).max(0.0);
     }
 
-    fn spawn_particles(&mut self, particle_kind: ParticleKind, drift: f32, rng: &mut impl Rng) {
+    fn spawn_particles(
+        &mut self,
+        particle_kind: ParticleKind,
+        drift: f32,
+        wind_speed: Option<f32>,
+        rng: &mut impl Rng,
+    ) {
         if self.accumulator < 0.04 {
             return;
         }
@@ -85,19 +91,26 @@ impl ParticleEngine {
         if particle_kind == ParticleKind::None {
             return;
         }
-        for _ in 0..self.particle_density() {
+        for _ in 0..self.particle_density(particle_kind, wind_speed) {
             if let Some(p) = spawn_particle(particle_kind, drift, rng) {
                 self.particles.push(p);
             }
         }
     }
 
-    fn particle_density(&self) -> usize {
-        if self.reduced_motion { 4 } else { 14 }
+    fn particle_density(&self, kind: ParticleKind, wind_speed: Option<f32>) -> usize {
+        let base = if self.reduced_motion { 2 } else { 6 };
+        let bonus = wind_bonus(wind_speed.unwrap_or_default());
+        match kind {
+            ParticleKind::Rain | ParticleKind::Thunder => base + bonus + 2,
+            ParticleKind::Snow => (base / 2) + bonus.min(1) + 1,
+            ParticleKind::Fog => base / 2 + bonus.min(1),
+            ParticleKind::None => 0,
+        }
     }
 
     fn advance_particles(&mut self, dt: f32) {
-        let step = dt * 60.0;
+        let step = dt * 45.0;
         for p in &mut self.particles {
             p.x += p.vx * step;
             p.y += p.vy * step;
@@ -114,6 +127,15 @@ impl ParticleEngine {
         if rng.random_bool(chance) {
             self.flash_timer = 0.12;
         }
+    }
+}
+
+fn wind_bonus(speed: f32) -> usize {
+    match speed {
+        s if s >= 60.0 => 5,
+        s if s >= 40.0 => 3,
+        s if s >= 20.0 => 1,
+        _ => 0,
     }
 }
 
@@ -137,8 +159,8 @@ fn spawn_particle(kind: ParticleKind, drift: f32, rng: &mut impl Rng) -> Option<
         ParticleKind::Snow => Some(Particle {
             x,
             y: 0.0,
-            vx: (drift * 0.001) + rng.random_range(-0.0015..0.0015),
-            vy: rng.random_range(0.002..0.006),
+            vx: (drift * 0.0006) + rng.random_range(-0.0008..0.0008),
+            vy: rng.random_range(0.0012..0.0032),
             glyph: '•',
         }),
         ParticleKind::Fog => Some(Particle {

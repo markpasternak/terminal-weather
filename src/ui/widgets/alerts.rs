@@ -24,12 +24,15 @@ pub fn render(frame: &mut Frame, area: Rect, alerts: &[WeatherAlert], state: &Ap
     let mut spans = Vec::new();
     let mut current_width = 0usize;
 
-    for (idx, alert) in alerts.iter().enumerate() {
+    let start = ((state.frame_tick / 45) as usize) % alerts.len();
+    for local_idx in 0..alerts.len() {
+        let idx = (start + local_idx) % alerts.len();
+        let alert = &alerts[idx];
         if !push_alert_span(
             &mut spans,
             &mut current_width,
             available_width,
-            idx,
+            local_idx,
             alert,
             theme,
         ) {
@@ -59,24 +62,91 @@ fn push_alert_span(
     theme: crate::ui::theme::Theme,
 ) -> bool {
     let separator = if index > 0 { "  │  " } else { " " };
-    let entry = format!("{}{} {}", separator, alert.icon, alert.message);
-    let entry_width = entry.chars().count();
-    if *current_width + entry_width > available_width && index > 0 {
+    let separator_width = separator.chars().count();
+    if *current_width + separator_width >= available_width {
         return false;
     }
-    if index > 0 {
-        spans.push(Span::styled("  │  ", Style::default().fg(theme.muted_text)));
-    } else {
-        spans.push(Span::styled(" ", Style::default()));
+    let mut entry = format_alert_entry(alert);
+    let remaining_after_separator =
+        available_width.saturating_sub(*current_width + separator_width);
+    if entry.chars().count() > remaining_after_separator {
+        if index > 0 {
+            return false;
+        }
+        entry = truncate_alert_entry(&entry, remaining_after_separator);
     }
+    let entry_width = entry.chars().count();
     spans.push(Span::styled(
-        format!("{} {}", alert.icon, alert.message),
+        separator.to_string(),
+        Style::default().fg(theme.muted_text),
+    ));
+    spans.push(Span::styled(
+        entry,
         Style::default()
             .fg(alert_color(theme, alert.severity))
             .add_modifier(Modifier::BOLD),
     ));
-    *current_width += entry_width;
+    *current_width += separator_width + entry_width;
     true
+}
+
+fn format_alert_entry(alert: &WeatherAlert) -> String {
+    let horizon = alert_horizon_label(alert.eta_hours);
+    format!(
+        "{} Do: {} · Why: {} · Details: timing {horizon}",
+        alert.icon,
+        alert_decision(alert),
+        alert.message
+    )
+}
+
+fn alert_horizon_label(eta_hours: Option<usize>) -> String {
+    eta_hours.map_or_else(
+        || "today".to_string(),
+        |hours| {
+            if hours == 0 {
+                "now".to_string()
+            } else {
+                format!("in {hours}h")
+            }
+        },
+    )
+}
+
+fn alert_decision(alert: &WeatherAlert) -> &'static str {
+    let message = alert.message.to_ascii_lowercase();
+    let keyword_table: &[(&[&str], &str)] = &[
+        (&["freezing", "snow", "cold", "ice"], "Use winter gear"),
+        (&["gust", "wind"], "Secure loose items"),
+        (&["uv", "heat"], "Limit sun and heat load"),
+        (&["visibility", "fog"], "Allow extra travel margin"),
+        (&["thunder", "precip", "rain"], "Carry precipitation layer"),
+    ];
+    for (keywords, advice) in keyword_table {
+        if keywords.iter().any(|kw| message.contains(kw)) {
+            return advice;
+        }
+    }
+    match alert.severity {
+        AlertSeverity::Danger => "Act now",
+        AlertSeverity::Warning => "Plan ahead",
+        AlertSeverity::Info => "Stay aware",
+    }
+}
+
+fn truncate_alert_entry(value: &str, max_chars: usize) -> String {
+    if value.chars().count() <= max_chars {
+        return value.to_string();
+    }
+    if max_chars <= 1 {
+        return "…".to_string();
+    }
+    let mut out = String::with_capacity(max_chars);
+    for ch in value.chars().take(max_chars - 1) {
+        out.push(ch);
+    }
+    out.push('…');
+    out
 }
 
 #[must_use]
@@ -86,13 +156,14 @@ pub fn alert_row_height(alerts: &[WeatherAlert]) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::{alert_color, alert_row_height, push_alert_span};
+    use super::{alert_color, alert_row_height, format_alert_entry, push_alert_span};
     use crate::domain::alerts::{AlertSeverity, WeatherAlert};
 
     fn dummy_alert() -> WeatherAlert {
         WeatherAlert {
             icon: "⚡",
             message: "Test alert".to_string(),
+            eta_hours: Some(1),
             severity: AlertSeverity::Info,
         }
     }
@@ -123,6 +194,7 @@ mod tests {
         let alert = WeatherAlert {
             icon: "⚡",
             message: "This is a very long alert message".to_string(),
+            eta_hours: Some(2),
             severity: AlertSeverity::Warning,
         };
 
@@ -146,6 +218,7 @@ mod tests {
         let alert = WeatherAlert {
             icon: "⚡",
             message: "Test".to_string(),
+            eta_hours: Some(0),
             severity: AlertSeverity::Warning,
         };
 
@@ -179,5 +252,33 @@ mod tests {
         let theme = make_theme();
         let color = alert_color(theme, AlertSeverity::Info);
         assert_eq!(color, theme.info);
+    }
+
+    #[test]
+    fn format_alert_entry_uses_decision_why_details_order() {
+        let alert = WeatherAlert {
+            icon: "░",
+            message: "Low visibility: 0.8km".to_string(),
+            eta_hours: Some(2),
+            severity: AlertSeverity::Warning,
+        };
+
+        let entry = format_alert_entry(&alert);
+        assert!(entry.contains("Do: Allow extra travel margin"));
+        assert!(entry.contains(" · Why: Low visibility: 0.8km"));
+        assert!(entry.contains(" · Details: timing in 2h"));
+    }
+
+    #[test]
+    fn format_alert_entry_uses_now_for_zero_eta() {
+        let alert = WeatherAlert {
+            icon: "⚡",
+            message: "Thunderstorms expected".to_string(),
+            eta_hours: Some(0),
+            severity: AlertSeverity::Warning,
+        };
+
+        let entry = format_alert_entry(&alert);
+        assert!(entry.ends_with("Details: timing now"));
     }
 }
