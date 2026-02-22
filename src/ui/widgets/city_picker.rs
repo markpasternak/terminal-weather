@@ -63,6 +63,14 @@ fn render_query_line(frame: &mut Frame, area: Rect, state: &AppState, theme: The
             .border_style(Style::default().fg(theme.popup_border)),
     );
     frame.render_widget(query_line, area);
+
+    let prefix_width = "Search: ".len() as u16;
+    let query_width = if state.city_query.is_empty() {
+        0
+    } else {
+        Line::from(state.city_query.as_str()).width() as u16
+    };
+    frame.set_cursor_position((area.x + prefix_width + query_width, area.y));
 }
 
 fn recent_city_items(state: &AppState, theme: Theme) -> Vec<ListItem<'static>> {
@@ -299,5 +307,34 @@ mod tests {
         state.city_status = Some("Searching...".to_string());
         let status_text = state.city_status.as_deref().unwrap_or("default");
         assert_eq!(status_text, "Searching...");
+    }
+
+    #[test]
+    fn render_sets_cursor_position_when_query_active() {
+        use ratatui::{
+            Terminal,
+            backend::{Backend, TestBackend},
+            layout::Position,
+        };
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = make_state();
+        state.city_picker_open = true;
+        state.city_query = "Lon".to_string();
+
+        terminal
+            .draw(|f| {
+                let area = f.area();
+                super::render(f, area, &state);
+            })
+            .unwrap();
+
+        // Expected cursor X position:
+        // Area (0,0) -> Border inner (1,1) -> Chunks[0] (1,1)
+        // "Search: " (8 chars) + "Lon" (3 chars) = 11 chars offset.
+        // X = 1 + 11 = 12.
+        // Y = 1.
+        let cursor_pos = terminal.backend_mut().get_cursor_position().unwrap();
+        assert_eq!(cursor_pos, Position::new(12, 1));
     }
 }
