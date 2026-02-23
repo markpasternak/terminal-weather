@@ -121,7 +121,7 @@ Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` 
 
 Settings persist to `~/.config/terminal-weather/settings.json`. Override the directory with `TERMINAL_WEATHER_CONFIG_DIR` (legacy `ATMOS_TUI_CONFIG_DIR` is also supported).
 
-Persisted values: units, theme, motion (`full`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`/`nerd-font`), inline hints, command bar enabled/disabled, hourly view, hero visual, refresh interval, recent locations.
+Persisted values: units, theme, motion (`full`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`/`nerd-font`), inline hints, command bar enabled/disabled, hourly view, hero visual, refresh interval, recent locations, and update-check metadata (`last_update_check_unix`, `last_seen_latest_version`).
 
 Color detection falls back TrueColor → xterm-256 → 16-color based on `COLORTERM` and `TERM`. `NO_COLOR` is honored in `auto` mode.
 
@@ -130,6 +130,11 @@ API endpoint overrides:
 - `TERMINAL_WEATHER_FORECAST_URL` sets the forecast endpoint
 - `TERMINAL_WEATHER_AIR_QUALITY_URL` sets the air-quality endpoint
 - `--forecast-url` / `--air-quality-url` override env vars for the current run
+
+Update-check controls:
+
+- `TERMINAL_WEATHER_DISABLE_UPDATE_CHECK=1` disables background Homebrew update checks
+- `TERMINAL_WEATHER_UPDATE_FORMULA_URL=<url>` overrides the Homebrew formula source (advanced/testing)
 
 Precedence is: CLI flag → environment variable → built-in default URL.
 
@@ -141,7 +146,7 @@ Custom endpoints must remain Open-Meteo compatible (same query parameters and re
 
 When launched without a city argument, `terminal-weather` sends your IP address to [ipapi.co](https://ipapi.co/) to determine your location. Pass a city name or `--lat`/`--lon` to skip this lookup entirely.
 
-Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (your coordinates and search string are sent). Reverse geocoding for coordinate-based locations (for example `--lat/--lon` and coordinate-only history entries) uses [Nominatim](https://nominatim.openstreetmap.org/) (your coordinates are sent). The IP-based auto-location lookup uses [ipapi.co](https://ipapi.co/). No account or API key is required, and this app does not persist data outside local settings/history on your machine.
+Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (your coordinates and search string are sent). Reverse geocoding for coordinate-based locations (for example `--lat/--lon` and coordinate-only history entries) uses [Nominatim](https://nominatim.openstreetmap.org/) (your coordinates are sent). The IP-based auto-location lookup uses [ipapi.co](https://ipapi.co/). Startup may also request the Homebrew formula file from `raw.githubusercontent.com` to detect a newer release; this check is throttled to once per 24 hours, has a short timeout, and can be disabled with `TERMINAL_WEATHER_DISABLE_UPDATE_CHECK=1`. No account or API key is required, and this app does not persist data outside local settings/history on your machine.
 
 ---
 

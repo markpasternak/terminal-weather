@@ -8,6 +8,7 @@ use reqwest::Client;
 
 pub const HOMEBREW_FORMULA_URL: &str =
     "https://raw.githubusercontent.com/markpasternak/homebrew-tap/main/Formula/terminal-weather.rb";
+pub const UPDATE_CHECK_DISABLE_ENV: &str = "TERMINAL_WEATHER_DISABLE_UPDATE_CHECK";
 pub const UPDATE_CHECK_TIMEOUT_SECS: u64 = 3;
 pub const UPDATE_CHECK_INTERVAL_SECS: i64 = 24 * 60 * 60;
 
@@ -38,6 +39,18 @@ pub fn should_check(now_unix: i64, last_check_unix: Option<i64>) -> bool {
 pub fn formula_url() -> String {
     std::env::var("TERMINAL_WEATHER_UPDATE_FORMULA_URL")
         .unwrap_or_else(|_| HOMEBREW_FORMULA_URL.to_string())
+}
+
+#[must_use]
+pub fn update_check_disabled() -> bool {
+    std::env::var(UPDATE_CHECK_DISABLE_ENV)
+        .ok()
+        .is_some_and(|value| disable_update_check_value(&value))
+}
+
+fn disable_update_check_value(raw: &str) -> bool {
+    let value = raw.trim().to_ascii_lowercase();
+    !matches!(value.as_str(), "0" | "false" | "no" | "off")
 }
 
 pub async fn check_latest_version() -> anyhow::Result<Option<String>> {
@@ -204,6 +217,17 @@ end
         assert!(!should_check(now, Some(now - 60)));
         assert!(should_check(now, Some(now - UPDATE_CHECK_INTERVAL_SECS)));
         assert!(should_check(now, Some(now + 60)));
+    }
+
+    #[test]
+    fn disable_update_check_value_parses_bool_like_strings() {
+        assert!(disable_update_check_value("1"));
+        assert!(disable_update_check_value("true"));
+        assert!(disable_update_check_value("YES"));
+        assert!(!disable_update_check_value("0"));
+        assert!(!disable_update_check_value("false"));
+        assert!(!disable_update_check_value("no"));
+        assert!(!disable_update_check_value("off"));
     }
 
     #[tokio::test]

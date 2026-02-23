@@ -146,6 +146,9 @@ impl AppState {
     }
 
     fn start_update_check_if_needed(&self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) {
+        if crate::update::update_check_disabled() {
+            return;
+        }
         let now = crate::update::now_unix_timestamp();
         if !should_schedule_update_check(cli, self.settings.last_update_check_unix, now) {
             return;
