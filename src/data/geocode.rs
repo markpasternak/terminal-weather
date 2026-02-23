@@ -55,10 +55,8 @@ impl GeocodeClient {
         if city.len() > 100 {
             anyhow::bail!("City name is too long (max 100 chars)");
         }
-        if let Some(ref code) = country_code {
-            if code.len() > 10 {
-                anyhow::bail!("Country code is too long (max 10 chars)");
-            }
+        if country_code.as_ref().is_some_and(|c| c.len() > 10) {
+            anyhow::bail!("Country code is too long (max 10 chars)");
         }
 
         let mut request = self.client.get(&self.base_url).query(&[
