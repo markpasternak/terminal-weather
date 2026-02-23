@@ -378,11 +378,7 @@ mod tests {
 
     #[test]
     fn render_uses_muted_style_for_empty_query_placeholder() {
-        use ratatui::{
-            Terminal,
-            backend::TestBackend,
-            style::Modifier,
-        };
+        use ratatui::{Terminal, backend::TestBackend, style::Modifier};
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
         let mut state = make_state();
@@ -403,6 +399,9 @@ mod tests {
         let cell = &buffer[(9, 1)];
 
         // Placeholder text should be muted and not bold (unlike user input)
-        assert!(!cell.modifier.contains(Modifier::BOLD), "Placeholder should not be bold");
+        assert!(
+            !cell.modifier.contains(Modifier::BOLD),
+            "Placeholder should not be bold"
+        );
     }
 }
