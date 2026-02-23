@@ -97,6 +97,21 @@ mod tests {
     }
 
     #[test]
+    fn push_city_query_char_enforces_length_limit() {
+        let mut state = state();
+        // Fill up to 50
+        for _ in 0..50 {
+            state.push_city_query_char(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE), 'a');
+        }
+        assert_eq!(state.city_query.len(), 50);
+
+        // Try to add 51st
+        state.push_city_query_char(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE), 'b');
+        assert_eq!(state.city_query.len(), 50);
+        assert!(!state.city_query.ends_with('b'));
+    }
+
+    #[test]
     fn clear_recent_locations_handles_empty_and_non_empty_states() {
         let mut state = state();
         state.clear_recent_locations();

@@ -106,6 +106,7 @@ impl AppState {
             .modifiers
             .intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER)
             && is_city_char(ch)
+            && self.city_query.chars().count() < 50
         {
             self.city_query.push(ch);
         }
