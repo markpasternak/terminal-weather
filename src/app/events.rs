@@ -15,6 +15,7 @@ use tokio::time::{interval, sleep};
 use crate::{
     cli::{HeroVisualArg, ThemeArg},
     domain::weather::{ForecastBundle, GeocodeResolution, Location},
+    update::UpdateStatus,
 };
 
 #[derive(Debug, Clone)]
@@ -39,6 +40,7 @@ pub enum AppEvent {
     GeocodeResolved(GeocodeResolution),
     FetchSucceeded(ForecastBundle),
     FetchFailed(String),
+    UpdateCheckFinished(UpdateStatus),
     Demo(DemoAction),
     Quit,
 }

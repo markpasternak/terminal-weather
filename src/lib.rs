@@ -8,6 +8,7 @@ pub mod resilience;
 #[cfg(test)]
 mod test_support;
 pub mod ui;
+pub mod update;
 
 use std::io::{self, IsTerminal, Stdout};
 

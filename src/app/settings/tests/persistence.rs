@@ -79,3 +79,15 @@ fn load_runtime_settings_with_explicit_override_path_reads_saved() {
     assert_eq!(loaded.units, crate::domain::weather::Units::Fahrenheit);
     assert_eq!(loaded.hourly_view, HourlyViewMode::Chart);
 }
+
+#[test]
+fn deserialize_settings_without_update_fields_defaults_to_none() {
+    let mut raw = serde_json::to_value(RuntimeSettings::default()).expect("serialize defaults");
+    let object = raw.as_object_mut().expect("settings object");
+    object.remove("last_update_check_unix");
+    object.remove("last_seen_latest_version");
+    let restored: RuntimeSettings =
+        serde_json::from_value(raw).expect("parse legacy settings payload");
+    assert!(restored.last_update_check_unix.is_none());
+    assert!(restored.last_seen_latest_version.is_none());
+}

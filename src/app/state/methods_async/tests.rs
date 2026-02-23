@@ -1,5 +1,6 @@
 use super::*;
 use chrono::Duration;
+use tempfile::tempdir;
 use tokio::sync::mpsc;
 
 fn state() -> AppState {
@@ -247,6 +248,55 @@ fn sync_handlers_update_mode_and_flags() {
 
     state.handle_sync_event(AppEvent::Quit, &tx);
     assert_eq!(state.mode, AppMode::Quit);
+}
+
+#[test]
+fn update_check_scheduling_respects_cli_and_interval() {
+    let now = 2_000_000;
+    let cli = crate::test_support::state_test_cli();
+    assert!(super::lifecycle::should_schedule_update_check(
+        &cli, None, now
+    ));
+    assert!(!super::lifecycle::should_schedule_update_check(
+        &cli,
+        Some(now - 60),
+        now
+    ));
+
+    let mut demo_cli = cli.clone();
+    demo_cli.demo = true;
+    assert!(!super::lifecycle::should_schedule_update_check(
+        &demo_cli, None, now
+    ));
+}
+
+#[test]
+fn update_check_finished_updates_state_and_persists_metadata() {
+    let mut state = state();
+    let dir = tempdir().expect("create tempdir");
+    state.settings_path = Some(dir.path().join("settings.json"));
+
+    state.handle_update_check_finished(crate::update::UpdateStatus::UpdateAvailable {
+        latest: "0.7.0".to_string(),
+    });
+
+    assert_eq!(
+        state.update_status,
+        crate::update::UpdateStatus::UpdateAvailable {
+            latest: "0.7.0".to_string()
+        }
+    );
+    assert_eq!(
+        state.settings.last_seen_latest_version.as_deref(),
+        Some("0.7.0")
+    );
+    assert!(state.settings.last_update_check_unix.is_some());
+
+    let saved = std::fs::read_to_string(dir.path().join("settings.json")).expect("read settings");
+    let saved: crate::app::settings::RuntimeSettings =
+        serde_json::from_str(&saved).expect("parse settings");
+    assert_eq!(saved.last_seen_latest_version.as_deref(), Some("0.7.0"));
+    assert!(saved.last_update_check_unix.is_some());
 }
 
 #[test]

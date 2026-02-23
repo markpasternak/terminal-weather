@@ -29,6 +29,10 @@ pub struct RuntimeSettings {
     #[serde(default, alias = "silhouette_source", alias = "silhouetteSource")]
     pub hero_visual: HeroVisualArg,
     pub refresh_interval_secs: u64,
+    #[serde(default)]
+    pub last_update_check_unix: Option<i64>,
+    #[serde(default)]
+    pub last_seen_latest_version: Option<String>,
     pub recent_locations: Vec<RecentLocation>,
 }
 
@@ -59,6 +63,8 @@ impl RuntimeSettings {
             command_bar_enabled: true,
             hero_visual: cli.hero_visual,
             refresh_interval_secs: cli.refresh_interval,
+            last_update_check_unix: None,
+            last_seen_latest_version: None,
             recent_locations: Vec::new(),
         }
     }
@@ -76,6 +82,8 @@ impl Default for RuntimeSettings {
             command_bar_enabled: true,
             hero_visual: HeroVisualArg::AtmosCanvas,
             refresh_interval_secs: 600,
+            last_update_check_unix: None,
+            last_seen_latest_version: None,
             recent_locations: Vec::new(),
         }
     }

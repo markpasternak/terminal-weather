@@ -7,7 +7,7 @@ use crate::{
     ui::theme::{ColorCapability, theme_for},
 };
 use chrono::{NaiveDate, NaiveDateTime};
-use ratatui::{Terminal, backend::TestBackend, layout::Rect, style::Style};
+use ratatui::{Frame, Terminal, backend::TestBackend, layout::Rect, style::Style};
 
 #[test]
 fn width_below_70_forces_table() {
@@ -210,6 +210,68 @@ fn draw_hourly(state: &AppState, width: u16, height: u16) {
         .expect("draw hourly panel");
 }
 
+#[derive(Debug, Clone, Copy)]
+struct RenderModeResults {
+    hybrid_short: bool,
+    hybrid_bands: [bool; 3],
+    chart_short: bool,
+    chart_tall: bool,
+}
+
+fn evaluate_render_mode_helpers(
+    state: &AppState,
+    bundle: &crate::domain::weather::ForecastBundle,
+    slice: &[&HourlyForecast],
+    theme: crate::ui::theme::Theme,
+) -> RenderModeResults {
+    let mut results = RenderModeResults {
+        hybrid_short: false,
+        hybrid_bands: [false, false, false],
+        chart_short: false,
+        chart_tall: false,
+    };
+    let mut terminal = Terminal::new(TestBackend::new(120, 30)).expect("test terminal");
+    terminal
+        .draw(|frame| {
+            results = collect_render_mode_results(frame, state, bundle, slice, theme);
+        })
+        .expect("draw helper branches");
+    results
+}
+
+fn collect_render_mode_results(
+    frame: &mut Frame,
+    state: &AppState,
+    bundle: &crate::domain::weather::ForecastBundle,
+    slice: &[&HourlyForecast],
+    theme: crate::ui::theme::Theme,
+) -> RenderModeResults {
+    let hybrid_short =
+        render_hybrid_mode(frame, Rect::new(0, 0, 100, 6), state, bundle, slice, theme);
+    let hybrid_bands = [
+        render_hybrid_mode(frame, Rect::new(0, 0, 100, 9), state, bundle, slice, theme),
+        render_hybrid_mode(frame, Rect::new(0, 0, 100, 10), state, bundle, slice, theme),
+        render_hybrid_mode(frame, Rect::new(0, 0, 100, 12), state, bundle, slice, theme),
+    ];
+    let chart_short =
+        render_chart_mode(frame, Rect::new(0, 0, 100, 7), state, bundle, slice, theme);
+    let chart_tall = render_chart_mode(frame, Rect::new(0, 0, 100, 8), state, bundle, slice, theme);
+    render_loading_placeholder(
+        frame,
+        Rect::new(0, 0, 20, 0),
+        0,
+        Style::default(),
+        theme.accent,
+        theme.muted_text,
+    );
+    RenderModeResults {
+        hybrid_short,
+        hybrid_bands,
+        chart_short,
+        chart_tall,
+    }
+}
+
 #[test]
 fn hourly_panel_title_empty_slice_includes_focus_prefix() {
     let title = hourly_panel_title(HourlyViewMode::Chart, &[], true);
@@ -266,76 +328,10 @@ fn render_mode_helpers_cover_size_branches() {
         ThemeArg::Aurora,
     );
     let slice = bundle.hourly.iter().collect::<Vec<_>>();
+    let results = evaluate_render_mode_helpers(&state, &bundle, &slice, theme);
 
-    let mut hybrid_short = false;
-    let mut hybrid_bands = [false, false, false];
-    let mut chart_short = false;
-    let mut chart_tall = false;
-
-    let mut terminal = Terminal::new(TestBackend::new(120, 30)).expect("test terminal");
-    terminal
-        .draw(|frame| {
-            hybrid_short = render_hybrid_mode(
-                frame,
-                Rect::new(0, 0, 100, 6),
-                &state,
-                &bundle,
-                &slice,
-                theme,
-            );
-            hybrid_bands[0] = render_hybrid_mode(
-                frame,
-                Rect::new(0, 0, 100, 9),
-                &state,
-                &bundle,
-                &slice,
-                theme,
-            );
-            hybrid_bands[1] = render_hybrid_mode(
-                frame,
-                Rect::new(0, 0, 100, 10),
-                &state,
-                &bundle,
-                &slice,
-                theme,
-            );
-            hybrid_bands[2] = render_hybrid_mode(
-                frame,
-                Rect::new(0, 0, 100, 12),
-                &state,
-                &bundle,
-                &slice,
-                theme,
-            );
-            chart_short = render_chart_mode(
-                frame,
-                Rect::new(0, 0, 100, 7),
-                &state,
-                &bundle,
-                &slice,
-                theme,
-            );
-            chart_tall = render_chart_mode(
-                frame,
-                Rect::new(0, 0, 100, 8),
-                &state,
-                &bundle,
-                &slice,
-                theme,
-            );
-            render_loading_placeholder(
-                frame,
-                Rect::new(0, 0, 20, 0),
-                0,
-                Style::default(),
-                theme.accent,
-                theme.muted_text,
-            );
-        })
-        .expect("draw helper branches");
-
-    assert!(!hybrid_short);
-    assert!(hybrid_bands.into_iter().all(|value| value));
-    assert!(!chart_short);
-    assert!(chart_tall);
+    assert!(!results.hybrid_short);
+    assert!(results.hybrid_bands.into_iter().all(|value| value));
+    assert!(!results.chart_short);
+    assert!(results.chart_tall);
 }

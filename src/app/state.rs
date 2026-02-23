@@ -33,6 +33,7 @@ use crate::{
     resilience::backoff::Backoff,
     ui::layout::visible_hour_count,
     ui::particles::ParticleEngine,
+    update::UpdateStatus,
 };
 
 mod input;
@@ -177,6 +178,7 @@ pub struct AppState {
     pub color_mode: ColorArg,
     pub hourly_view_mode: HourlyViewMode,
     pub panel_focus: PanelFocus,
+    pub update_status: UpdateStatus,
     pub command_bar: CommandBarState,
     pub refresh_interval_secs_runtime: Arc<AtomicU64>,
     forecast_url_override: Option<String>,
@@ -227,6 +229,7 @@ impl AppState {
             color_mode: cli.effective_color_mode(),
             hourly_view_mode: runtime_hourly_view,
             panel_focus,
+            update_status: UpdateStatus::Unknown,
             command_bar: CommandBarState::default(),
             refresh_interval_secs_runtime,
             forecast_url_override: cli.forecast_url.clone(),

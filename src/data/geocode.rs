@@ -52,52 +52,10 @@ impl GeocodeClient {
         city: String,
         country_code: Option<String>,
     ) -> Result<GeocodeResolution> {
-        if city.len() > 100 {
-            anyhow::bail!("City name is too long (max 100 chars)");
-        }
-        if country_code.as_ref().is_some_and(|c| c.len() > 10) {
-            anyhow::bail!("Country code is too long (max 10 chars)");
-        }
-
-        let mut request = self.client.get(&self.base_url).query(&[
-            ("name", city.as_str()),
-            ("count", "5"),
-            ("language", "en"),
-            ("format", "json"),
-        ]);
-
-        if let Some(code) = country_code.as_ref() {
-            request = request.query(&[("countryCode", code)]);
-        }
-
-        let response = request
-            .send()
-            .await
-            .context("geocoding request failed")?
-            .error_for_status()
-            .context("geocoding request returned non-success status")?;
-
-        let payload: GeocodeResponse = response
-            .json()
-            .await
-            .context("failed to decode geocoding response")?;
-
-        if no_geocode_results(payload.results.as_ref()) {
-            return Ok(GeocodeResolution::NotFound(city));
-        }
-
-        let mut ranked = rank_locations(
-            payload.results.unwrap_or_default(),
-            &city,
-            country_code.as_deref(),
-        );
-        let top = ranked.remove(0);
-
-        if let Some(options) = ambiguous_options(&top, &ranked) {
-            return Ok(GeocodeResolution::NeedsDisambiguation(options));
-        }
-
-        Ok(GeocodeResolution::Selected(top.location))
+        let country_code = country_code.as_deref();
+        validate_resolve_inputs(&city, country_code)?;
+        let payload = self.fetch_geocode_response(&city, country_code).await?;
+        Ok(classify_resolution(city, country_code, payload))
     }
 
     pub async fn reverse_resolve(&self, latitude: f64, longitude: f64) -> Result<Option<Location>> {
@@ -125,10 +83,76 @@ impl GeocodeClient {
             .address
             .and_then(|address| location_from_reverse_address(address, latitude, longitude)))
     }
+
+    async fn fetch_geocode_response(
+        &self,
+        city: &str,
+        country_code: Option<&str>,
+    ) -> Result<GeocodeResponse> {
+        let request = self.build_geocode_request(city, country_code);
+        let response = request
+            .send()
+            .await
+            .context("geocoding request failed")?
+            .error_for_status()
+            .context("geocoding request returned non-success status")?;
+
+        response
+            .json()
+            .await
+            .context("failed to decode geocoding response")
+    }
+
+    fn build_geocode_request(
+        &self,
+        city: &str,
+        country_code: Option<&str>,
+    ) -> reqwest::RequestBuilder {
+        let mut request = self.client.get(&self.base_url).query(&[
+            ("name", city),
+            ("count", "5"),
+            ("language", "en"),
+            ("format", "json"),
+        ]);
+
+        if let Some(code) = country_code {
+            request = request.query(&[("countryCode", code)]);
+        }
+
+        request
+    }
 }
 
 fn no_geocode_results(results: Option<&Vec<GeocodeResult>>) -> bool {
     results.is_none_or(Vec::is_empty)
+}
+
+fn validate_resolve_inputs(city: &str, country_code: Option<&str>) -> Result<()> {
+    if city.len() > 100 {
+        anyhow::bail!("City name is too long (max 100 chars)");
+    }
+    if country_code.is_some_and(|code| code.len() > 10) {
+        anyhow::bail!("Country code is too long (max 10 chars)");
+    }
+    Ok(())
+}
+
+fn classify_resolution(
+    city: String,
+    country_code: Option<&str>,
+    payload: GeocodeResponse,
+) -> GeocodeResolution {
+    if no_geocode_results(payload.results.as_ref()) {
+        return GeocodeResolution::NotFound(city);
+    }
+
+    let mut ranked = rank_locations(payload.results.unwrap_or_default(), &city, country_code);
+    let top = ranked.remove(0);
+
+    ambiguous_options(&top, &ranked).map_or_else(
+        || GeocodeResolution::Selected(top.location),
+        GeocodeResolution::NeedsDisambiguation,
+    )
 }
 
 fn ambiguous_options(top: &ScoredLocation, ranked: &[ScoredLocation]) -> Option<Vec<Location>> {

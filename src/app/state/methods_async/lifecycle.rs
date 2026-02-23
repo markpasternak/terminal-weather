@@ -3,15 +3,26 @@ use super::*;
 impl AppState {
     pub(crate) fn handle_sync_event(&mut self, event: AppEvent, tx: &mpsc::Sender<AppEvent>) {
         match event {
+            AppEvent::UpdateCheckFinished(status) => self.handle_update_check_finished(status),
+            AppEvent::Quit => self.mode = AppMode::Quit,
+            other => self.handle_sync_fetch_event(other, tx),
+        }
+    }
+
+    fn handle_sync_fetch_event(&mut self, event: AppEvent, tx: &mpsc::Sender<AppEvent>) {
+        match event {
             AppEvent::TickFrame => self.handle_tick_frame(),
             AppEvent::FetchStarted => self.handle_fetch_started(),
-            AppEvent::GeocodeResolved(resolution) => {
-                self.handle_geocode_resolved(tx, resolution);
-            }
+            AppEvent::GeocodeResolved(resolution) => self.handle_geocode_resolved(tx, resolution),
             AppEvent::FetchSucceeded(bundle) => self.handle_fetch_succeeded(bundle),
             AppEvent::FetchFailed(err) => self.handle_fetch_failed(tx, err),
-            AppEvent::Quit => self.mode = AppMode::Quit,
-            _ => {}
+            AppEvent::Bootstrap
+            | AppEvent::TickRefresh
+            | AppEvent::ForceRedraw
+            | AppEvent::Input(_)
+            | AppEvent::Demo(_)
+            | AppEvent::UpdateCheckFinished(_)
+            | AppEvent::Quit => {}
         }
     }
 
@@ -26,6 +37,7 @@ impl AppState {
         if cli.demo {
             start_demo_task(tx.clone());
         }
+        self.start_update_check_if_needed(tx, cli);
         self.start_fetch(tx, cli).await
     }
 
@@ -132,4 +144,45 @@ impl AppState {
         self.refresh_meta.schedule_retry_in(delay);
         schedule_retry(tx.clone(), delay);
     }
+
+    fn start_update_check_if_needed(&self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) {
+        let now = crate::update::now_unix_timestamp();
+        if !should_schedule_update_check(cli, self.settings.last_update_check_unix, now) {
+            return;
+        }
+        let tx = tx.clone();
+        let formula_url = crate::update::formula_url();
+        tokio::spawn(async move {
+            let status =
+                crate::update::check_for_update_with_url(env!("CARGO_PKG_VERSION"), &formula_url)
+                    .await;
+            let _ = tx.send(AppEvent::UpdateCheckFinished(status)).await;
+        });
+    }
+
+    pub(crate) fn handle_update_check_finished(&mut self, status: crate::update::UpdateStatus) {
+        self.settings.last_update_check_unix = Some(crate::update::now_unix_timestamp());
+        if let crate::update::UpdateStatus::UpdateAvailable { latest } = &status {
+            self.settings.last_seen_latest_version = Some(latest.clone());
+        }
+        self.update_status = status;
+        self.persist_update_metadata_silently();
+    }
+
+    fn persist_update_metadata_silently(&self) {
+        if self.demo_mode {
+            return;
+        }
+        if let Some(path) = &self.settings_path {
+            let _ = crate::app::settings::save_runtime_settings(path, &self.settings);
+        }
+    }
+}
+
+pub(super) fn should_schedule_update_check(
+    cli: &Cli,
+    last_check_unix: Option<i64>,
+    now_unix: i64,
+) -> bool {
+    !cli.demo && !cli.one_shot && crate::update::should_check(now_unix, last_check_unix)
 }

@@ -21,6 +21,7 @@ use crate::{
     domain::weather::{HourlyViewMode, weather_label_for_time},
     resilience::freshness::FreshnessState,
     ui::{narrative::build_narrative, theme::resolved_theme},
+    update::UpdateStatus,
 };
 
 const MIN_RENDER_WIDTH: u16 = 20;
@@ -253,6 +254,11 @@ fn render_command_bar(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn footer_text_for_width(width: u16, state: &AppState) -> String {
+    let base = base_footer_text_for_width(width, state);
+    append_update_hint(width, base, &state.update_status)
+}
+
+fn base_footer_text_for_width(width: u16, state: &AppState) -> String {
     let command_hint = if state.settings.command_bar_enabled {
         "  : Command"
     } else {
@@ -269,6 +275,32 @@ fn footer_text_for_width(width: u16, state: &AppState) -> String {
         format!("r Refresh  v View  l Cities  s Settings  q Quit{command_hint}")
     } else {
         "r Refresh  q Quit".to_string()
+    }
+}
+
+fn append_update_hint(width: u16, base: String, status: &UpdateStatus) -> String {
+    let Some(hint) = update_hint_for_width(width, status) else {
+        return base;
+    };
+    if base.is_empty() {
+        return hint;
+    }
+    format!("{base}  {hint}")
+}
+
+fn update_hint_for_width(width: u16, status: &UpdateStatus) -> Option<String> {
+    let latest = match status {
+        UpdateStatus::UpdateAvailable { latest } => latest,
+        UpdateStatus::Unknown | UpdateStatus::UpToDate => return None,
+    };
+    if width >= 110 {
+        Some(format!(
+            "Update available: v{latest} · brew upgrade markpasternak/tap/terminal-weather"
+        ))
+    } else if width >= 72 {
+        Some(format!("Update available: v{latest}"))
+    } else {
+        None
     }
 }
 
@@ -396,4 +428,45 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn update_hint_for_width_shows_only_when_update_available() {
+        assert!(update_hint_for_width(120, &UpdateStatus::Unknown).is_none());
+        assert!(update_hint_for_width(120, &UpdateStatus::UpToDate).is_none());
+        assert_eq!(
+            update_hint_for_width(
+                120,
+                &UpdateStatus::UpdateAvailable {
+                    latest: "0.7.0".to_string()
+                }
+            )
+            .as_deref(),
+            Some("Update available: v0.7.0 · brew upgrade markpasternak/tap/terminal-weather")
+        );
+    }
+
+    #[test]
+    fn footer_text_includes_update_hint_for_wide_layout() {
+        let mut state = crate::app::state::AppState::new(&crate::test_support::state_test_cli());
+        state.update_status = UpdateStatus::UpdateAvailable {
+            latest: "0.7.0".to_string(),
+        };
+        let text = footer_text_for_width(120, &state);
+        assert!(text.contains("Update available: v0.7.0"));
+    }
+
+    #[test]
+    fn footer_text_omits_update_hint_for_narrow_layout() {
+        let mut state = crate::app::state::AppState::new(&crate::test_support::state_test_cli());
+        state.update_status = UpdateStatus::UpdateAvailable {
+            latest: "0.7.0".to_string(),
+        };
+        let text = footer_text_for_width(60, &state);
+        assert!(!text.contains("Update available"));
+    }
 }
