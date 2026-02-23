@@ -52,6 +52,15 @@ impl GeocodeClient {
         city: String,
         country_code: Option<String>,
     ) -> Result<GeocodeResolution> {
+        if city.len() > 100 {
+            anyhow::bail!("City name is too long (max 100 chars)");
+        }
+        if let Some(ref code) = country_code {
+            if code.len() > 10 {
+                anyhow::bail!("Country code is too long (max 10 chars)");
+            }
+        }
+
         let mut request = self.client.get(&self.base_url).query(&[
             ("name", city.as_str()),
             ("count", "5"),
@@ -396,5 +405,28 @@ mod tests {
         assert_eq!(location.name, "Stockholm");
         assert_eq!(location.admin1.as_deref(), Some("Stockholm County"));
         assert_eq!(location.country.as_deref(), Some("Sweden"));
+    }
+
+    #[tokio::test]
+    async fn resolve_rejects_huge_city_name() {
+        let client = GeocodeClient::new();
+        let huge_city = "a".repeat(101);
+        let result = client.resolve(huge_city, None).await;
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("City name is too long"));
+    }
+
+    #[tokio::test]
+    async fn resolve_rejects_huge_country_code() {
+        let client = GeocodeClient::new();
+        let city = "Stockholm".to_string();
+        let huge_code = Some("A".repeat(11));
+        let result = client.resolve(city, huge_code).await;
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Country code is too long"));
     }
 }
