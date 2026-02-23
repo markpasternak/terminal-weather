@@ -43,19 +43,23 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_query_line(frame: &mut Frame, area: Rect, state: &AppState, theme: Theme) {
-    let query = if state.city_query.is_empty() {
-        "Type a city and press Enter (or use history)"
+    let (query, style) = if state.city_query.is_empty() {
+        (
+            "Type a city and press Enter (or use history)",
+            Style::default().fg(theme.popup_muted_text),
+        )
     } else {
-        state.city_query.as_str()
-    };
-    let query_line = Paragraph::new(vec![Line::from(vec![
-        Span::styled("Search: ", Style::default().fg(theme.popup_muted_text)),
-        Span::styled(
-            query,
+        (
+            state.city_query.as_str(),
             Style::default()
                 .fg(theme.popup_text)
                 .add_modifier(Modifier::BOLD),
-        ),
+        )
+    };
+
+    let query_line = Paragraph::new(vec![Line::from(vec![
+        Span::styled("Search: ", Style::default().fg(theme.popup_muted_text)),
+        Span::styled(query, style),
     ])])
     .block(
         Block::default()
@@ -105,7 +109,9 @@ fn recent_city_list(
     theme: Theme,
 ) -> List<'static> {
     let body = if items.is_empty() {
-        List::new(vec![ListItem::new("No recent cities yet")])
+        List::new(vec![ListItem::new(
+            "No recent cities. Search above to add one!",
+        )])
     } else {
         List::new(items)
     };
@@ -368,5 +374,35 @@ mod tests {
         // Y = 1.
         let cursor_pos = terminal.backend_mut().get_cursor_position().unwrap();
         assert_eq!(cursor_pos, Position::new(12, 1));
+    }
+
+    #[test]
+    fn render_uses_muted_style_for_empty_query_placeholder() {
+        use ratatui::{
+            Terminal,
+            backend::TestBackend,
+            style::Modifier,
+        };
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = make_state();
+        state.city_picker_open = true;
+        state.city_query = String::new();
+
+        terminal
+            .draw(|f| {
+                let area = f.area();
+                super::render(f, area, &state);
+            })
+            .unwrap();
+
+        // "Search: " (8 chars). Inner area starts at (1,1).
+        // "Search: " is at x=1..9.
+        // Placeholder "Type a city..." starts at x=9.
+        let buffer = terminal.backend().buffer();
+        let cell = &buffer[(9, 1)];
+
+        // Placeholder text should be muted and not bold (unlike user input)
+        assert!(!cell.modifier.contains(Modifier::BOLD), "Placeholder should not be bold");
     }
 }
