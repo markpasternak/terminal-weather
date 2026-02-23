@@ -69,11 +69,21 @@ impl ParticleEngine {
         let dt = dt.as_secs_f32().clamp(0.0, 0.25);
         self.accumulator += dt;
         let particle_kind = weather_code.map_or(ParticleKind::None, weather_code_to_particle);
-        let drift = wind_drift(wind_speed, wind_direction);
-        let mut rng = rand::rng();
-        self.spawn_particles(particle_kind, drift, wind_speed, &mut rng);
+
+        // OPTIMIZATION: In Clear/Cloudy weather (ParticleKind::None), avoid expensive per-frame
+        // trigonometric calculations (wind_drift) and RNG initialization.
+        if particle_kind != ParticleKind::None {
+            let drift = wind_drift(wind_speed, wind_direction);
+            let mut rng = rand::rng();
+            self.spawn_particles(particle_kind, drift, wind_speed, &mut rng);
+            self.maybe_trigger_flash(particle_kind, &mut rng);
+        } else if self.accumulator >= 0.04 {
+            // Mimic spawn_particles behavior: reset accumulator even if no particles spawn,
+            // to prevent it from growing indefinitely.
+            self.accumulator = 0.0;
+        }
+
         self.advance_particles(dt);
-        self.maybe_trigger_flash(particle_kind, &mut rng);
         self.flash_timer = (self.flash_timer - dt).max(0.0);
     }
 
