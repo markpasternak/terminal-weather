@@ -145,15 +145,13 @@ Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (yo
 
 ---
 
-## What's New in v0.6.0
+## What's New in v0.7.0
 
-- **Weather insights** — the app now derives actionable cues from your forecast (carry an umbrella, apply sun protection, secure loose items) and surfaces them in the UI alongside a confidence indicator and a look-ahead summary for the next six hours.
-- **Contextual narrative** — focus-aware hints adapt to whichever panel is active: the hero shows your immediate decision, the hourly view shows the six-hour outlook, and the daily view shows the week at a glance. `Tab` / `Shift+Tab` cycles panel focus.
-- **Semantic icon modes** — status and confidence indicators now follow icon mode selection, including CLI flags (`--ascii-icons`, `--emoji-icons`, `--nerd-font`) and settings panel choices.
-- **Command bar shortcuts** — `:` opens command mode for `city`, `theme`, `view`, `units`, `refresh`, and `quit`, so common actions can be scripted from the keyboard without opening panels.
-- **City names restored for coordinate locations** — locations entered as `--lat`/`--lon` or selected from history now display their resolved city name again instead of raw coordinates.
-- **Readability polish** — improved hourly chart legibility and fixed table cell background bleed with emoji icon mode.
-- **Quality pass** — eliminated all critical cyclomatic complexity hotspots, reduced medium-complexity count, and tightened the overall code structure across the codebase.
+- **Silent Homebrew update checks** — startup now performs a background, timeout-bounded check against the Homebrew tap formula to detect newer releases.
+- **Quiet-by-default UX** — no messages are shown for failures or no-update states; a subtle footer hint appears only when a newer version is available.
+- **24-hour check cadence** — update-check metadata is persisted in settings and throttled to once per day.
+- **Legacy settings compatibility** — new update metadata fields are backward-compatible with existing `settings.json` files.
+- **Code quality hardening** — complexity and file-length audit warnings were eliminated while keeping all required and recommended local gates green.
 
 ---
 
