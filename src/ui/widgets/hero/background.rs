@@ -98,13 +98,14 @@ fn paint_particles(area: Rect, buf: &mut Buffer, particles: &[Particle], particl
         let x = area_x + x_offset;
         let y = area_y + y_offset;
 
-        if x < area_right && y < area_bottom {
-            if let Some(cell) = buf.cell_mut((x, y)) {
-                let bg = cell.bg;
-                cell.set_symbol(particle.glyph.encode_utf8(&mut utf8_buf))
-                    .set_fg(particle_color)
-                    .set_bg(bg);
-            }
+        if x < area_right
+            && y < area_bottom
+            && let Some(cell) = buf.cell_mut((x, y))
+        {
+            let bg = cell.bg;
+            cell.set_symbol(particle.glyph.encode_utf8(&mut utf8_buf))
+                .set_fg(particle_color)
+                .set_bg(bg);
         }
     }
 }
