@@ -46,10 +46,21 @@ fn paint_flash_background(area: Rect, buf: &mut Buffer, flash_bg: Color) {
 fn paint_gradient_background(area: Rect, buf: &mut Buffer, top: Color, bottom: Color) {
     let bg_top = color_to_rgb(top);
     let bg_bottom = color_to_rgb(bottom);
-    for y in area.top()..area.bottom() {
-        let t = gradient_ratio(area, y);
+
+    // OPTIMIZATION: Precompute inverse height to replace division with multiplication in the loop.
+    // Also hoist area property access.
+    let height_f = area.height.saturating_sub(1) as f32;
+    let inv_height = if height_f > 0.0 { 1.0 / height_f } else { 0.0 };
+    let area_top = area.top();
+    let area_left = area.left();
+    let area_right = area.right();
+    let area_bottom = area.bottom();
+
+    for y in area_top..area_bottom {
+        // Inline gradient_ratio logic: (y - top) / (height - 1)
+        let t = (y - area_top) as f32 * inv_height;
         let color = lerp_color(bg_top, bg_bottom, t);
-        for x in area.left()..area.right() {
+        for x in area_left..area_right {
             if let Some(cell) = buf.cell_mut((x, y)) {
                 cell.set_char(' ').set_bg(color);
             }
@@ -57,6 +68,7 @@ fn paint_gradient_background(area: Rect, buf: &mut Buffer, top: Color, bottom: C
     }
 }
 
+#[cfg(test)]
 fn gradient_ratio(area: Rect, y: u16) -> f32 {
     if area.height <= 1 {
         0.0
@@ -68,18 +80,36 @@ fn gradient_ratio(area: Rect, y: u16) -> f32 {
 fn paint_particles(area: Rect, buf: &mut Buffer, particles: &[Particle], particle_color: Color) {
     // Reuse a stack buffer to avoid heap allocations in the loop
     let mut utf8_buf = [0u8; 4];
+
+    // OPTIMIZATION: Hoist area property conversions to f32 outside the loop.
+    let width_f = area.width as f32;
+    let height_f = area.height as f32;
+    let area_x = area.x;
+    let area_y = area.y;
+    let area_right = area.right();
+    let area_bottom = area.bottom();
+
     for particle in particles {
-        if let Some((x, y)) = particle_position(area, particle)
-            && let Some(cell) = buf.cell_mut((x, y))
-        {
-            let bg = cell.bg;
-            cell.set_symbol(particle.glyph.encode_utf8(&mut utf8_buf))
-                .set_fg(particle_color)
-                .set_bg(bg);
+        // Inline particle_position logic to avoid function call overhead and repeated conversions.
+        // Also use direct casting which is safe given the clamping.
+        let x_offset = (particle.x.clamp(0.0, 1.0) * width_f) as u16;
+        let y_offset = (particle.y.clamp(0.0, 1.0) * height_f) as u16;
+
+        let x = area_x + x_offset;
+        let y = area_y + y_offset;
+
+        if x < area_right && y < area_bottom {
+            if let Some(cell) = buf.cell_mut((x, y)) {
+                let bg = cell.bg;
+                cell.set_symbol(particle.glyph.encode_utf8(&mut utf8_buf))
+                    .set_fg(particle_color)
+                    .set_bg(bg);
+            }
         }
     }
 }
 
+#[cfg(test)]
 fn particle_position(area: Rect, particle: &Particle) -> Option<(u16, u16)> {
     let x = area.x + ((particle.x.clamp(0.0, 1.0)) * area.width as f32) as u16;
     let y = area.y + ((particle.y.clamp(0.0, 1.0)) * area.height as f32) as u16;
