@@ -11,6 +11,7 @@ pub const HOMEBREW_FORMULA_URL: &str =
 pub const UPDATE_CHECK_DISABLE_ENV: &str = "TERMINAL_WEATHER_DISABLE_UPDATE_CHECK";
 pub const UPDATE_CHECK_TIMEOUT_SECS: u64 = 3;
 pub const UPDATE_CHECK_INTERVAL_SECS: i64 = 24 * 60 * 60;
+pub const MAX_UPDATE_RESPONSE_SIZE: usize = 64 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpdateStatus {
@@ -61,18 +62,29 @@ pub(crate) async fn check_latest_version_from_url(url: &str) -> anyhow::Result<O
     let client = Client::builder()
         .timeout(Duration::from_secs(UPDATE_CHECK_TIMEOUT_SECS))
         .build()
-        .unwrap_or_else(|_| Client::new());
-    let response = client
+        .context("failed to build update client")?;
+    let mut response = client
         .get(url)
         .send()
         .await
         .context("update formula request failed")?
         .error_for_status()
         .context("update formula request returned non-success status")?;
-    let body = response
-        .text()
+
+    let mut body_bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .context("reading update formula body failed")?;
+        .context("reading update formula chunk failed")?
+    {
+        if body_bytes.len() + chunk.len() > MAX_UPDATE_RESPONSE_SIZE {
+            anyhow::bail!("update check response too large");
+        }
+        body_bytes.extend_from_slice(&chunk);
+    }
+    let body =
+        String::from_utf8(body_bytes).context("update check response was not valid UTF-8")?;
+
     Ok(parse_formula_version(&body))
 }
 
@@ -248,6 +260,29 @@ end
             UpdateStatus::UpdateAvailable {
                 latest: "0.7.0".to_string()
             }
+        );
+    }
+
+    #[tokio::test]
+    async fn check_latest_version_rejects_large_response() {
+        let server = MockServer::start().await;
+        let big_body = "a".repeat(MAX_UPDATE_RESPONSE_SIZE + 1);
+        Mock::given(method("GET"))
+            .and(path("/Formula/terminal-weather.rb"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(big_body))
+            .mount(&server)
+            .await;
+
+        let result =
+            check_latest_version_from_url(&format!("{}/Formula/terminal-weather.rb", server.uri()))
+                .await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("response too large")
         );
     }
 }
