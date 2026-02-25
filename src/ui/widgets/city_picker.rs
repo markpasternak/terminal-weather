@@ -110,7 +110,7 @@ fn recent_city_list(
 ) -> List<'static> {
     let body = if items.is_empty() {
         List::new(vec![ListItem::new(
-            "No recent cities. Search above to add one!",
+            "✨ No recent cities yet. Type a city name above and press Enter to search!",
         )])
     } else {
         List::new(items)
@@ -165,7 +165,18 @@ fn city_picker_state_line(state: &AppState) -> String {
         "Enter search/switch · ↑/↓ history · Del clear all · Backspace edit · Esc close",
     );
     let kind = city_status_kind(detail);
-    format!("State: {kind} · {detail}")
+
+    if kind == "Searching" {
+        let spinner = spinner_char(state.frame_tick);
+        format!("State: {kind} {spinner} · {detail}")
+    } else {
+        format!("State: {kind} · {detail}")
+    }
+}
+
+fn spinner_char(frame_tick: u64) -> &'static str {
+    const FRAMES: [&str; 4] = ["-", "\\", "|", "/"];
+    FRAMES[(frame_tick as usize) % FRAMES.len()]
 }
 
 fn city_status_kind(status: &str) -> &'static str {
@@ -294,11 +305,44 @@ mod tests {
 
     #[test]
     fn recent_city_list_empty_items_shows_no_recent_message() {
-        let theme = resolved_theme(&make_state());
+        use ratatui::{Terminal, backend::TestBackend};
+        let backend = TestBackend::new(100, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = make_state();
+        state.city_picker_open = true;
+
+        let theme = resolved_theme(&state);
         let panel_style = Style::default();
         let items: Vec<ListItem<'static>> = vec![];
         let list = recent_city_list(items, panel_style, theme);
-        assert_eq!(list.len(), 1);
+
+        terminal
+            .draw(|f| {
+                f.render_widget(list, f.area());
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        let mut found = false;
+        for y in 0..20 {
+            let line_text: String = (0..100).map(|x| buffer[(x, y)].symbol()).collect();
+            if line_text.contains("No recent cities yet") {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "Did not find empty state message");
+    }
+
+    #[test]
+    fn render_status_line_shows_spinner_when_searching() {
+        let mut state = make_state();
+        state.city_status = Some("Searching London...".to_string());
+        state.frame_tick = 1; // Expect "\"
+
+        let status_text = city_picker_state_line(&state);
+        assert!(status_text.contains('\\'));
+        assert!(status_text.contains("State: Searching"));
     }
 
     #[test]
