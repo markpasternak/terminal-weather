@@ -1,4 +1,4 @@
-use crate::domain::weather::Location;
+use crate::domain::weather::{Location, sanitize_text};
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -29,12 +29,12 @@ pub async fn detect_location() -> Option<Location> {
     let latitude = response.latitude?;
     let longitude = response.longitude?;
     Some(Location {
-        name,
+        name: sanitize_text(&name),
         latitude,
         longitude,
-        country: response.country_name,
-        admin1: response.region,
-        timezone: response.timezone,
+        country: response.country_name.map(|s| sanitize_text(&s)),
+        admin1: response.region.map(|s| sanitize_text(&s)),
+        timezone: response.timezone.map(|s| sanitize_text(&s)),
         population: None,
     })
 }
