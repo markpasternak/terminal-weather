@@ -15,7 +15,7 @@ pub use conditions::{
 };
 pub use conversions::{
     convert_temp, convert_wind_speed, evaluate_freshness, parse_date, parse_datetime, round_temp,
-    round_wind_speed, sanitize_text,
+    round_wind_speed,
 };
 pub use insights::{
     ActionCue, ChangeEvent, ChangeKind, InsightConfidence, NowcastInsight, ReliabilitySummary,

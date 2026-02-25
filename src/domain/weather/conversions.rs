@@ -42,8 +42,3 @@ pub fn evaluate_freshness(
 ) -> FreshnessState {
     crate::resilience::freshness::evaluate_freshness(last_success, consecutive_failures)
 }
-
-#[must_use]
-pub fn sanitize_text(text: &str) -> String {
-    text.chars().filter(|c| !c.is_control()).collect()
-}

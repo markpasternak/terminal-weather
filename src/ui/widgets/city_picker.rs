@@ -175,7 +175,7 @@ fn city_picker_state_line(state: &AppState) -> String {
 }
 
 fn spinner_char(frame_tick: u64) -> &'static str {
-    const FRAMES: [&str; 4] = ["-", "\\", "|", "/"];
+    const FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
     FRAMES[(frame_tick as usize) % FRAMES.len()]
 }
 
@@ -338,10 +338,10 @@ mod tests {
     fn render_status_line_shows_spinner_when_searching() {
         let mut state = make_state();
         state.city_status = Some("Searching London...".to_string());
-        state.frame_tick = 1; // Expect "\"
+        state.frame_tick = 1; // Expect "⠙"
 
         let status_text = city_picker_state_line(&state);
-        assert!(status_text.contains('\\'));
+        assert!(status_text.contains('⠙'));
         assert!(status_text.contains("State: Searching"));
     }
 
