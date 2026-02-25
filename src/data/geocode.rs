@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::domain::weather::{GeocodeResolution, Location};
+use crate::domain::weather::{GeocodeResolution, Location, sanitize_text};
 
 const GEOCODE_URL: &str = "https://geocoding-api.open-meteo.com/v1/search";
 const REVERSE_GEOCODE_URL: &str = "https://nominatim.openstreetmap.org/reverse";
@@ -209,12 +209,12 @@ struct ScoredLocation {
 
 fn geocode_result_to_location(entry: GeocodeResult) -> Location {
     Location {
-        name: entry.name,
+        name: sanitize_text(&entry.name),
         latitude: entry.latitude,
         longitude: entry.longitude,
-        country: entry.country,
-        admin1: entry.admin1,
-        timezone: entry.timezone,
+        country: entry.country.map(|s| sanitize_text(&s)),
+        admin1: entry.admin1.map(|s| sanitize_text(&s)),
+        timezone: entry.timezone.map(|s| sanitize_text(&s)),
         population: entry.population,
     }
 }
@@ -240,11 +240,11 @@ fn location_from_reverse_address(
         address.state.clone(),
     ])?;
     Some(Location {
-        name,
+        name: sanitize_text(&name),
         latitude,
         longitude,
-        country: address.country,
-        admin1: address.state,
+        country: address.country.map(|s| sanitize_text(&s)),
+        admin1: address.state.map(|s| sanitize_text(&s)),
         timezone: None,
         population: None,
     })
@@ -450,5 +450,44 @@ mod tests {
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("Country code is too long"));
+    }
+
+    #[tokio::test]
+    async fn resolve_sanitizes_inputs() {
+        let server = MockServer::start().await;
+        let payload = serde_json::json!({
+            "results": [
+                {
+                    "name": "Tokyo\x1b[31m",
+                    "latitude": 35.6895,
+                    "longitude": 139.6917,
+                    "country": "Japan\n",
+                    "country_code": "JP",
+                    "admin1": "Tokyo\tPrefecture",
+                    "timezone": "Asia/Tokyo",
+                    "population": 10_000_000
+                }
+            ]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/v1/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
+            .mount(&server)
+            .await;
+
+        let client = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+        let result = client
+            .resolve("Tokyo".to_string(), None)
+            .await
+            .expect("resolve");
+
+        if let GeocodeResolution::Selected(loc) = result {
+            assert_eq!(loc.name, "Tokyo[31m");
+            assert_eq!(loc.country.as_deref(), Some("Japan"));
+            assert_eq!(loc.admin1.as_deref(), Some("TokyoPrefecture"));
+        } else {
+            panic!("expected Selected, got {result:?}");
+        }
     }
 }
