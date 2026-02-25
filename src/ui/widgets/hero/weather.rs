@@ -226,7 +226,7 @@ fn append_header_main_line(
     theme: Theme,
     temp: i32,
     unit_symbol: &'static str,
-    weather_label: &str,
+    weather_label: &'static str,
     weather_color: Color,
 ) {
     if matches!(scale, HeroScale::Deluxe) {
@@ -237,7 +237,7 @@ fn append_header_main_line(
             ),
             Span::raw("  ·  "),
             Span::styled(
-                weather_label.to_string(),
+                weather_label,
                 Style::default()
                     .fg(weather_color)
                     .add_modifier(Modifier::BOLD),
@@ -250,7 +250,7 @@ fn append_header_main_line(
         Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
     )]));
     lines.push(Line::from(Span::styled(
-        weather_label.to_string(),
+        weather_label,
         Style::default()
             .fg(weather_color)
             .add_modifier(Modifier::BOLD),
