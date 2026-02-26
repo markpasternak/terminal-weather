@@ -81,7 +81,6 @@ impl AppState {
         index: usize,
     ) {
         if let Some(saved) = self.settings.recent_locations.get(index).cloned() {
-            self.city_picker_open = false;
             self.switch_to_location(tx, saved.to_location());
         }
     }
@@ -89,7 +88,6 @@ impl AppState {
     pub(crate) fn submit_city_picker(&mut self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) {
         let query = self.city_query.trim().to_string();
         if !query.is_empty() {
-            self.city_picker_open = false;
             self.city_status = Some(format!("Searching {query}..."));
             self.start_city_search(tx, query, cli.country_code.clone());
             return;

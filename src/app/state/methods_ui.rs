@@ -192,6 +192,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn submit_city_picker_keeps_picker_open_during_search() {
+        let mut state = state();
+        state.city_picker_open = true;
+        state.city_query = "London".to_string();
+        let (tx, _rx) = mpsc::channel(2);
+        let cli = test_support::state_test_cli();
+
+        state.submit_city_picker(&tx, &cli);
+        assert!(state.city_picker_open);
+        assert!(state.city_status.as_deref().unwrap().contains("Searching"));
+    }
+
+    #[tokio::test]
+    async fn select_recent_city_keeps_picker_open_if_not_cached() {
+        let mut state = state();
+        state.city_picker_open = true;
+        state
+            .settings
+            .recent_locations
+            .push(RecentLocation::from_location(
+                &test_support::stockholm_location(),
+            ));
+        let (tx, _rx) = mpsc::channel(2);
+
+        // Ensure cache miss (cache is empty by default)
+        state.select_recent_city_by_index(&tx, 0);
+
+        assert!(state.city_picker_open);
+        assert!(state.city_status.as_deref().unwrap().contains("Switching"));
+    }
+
+    #[tokio::test]
     async fn select_recent_city_by_index_switches_to_selected_location() {
         let mut state = state();
         let mut berlin = test_support::stockholm_location();

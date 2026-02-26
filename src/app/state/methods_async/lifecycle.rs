@@ -127,6 +127,7 @@ impl AppState {
         self.push_recent_location(&location);
         self.persist_settings();
         self.city_status = None;
+        self.city_picker_open = false;
     }
 
     pub(crate) fn handle_fetch_failed(&mut self, tx: &mpsc::Sender<AppEvent>, err: String) {
