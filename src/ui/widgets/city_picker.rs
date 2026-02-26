@@ -2,7 +2,7 @@
 
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
@@ -57,16 +57,36 @@ fn render_query_line(frame: &mut Frame, area: Rect, state: &AppState, theme: The
         )
     };
 
+    let block = Block::default()
+        .borders(Borders::BOTTOM)
+        .border_style(Style::default().fg(theme.popup_border));
+    let inner_area = block.inner(area);
+    frame.render_widget(block, area);
+
+    let [input_area, count_area] = Layout::horizontal([
+        Constraint::Min(10),
+        Constraint::Length(10), // Space for (50/50)
+    ])
+    .areas(inner_area);
+
     let query_line = Paragraph::new(vec![Line::from(vec![
         Span::styled("Search: ", Style::default().fg(theme.popup_muted_text)),
         Span::styled(query, style),
-    ])])
-    .block(
-        Block::default()
-            .borders(Borders::BOTTOM)
-            .border_style(Style::default().fg(theme.popup_border)),
-    );
-    frame.render_widget(query_line, area);
+    ])]);
+    frame.render_widget(query_line, input_area);
+
+    let count = state.city_query.chars().count();
+    let max = 50;
+    let count_style = if count >= max {
+        Style::default().fg(theme.warning)
+    } else {
+        Style::default().fg(theme.popup_muted_text)
+    };
+
+    let counter = Paragraph::new(Line::from(format!("({count}/{max})")))
+        .style(count_style)
+        .alignment(Alignment::Right);
+    frame.render_widget(counter, count_area);
 
     let prefix_width = "Search: ".len() as u16;
     let query_width = if state.city_query.is_empty() {
@@ -74,7 +94,9 @@ fn render_query_line(frame: &mut Frame, area: Rect, state: &AppState, theme: The
     } else {
         Line::from(state.city_query.as_str()).width() as u16
     };
-    frame.set_cursor_position((area.x + prefix_width + query_width, area.y));
+    // Ensure cursor doesn't drift if layout shifts, though with Borders::BOTTOM
+    // inner_area.x usually equals area.x
+    frame.set_cursor_position((input_area.x + prefix_width + query_width, input_area.y));
 }
 
 fn recent_city_items(state: &AppState, theme: Theme) -> Vec<ListItem<'static>> {
