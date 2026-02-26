@@ -26,14 +26,7 @@ async fn detect_location_with_url(url: &str) -> Option<Location> {
         .timeout(std::time::Duration::from_secs(5))
         .build()
         .ok()?;
-    let response: IpApiResponse = client
-        .get(url)
-        .send()
-        .await
-        .ok()?
-        .json()
-        .await
-        .ok()?;
+    let response: IpApiResponse = client.get(url).send().await.ok()?.json().await.ok()?;
     let name = response
         .city
         .filter(|c| !c.is_empty() && c.len() <= MAX_CITY_LEN)?;
