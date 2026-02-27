@@ -177,15 +177,11 @@ impl Cli {
             _ => {}
         }
 
-        if let Some(lat) = self.lat {
-            if !(-90.0..=90.0).contains(&lat) {
-                anyhow::bail!("Latitude must be between -90 and 90");
-            }
+        if self.lat.is_some_and(|lat| !(-90.0..=90.0).contains(&lat)) {
+            anyhow::bail!("Latitude must be between -90 and 90");
         }
-        if let Some(lon) = self.lon {
-            if !(-180.0..=180.0).contains(&lon) {
-                anyhow::bail!("Longitude must be between -180 and 180");
-            }
+        if self.lon.is_some_and(|lon| !(-180.0..=180.0).contains(&lon)) {
+            anyhow::bail!("Longitude must be between -180 and 180");
         }
 
         Ok(())
