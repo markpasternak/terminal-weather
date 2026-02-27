@@ -5,5 +5,6 @@ use terminal_weather::cli::Cli;
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    cli.validate()?;
     terminal_weather::run(cli).await
 }

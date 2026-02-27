@@ -174,8 +174,21 @@ impl Cli {
             (Some(_), None) | (None, Some(_)) => {
                 anyhow::bail!("--lat and --lon must be provided together")
             }
-            _ => Ok(()),
+            _ => {}
         }
+
+        if let Some(lat) = self.lat {
+            if !(-90.0..=90.0).contains(&lat) {
+                anyhow::bail!("Latitude must be between -90 and 90");
+            }
+        }
+        if let Some(lon) = self.lon {
+            if !(-180.0..=180.0).contains(&lon) {
+                anyhow::bail!("Longitude must be between -180 and 180");
+            }
+        }
+
+        Ok(())
     }
 
     #[must_use]
@@ -236,5 +249,35 @@ mod tests {
     fn parses_hourly_view_override() {
         let cli = Cli::parse_from(["terminal-weather", "--hourly-view", "hybrid"]);
         assert_eq!(cli.hourly_view, Some(HourlyViewArg::Hybrid));
+    }
+
+    #[test]
+    fn validate_rejects_invalid_lat() {
+        let cli = Cli {
+            lat: Some(91.0),
+            lon: Some(0.0),
+            ..Cli::parse_from(["terminal-weather"])
+        };
+        assert!(cli.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_invalid_lon() {
+        let cli = Cli {
+            lat: Some(0.0),
+            lon: Some(181.0),
+            ..Cli::parse_from(["terminal-weather"])
+        };
+        assert!(cli.validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_valid_coords() {
+        let cli = Cli {
+            lat: Some(45.0),
+            lon: Some(-90.0),
+            ..Cli::parse_from(["terminal-weather"])
+        };
+        assert!(cli.validate().is_ok());
     }
 }
