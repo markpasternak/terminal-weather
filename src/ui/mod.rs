@@ -246,8 +246,8 @@ fn render_command_bar(frame: &mut Frame, area: Rect, state: &AppState) {
     } else {
         line
     };
-    let widget = Paragraph::new(content.clone())
-        .style(Style::default().fg(theme.accent).bg(theme.surface));
+    let widget =
+        Paragraph::new(content.clone()).style(Style::default().fg(theme.accent).bg(theme.surface));
     frame.render_widget(widget, area);
 
     let cursor_x = area.x + Line::from(buffer).width() as u16;
@@ -485,7 +485,9 @@ mod tests {
         state.command_bar.open = true;
         state.command_bar.buffer = ":test ".to_string();
 
-        terminal.draw(|f| render(f, &state, &crate::test_support::state_test_cli())).unwrap();
+        terminal
+            .draw(|f| render(f, &state, &crate::test_support::state_test_cli()))
+            .unwrap();
 
         // Footer is 1 line high, located at y=23.
         // Command bar replaces footer when open.
