@@ -239,18 +239,19 @@ fn render_command_bar(frame: &mut Frame, area: Rect, state: &AppState) {
         .parse_error
         .as_deref()
         .map_or_else(String::new, |err| format!("  ! {err}"));
-    let line = format!(
-        "{}{}",
-        state.command_bar.buffer.as_str().trim_end(),
-        error_suffix
-    );
+    let buffer = state.command_bar.buffer.as_str();
+    let line = format!("{buffer}{error_suffix}");
     let content = if line.is_empty() {
         ":".to_string()
     } else {
         line
     };
-    let widget = Paragraph::new(content).style(Style::default().fg(theme.accent).bg(theme.surface));
+    let widget = Paragraph::new(content.clone())
+        .style(Style::default().fg(theme.accent).bg(theme.surface));
     frame.render_widget(widget, area);
+
+    let cursor_x = area.x + Line::from(buffer).width() as u16;
+    frame.set_cursor_position((cursor_x, area.y));
 }
 
 fn footer_text_for_width(width: u16, state: &AppState) -> String {
@@ -468,5 +469,47 @@ mod tests {
         };
         let text = footer_text_for_width(60, &state);
         assert!(!text.contains("Update available"));
+    }
+
+    #[test]
+    fn render_sets_cursor_in_command_bar() {
+        use ratatui::{
+            Terminal,
+            backend::{Backend, TestBackend},
+            layout::Position,
+        };
+
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = crate::app::state::AppState::new(&crate::test_support::state_test_cli());
+        state.command_bar.open = true;
+        state.command_bar.buffer = ":test ".to_string();
+
+        terminal.draw(|f| render(f, &state, &crate::test_support::state_test_cli())).unwrap();
+
+        // Footer is 1 line high, located at y=23.
+        // Command bar replaces footer when open.
+        // ":test " length is 6.
+        let cursor_pos = terminal.backend_mut().get_cursor_position().unwrap();
+
+        // With current implementation (trim_end), cursor position isn't set explicitly by render_command_bar
+        // except implicitly by paragraph rendering which might not set the terminal cursor.
+        // However, the test is asserting the intended behavior after the fix.
+        // Since we haven't applied the fix yet, we expect this to potentially fail or return (0,0) if not set.
+        // But for TDD, we want to see it fail or just define the test.
+
+        // Wait, ratatui Paragraph doesn't set cursor unless we tell it to or use input widgets.
+        // So initially this should be (0,0) or whatever default.
+        // The fix will calculate position and call frame.set_cursor_position.
+
+        // Let's assert what we WANT:
+        // x = 0 (start) + 6 (length of ":test ") = 6
+        // y = 23 (bottom line of 24 height terminal)
+
+        // NOTE: The current code DOES NOT set the cursor position.
+        // So this test is expected to fail or return (0,0).
+        // Let's just add it.
+
+        assert_eq!(cursor_pos, Position::new(6, 23));
     }
 }
