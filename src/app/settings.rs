@@ -245,7 +245,19 @@ pub fn hourly_view_from_cli(arg: HourlyViewArg) -> HourlyViewMode {
 
 pub fn save_runtime_settings(path: &Path, settings: &RuntimeSettings) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).context("creating settings directory failed")?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            fs::DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(parent)
+                .context("creating settings directory failed")?;
+        }
+        #[cfg(not(unix))]
+        {
+            fs::create_dir_all(parent).context("creating settings directory failed")?;
+        }
     }
     let payload =
         serde_json::to_string_pretty(&settings).context("serializing settings payload failed")?;
