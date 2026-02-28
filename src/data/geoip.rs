@@ -32,6 +32,9 @@ async fn detect_location_with_url(url: &str) -> Option<Location> {
         .filter(|c| !c.is_empty() && c.len() <= MAX_CITY_LEN)?;
     let latitude = response.latitude?;
     let longitude = response.longitude?;
+    if !(-90.0..=90.0).contains(&latitude) || !(-180.0..=180.0).contains(&longitude) {
+        return None;
+    }
     Some(Location {
         name: sanitize_text(&name),
         latitude,
@@ -59,6 +62,28 @@ mod tests {
         Mock, MockServer, ResponseTemplate,
         matchers::{method, path},
     };
+
+    #[tokio::test]
+    async fn detect_location_rejects_invalid_coordinates() {
+        let server = MockServer::start().await;
+        let payload = serde_json::json!({
+            "city": "Stockholm",
+            "latitude": 91.0,
+            "longitude": 181.0,
+            "country_name": "Sweden",
+            "region": "Stockholm",
+            "timezone": "Europe/Stockholm"
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/json/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(payload))
+            .mount(&server)
+            .await;
+
+        let result = detect_location_with_url(&format!("{}/json/", server.uri())).await;
+        assert!(result.is_none());
+    }
 
     #[tokio::test]
     async fn detect_location_rejects_long_city() {
