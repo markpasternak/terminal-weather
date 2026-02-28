@@ -6,9 +6,18 @@
     clippy::match_same_arms
 )]
 
-use ratatui::{buffer::Buffer, layout::Rect, style::Color, widgets::Widget};
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    style::{Color, Style},
+    widgets::Widget,
+};
 
 use crate::ui::particles::Particle;
+
+// OPTIMIZATION: A static string of spaces to avoid allocations when clearing lines.
+// Length 512 should cover most terminal widths.
+const SPACES: &str = "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ";
 
 pub struct GradientBackground<'a> {
     pub top: Color,
@@ -35,10 +44,15 @@ impl Widget for GradientBackground<'_> {
 
 fn paint_flash_background(area: Rect, buf: &mut Buffer, flash_bg: Color) {
     for y in area.top()..area.bottom() {
-        for x in area.left()..area.right() {
-            if let Some(cell) = buf.cell_mut((x, y)) {
-                cell.set_char(' ').set_bg(flash_bg);
-            }
+        // OPTIMIZATION: Use set_string to clear the line with a background color,
+        // avoiding per-cell method calls.
+        let mut x = area.left();
+        let right = area.right();
+        let style = Style::default().bg(flash_bg);
+        while x < right {
+            let len = (right - x).min(SPACES.len() as u16);
+            buf.set_string(x, y, &SPACES[0..len as usize], style);
+            x += len;
         }
     }
 }
@@ -60,10 +74,15 @@ fn paint_gradient_background(area: Rect, buf: &mut Buffer, top: Color, bottom: C
         // Inline gradient_ratio logic: (y - top) / (height - 1)
         let t = (y - area_top) as f32 * inv_height;
         let color = lerp_color(bg_top, bg_bottom, t);
-        for x in area_left..area_right {
-            if let Some(cell) = buf.cell_mut((x, y)) {
-                cell.set_char(' ').set_bg(color);
-            }
+
+        // OPTIMIZATION: Replace inner loop with set_string to batch updates.
+        // This avoids per-cell bounds checking and potential allocations.
+        let mut x = area_left;
+        let style = Style::default().bg(color);
+        while x < area_right {
+            let len = (area_right - x).min(SPACES.len() as u16);
+            buf.set_string(x, y, &SPACES[0..len as usize], style);
+            x += len;
         }
     }
 }
