@@ -121,12 +121,16 @@ impl ParticleEngine {
 
     fn advance_particles(&mut self, dt: f32) {
         let step = dt * 45.0;
-        for p in &mut self.particles {
+
+        // OPTIMIZATION: Combine position updates and boundary filtering into a single pass using retain_mut.
+        // This avoids iterating twice (once for update, once for retain) and improves cache locality.
+        self.particles.retain_mut(|p| {
             p.x += p.vx * step;
             p.y += p.vy * step;
-        }
-        self.particles
-            .retain(|p| p.y < 1.2 && p.x > -0.2 && p.x < 1.2);
+
+            // Keep particle if it's within the extended bounds
+            p.y < 1.2 && p.x > -0.2 && p.x < 1.2
+        });
     }
 
     fn maybe_trigger_flash(&mut self, particle_kind: ParticleKind, rng: &mut impl Rng) {
