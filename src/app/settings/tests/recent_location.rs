@@ -104,6 +104,20 @@ fn display_name_both_none_returns_name_only() {
 }
 
 #[test]
+fn from_location_copies_all_fields() {
+    let location = crate::test_support::stockholm_location();
+
+    let recent = RecentLocation::from_location(&location);
+
+    assert_eq!(recent.name, location.name);
+    assert!((recent.latitude - location.latitude).abs() < f64::EPSILON);
+    assert!((recent.longitude - location.longitude).abs() < f64::EPSILON);
+    assert_eq!(recent.country, location.country);
+    assert_eq!(recent.admin1, location.admin1);
+    assert_eq!(recent.timezone, location.timezone);
+}
+
+#[test]
 fn from_location_and_to_location_roundtrip_core_fields() {
     let location = crate::test_support::stockholm_location();
     let recent = RecentLocation::from_location(&location);
