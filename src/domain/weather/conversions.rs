@@ -43,7 +43,13 @@ pub fn evaluate_freshness(
     crate::resilience::freshness::evaluate_freshness(last_success, consecutive_failures)
 }
 
+use regex::Regex;
+use std::sync::LazyLock;
+
 #[must_use]
 pub fn sanitize_text(text: &str) -> String {
-    text.chars().filter(|c| !c.is_control()).collect()
+    static HTML_TAGS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]*>").unwrap());
+    let no_control = text.chars().filter(|c| !c.is_control()).collect::<String>();
+    let no_tags = HTML_TAGS.replace_all(&no_control, "");
+    html_escape::decode_html_entities(&no_tags).into_owned()
 }

@@ -1,6 +1,7 @@
 use super::*;
 
 mod aqi_tests;
+mod conversions_tests;
 mod daypart_tests;
 mod insight_tests;
 mod refresh_tests;
