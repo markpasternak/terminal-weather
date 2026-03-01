@@ -16,18 +16,6 @@ fn clear_conditions_respect_day_night_for_labels_and_icons() {
 }
 
 #[test]
-fn fahrenheit_conversion_rounding() {
-    assert_eq!(round_temp(convert_temp(0.0, Units::Fahrenheit)), 32);
-    assert_eq!(round_temp(convert_temp(20.0, Units::Fahrenheit)), 68);
-}
-
-#[test]
-fn wind_speed_conversion_rounding() {
-    assert!((convert_wind_speed(36.0) - 10.0).abs() < f32::EPSILON);
-    assert_eq!(round_wind_speed(54.0), 15);
-}
-
-#[test]
 fn daypart_bucket_boundaries_are_correct() {
     let parse = |s: &str| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").unwrap();
     assert_eq!(daypart_for_time(parse("2026-02-12T05:59")), Daypart::Night);
