@@ -41,6 +41,17 @@ fn clear_runtime_settings_is_ok_for_existing_and_missing_file() {
 }
 
 #[test]
+fn clear_runtime_settings_returns_error_on_failure() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    // Attempting to delete a directory as a file should result in an error
+    let result = clear_runtime_settings(temp_dir.path());
+    assert!(
+        result.is_err(),
+        "Expected an error when clearing a directory"
+    );
+}
+
+#[test]
 fn load_runtime_settings_without_disk_returns_cli_defaults() {
     let (settings, path) = load_runtime_settings(&default_cli(), false);
     assert!(path.is_none());
@@ -90,4 +101,44 @@ fn deserialize_settings_without_update_fields_defaults_to_none() {
         serde_json::from_value(raw).expect("parse legacy settings payload");
     assert!(restored.last_update_check_unix.is_none());
     assert!(restored.last_seen_latest_version.is_none());
+}
+
+#[test]
+fn save_runtime_settings_succeeds_with_valid_path() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let valid_path = temp_dir.path().join("settings.json");
+
+    let result = save_runtime_settings(&valid_path, &RuntimeSettings::default());
+
+    assert!(result.is_ok());
+    assert!(valid_path.exists());
+}
+
+#[test]
+fn save_runtime_settings_fails_when_parent_is_file() {
+    let file = NamedTempFile::new().expect("create temp file");
+    let path_is_file = file.path().join("settings.json");
+
+    let result = save_runtime_settings(&path_is_file, &RuntimeSettings::default());
+
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("creating settings directory failed"));
+}
+
+#[test]
+fn save_runtime_settings_fails_when_path_is_directory() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let path_is_dir = temp_dir.path();
+
+    let result = save_runtime_settings(path_is_dir, &RuntimeSettings::default());
+
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("opening settings file with strict permissions failed")
+            || err_msg.contains("writing settings file failed")
+            || err_msg.contains("Is a directory")
+            || err_msg.contains("Access is denied")
+    );
 }

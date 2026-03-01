@@ -306,3 +306,24 @@ async fn apply_demo_action_handles_all_non_quit_variants() {
     state.apply_demo_action(DemoAction::CloseSettings, &tx);
     assert!(!state.settings_open);
 }
+
+#[tokio::test]
+async fn fetch_forecast_emits_failed_event_on_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&server)
+        .await;
+
+    let mut state = test_state();
+    state.forecast_url_override = Some(server.uri());
+    state.air_quality_url_override = Some(server.uri());
+
+    let (tx, mut rx) = mpsc::channel(2);
+    let location = Location::from_coords(TEST_LAT, TEST_LON);
+
+    state.fetch_forecast(&tx, location);
+
+    let event = rx.recv().await.expect("event should be sent");
+    assert!(matches!(event, AppEvent::FetchFailed(_)));
+}

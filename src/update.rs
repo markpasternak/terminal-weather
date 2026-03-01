@@ -265,6 +265,24 @@ end
     }
 
     #[tokio::test]
+    async fn check_for_update_with_url_returns_unknown_on_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/Formula/terminal-weather.rb"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let status = check_for_update_with_url(
+            "0.6.0",
+            &format!("{}/Formula/terminal-weather.rb", server.uri()),
+        )
+        .await;
+
+        assert_eq!(status, UpdateStatus::Unknown);
+    }
+
+    #[tokio::test]
     async fn check_latest_version_rejects_large_response() {
         let server = MockServer::start().await;
         let big_body = "a".repeat(MAX_UPDATE_RESPONSE_SIZE + 1);

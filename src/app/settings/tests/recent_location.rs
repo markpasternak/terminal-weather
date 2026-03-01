@@ -1,6 +1,50 @@
 use super::*;
 
 #[test]
+fn same_place_identical_returns_true() {
+    let a = stockholm_recent_location();
+    let b = stockholm_recent_location();
+    assert!(a.same_place(&b));
+}
+
+#[test]
+fn same_place_coordinates_within_tolerance_returns_true() {
+    let a = stockholm_recent_location();
+    let b = RecentLocation {
+        latitude: a.latitude + 0.04,
+        longitude: a.longitude - 0.04,
+        ..stockholm_recent_location()
+    };
+    assert!(a.same_place(&b));
+}
+
+#[test]
+fn same_place_both_missing_country_returns_true() {
+    let a = RecentLocation {
+        country: None,
+        ..stockholm_recent_location()
+    };
+    let b = RecentLocation {
+        country: None,
+        ..stockholm_recent_location()
+    };
+    assert!(a.same_place(&b));
+}
+
+#[test]
+fn same_place_missing_country_handled_as_empty_string() {
+    let a = RecentLocation {
+        country: None,
+        ..stockholm_recent_location()
+    };
+    let b = RecentLocation {
+        country: Some("".to_string()),
+        ..stockholm_recent_location()
+    };
+    assert!(a.same_place(&b));
+}
+
+#[test]
 fn same_place_handles_unicode_case() {
     let a = RecentLocation {
         name: "Åre".to_string(),
@@ -82,6 +126,28 @@ fn from_location_and_to_location_roundtrip_core_fields() {
     assert!((restored.latitude - location.latitude).abs() < f64::EPSILON);
     assert!((restored.longitude - location.longitude).abs() < f64::EPSILON);
     assert_eq!(restored.timezone, location.timezone);
+}
+
+#[test]
+fn recent_location_to_location_preserves_fields() {
+    let recent = RecentLocation {
+        name: "Test City".to_string(),
+        latitude: 12.34,
+        longitude: 56.78,
+        country: Some("Test Country".to_string()),
+        admin1: Some("Test Admin".to_string()),
+        timezone: Some("Test/Zone".to_string()),
+    };
+
+    let location = recent.to_location();
+
+    assert_eq!(location.name, recent.name);
+    assert!((location.latitude - recent.latitude).abs() < f64::EPSILON);
+    assert!((location.longitude - recent.longitude).abs() < f64::EPSILON);
+    assert_eq!(location.country, recent.country);
+    assert_eq!(location.admin1, recent.admin1);
+    assert_eq!(location.timezone, recent.timezone);
+    assert_eq!(location.population, None);
 }
 
 #[test]
