@@ -109,13 +109,13 @@ fn week_actionability_lines(
     ]
 }
 
-fn actionability_summary(summary: &WeekSummaryData) -> String {
+fn actionability_summary(summary: &WeekSummaryData) -> &'static str {
     if summary.precip_total >= 20.0 {
-        "Precip-heavy week: prioritize dry windows".to_string()
+        "Precip-heavy week: prioritize dry windows"
     } else if summary.breeziest_txt != "--" && summary.breeziest_txt.contains("m/s") {
-        "Mixed week: track wind and UV day by day".to_string()
+        "Mixed week: track wind and UV day by day"
     } else {
-        "Stable week: low planning friction".to_string()
+        "Stable week: low planning friction"
     }
 }
 
@@ -191,12 +191,7 @@ fn append_week_meta_line(
     bundle: &ForecastBundle,
     theme: crate::ui::theme::Theme,
 ) {
-    let tz = bundle
-        .location
-        .timezone
-        .as_deref()
-        .unwrap_or("--")
-        .to_string();
+    let tz = bundle.location.timezone.as_deref().unwrap_or("--");
     let sunrise = first_day_time(bundle, |day| day.sunrise);
     let sunset = first_day_time(bundle, |day| day.sunset);
     let dawn = first_day_shifted_time(bundle, |day| day.sunrise, -30);
