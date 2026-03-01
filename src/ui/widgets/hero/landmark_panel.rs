@@ -434,7 +434,7 @@ mod tests {
     fn colorize_scene_line_single_color_no_transition() {
         let theme = make_theme();
         let base = theme.landmark_neutral;
-        let line = "XXXXXXXXX";
+        let line = "samecolor";
         let result = colorize_scene_line(line, theme, base, HeroVisualArg::AtmosCanvas);
         assert_eq!(result.spans.len(), 1);
     }

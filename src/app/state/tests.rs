@@ -117,3 +117,52 @@ fn assert_cycle<T, F>(
 fn stockholm_recent_location() -> RecentLocation {
     RecentLocation::from_location(&crate::test_support::stockholm_location())
 }
+
+#[test]
+fn new_initializes_with_correct_defaults() {
+    let cli = crate::test_support::state_test_cli();
+    let state = AppState::new(&cli);
+
+    assert_eq!(state.mode, super::AppMode::Loading);
+    assert!(state.running);
+    assert_eq!(state.loading_message, "Initializing...");
+    assert!(state.last_error.is_none());
+    assert!(state.weather.is_none());
+    assert_eq!(state.hourly_offset, 0);
+    assert_eq!(state.hourly_cursor, 0);
+    assert!(!state.fetch_in_flight);
+    assert_eq!(state.frame_tick, 0);
+    assert!(state.animate_ui);
+    assert_eq!(state.viewport_width, 80);
+    assert!(!state.demo_mode);
+    assert!(!state.settings_open);
+    assert!(!state.help_open);
+    assert!(!state.city_picker_open);
+    assert_eq!(state.city_query, "");
+    assert_eq!(state.city_history_selected, 0);
+    assert!(state.city_status.is_none());
+    assert_eq!(state.panel_focus, super::PanelFocus::Hourly);
+    assert_eq!(state.update_status, crate::update::UpdateStatus::Unknown);
+    assert!(!state.command_bar.open);
+    assert_eq!(state.command_bar.buffer, "");
+}
+
+#[test]
+fn new_applies_cli_overrides_to_state() {
+    let mut cli = crate::test_support::state_test_cli();
+    cli.demo = true;
+    cli.forecast_url = Some("http://localhost:8080".to_string());
+    cli.air_quality_url = Some("http://localhost:8081".to_string());
+
+    let state = AppState::new(&cli);
+
+    assert!(state.demo_mode);
+    assert_eq!(
+        state.forecast_url_override.as_deref(),
+        Some("http://localhost:8080")
+    );
+    assert_eq!(
+        state.air_quality_url_override.as_deref(),
+        Some("http://localhost:8081")
+    );
+}
