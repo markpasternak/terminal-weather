@@ -91,3 +91,43 @@ fn deserialize_settings_without_update_fields_defaults_to_none() {
     assert!(restored.last_update_check_unix.is_none());
     assert!(restored.last_seen_latest_version.is_none());
 }
+
+#[test]
+fn save_runtime_settings_succeeds_with_valid_path() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let valid_path = temp_dir.path().join("settings.json");
+
+    let result = save_runtime_settings(&valid_path, &RuntimeSettings::default());
+
+    assert!(result.is_ok());
+    assert!(valid_path.exists());
+}
+
+#[test]
+fn save_runtime_settings_fails_when_parent_is_file() {
+    let file = NamedTempFile::new().expect("create temp file");
+    let path_is_file = file.path().join("settings.json");
+
+    let result = save_runtime_settings(&path_is_file, &RuntimeSettings::default());
+
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("creating settings directory failed"));
+}
+
+#[test]
+fn save_runtime_settings_fails_when_path_is_directory() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let path_is_dir = temp_dir.path();
+
+    let result = save_runtime_settings(path_is_dir, &RuntimeSettings::default());
+
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("opening settings file with strict permissions failed")
+            || err_msg.contains("writing settings file failed")
+            || err_msg.contains("Is a directory")
+            || err_msg.contains("Access is denied")
+    );
+}
