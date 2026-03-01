@@ -1,6 +1,50 @@
 use super::*;
 
 #[test]
+fn same_place_identical_returns_true() {
+    let a = stockholm_recent_location();
+    let b = stockholm_recent_location();
+    assert!(a.same_place(&b));
+}
+
+#[test]
+fn same_place_coordinates_within_tolerance_returns_true() {
+    let a = stockholm_recent_location();
+    let b = RecentLocation {
+        latitude: a.latitude + 0.04,
+        longitude: a.longitude - 0.04,
+        ..stockholm_recent_location()
+    };
+    assert!(a.same_place(&b));
+}
+
+#[test]
+fn same_place_both_missing_country_returns_true() {
+    let a = RecentLocation {
+        country: None,
+        ..stockholm_recent_location()
+    };
+    let b = RecentLocation {
+        country: None,
+        ..stockholm_recent_location()
+    };
+    assert!(a.same_place(&b));
+}
+
+#[test]
+fn same_place_missing_country_handled_as_empty_string() {
+    let a = RecentLocation {
+        country: None,
+        ..stockholm_recent_location()
+    };
+    let b = RecentLocation {
+        country: Some("".to_string()),
+        ..stockholm_recent_location()
+    };
+    assert!(a.same_place(&b));
+}
+
+#[test]
 fn same_place_handles_unicode_case() {
     let a = RecentLocation {
         name: "Åre".to_string(),
