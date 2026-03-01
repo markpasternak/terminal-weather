@@ -92,6 +92,10 @@ fn from_cli_defaults_hardcoded_fields() {
 
     assert_eq!(settings.hourly_view, HourlyViewMode::Table);
     assert!(settings.recent_locations.is_empty());
+    assert!(settings.inline_hints);
+    assert!(settings.command_bar_enabled);
+    assert_eq!(settings.last_update_check_unix, None);
+    assert_eq!(settings.last_seen_latest_version, None);
 }
 
 #[test]
@@ -116,4 +120,41 @@ fn override_refresh_interval_non_default_updates() {
     cli.refresh_interval = 300;
     let settings = RuntimeSettings::from_cli_defaults(&cli);
     assert_eq!(settings.refresh_interval_secs, 300);
+}
+
+#[test]
+fn from_cli_defaults_units_mapping() {
+    let mut cli = default_cli();
+    cli.units = UnitsArg::Fahrenheit;
+    let settings = RuntimeSettings::from_cli_defaults(&cli);
+    assert_eq!(settings.units, crate::domain::weather::Units::Fahrenheit);
+}
+
+#[test]
+fn from_cli_defaults_flash_mapping() {
+    let mut cli = default_cli();
+    cli.no_flash = true;
+    let settings = RuntimeSettings::from_cli_defaults(&cli);
+    assert!(settings.no_flash);
+}
+
+#[test]
+fn from_cli_defaults_icon_mode_mapping() {
+    let mut cli = default_cli();
+    cli.ascii_icons = true;
+    let settings = RuntimeSettings::from_cli_defaults(&cli);
+    assert_eq!(settings.icon_mode, IconMode::Ascii);
+
+    let mut cli = default_cli();
+    cli.nerd_font = true;
+    let settings = RuntimeSettings::from_cli_defaults(&cli);
+    assert_eq!(settings.icon_mode, IconMode::NerdFont);
+}
+
+#[test]
+fn from_cli_defaults_hero_visual_mapping() {
+    let mut cli = default_cli();
+    cli.hero_visual = HeroVisualArg::SkyObservatory;
+    let settings = RuntimeSettings::from_cli_defaults(&cli);
+    assert_eq!(settings.hero_visual, HeroVisualArg::SkyObservatory);
 }
