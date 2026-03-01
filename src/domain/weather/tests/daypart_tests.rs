@@ -22,9 +22,29 @@ fn fahrenheit_conversion_rounding() {
 }
 
 #[test]
+fn temp_rounding_handles_positive_and_negative_values() {
+    assert_eq!(round_temp(2.4), 2);
+    assert_eq!(round_temp(2.5), 3);
+    assert_eq!(round_temp(2.6), 3);
+    assert_eq!(round_temp(-2.4), -2);
+    assert_eq!(round_temp(-2.5), -3);
+    assert_eq!(round_temp(-2.6), -3);
+    assert_eq!(round_temp(0.0), 0);
+}
+
+#[test]
 fn wind_speed_conversion_rounding() {
+    // convert_wind_speed (km/h -> m/s)
+    assert!((convert_wind_speed(0.0) - 0.0).abs() < f32::EPSILON);
+    assert!((convert_wind_speed(3.6) - 1.0).abs() < f32::EPSILON);
     assert!((convert_wind_speed(36.0) - 10.0).abs() < f32::EPSILON);
-    assert_eq!(round_wind_speed(54.0), 15);
+    assert!((convert_wind_speed(-18.0) - -5.0).abs() < f32::EPSILON);
+
+    // round_wind_speed (rounds to nearest integer m/s)
+    assert_eq!(round_wind_speed(54.0), 15); // 15.0 -> 15
+    assert_eq!(round_wind_speed(10.0), 3);  // 2.777... -> 3
+    assert_eq!(round_wind_speed(15.0), 4);  // 4.166... -> 4
+    assert_eq!(round_wind_speed(16.2), 5);  // 4.5 -> 5
 }
 
 #[test]
@@ -203,6 +223,17 @@ fn location_display_name_name_only() {
         population: None,
     };
     assert_eq!(loc.display_name(), "Unknown City");
+}
+
+#[test]
+fn parse_datetime_success_and_failure() {
+    assert_eq!(
+        parse_datetime("2026-02-12T06:00"),
+        chrono::NaiveDateTime::parse_from_str("2026-02-12T06:00", "%Y-%m-%dT%H:%M").ok()
+    );
+    assert!(parse_datetime("2026-02-12").is_none());
+    assert!(parse_datetime("not-a-datetime").is_none());
+    assert!(parse_datetime("2026-02-12T06:00:00").is_none());
 }
 
 #[test]
