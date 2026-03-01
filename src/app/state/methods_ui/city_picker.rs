@@ -12,11 +12,19 @@ const CITY_PICKER_VISIBLE_MAX: usize = 9;
 pub(crate) fn handle_vertical_nav(selected: &mut usize, max_index: usize, code: KeyCode) -> bool {
     match code {
         KeyCode::Up => {
-            *selected = selected.saturating_sub(1);
+            if *selected == 0 {
+                *selected = max_index;
+            } else {
+                *selected = selected.saturating_sub(1);
+            }
             true
         }
         KeyCode::Down => {
-            *selected = (*selected + 1).min(max_index);
+            if *selected >= max_index {
+                *selected = 0;
+            } else {
+                *selected = (*selected + 1).min(max_index);
+            }
             true
         }
         _ => false,
