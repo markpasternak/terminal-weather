@@ -41,6 +41,14 @@ fn clear_runtime_settings_is_ok_for_existing_and_missing_file() {
 }
 
 #[test]
+fn clear_runtime_settings_returns_error_on_failure() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    // Attempting to delete a directory as a file should result in an error
+    let result = clear_runtime_settings(temp_dir.path());
+    assert!(result.is_err(), "Expected an error when clearing a directory");
+}
+
+#[test]
 fn load_runtime_settings_without_disk_returns_cli_defaults() {
     let (settings, path) = load_runtime_settings(&default_cli(), false);
     assert!(path.is_none());
