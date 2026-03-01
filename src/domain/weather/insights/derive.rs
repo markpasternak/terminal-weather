@@ -283,6 +283,26 @@ fn freezing_temperatures_in_window(
 }
 
 fn action_text(action: ActionCue, bundle: &ForecastBundle, units: Units) -> String {
+    if let Some(text) = static_action_text(action) {
+        return text.to_string();
+    }
+    dynamic_action_text(action, bundle, units)
+}
+
+fn static_action_text(action: ActionCue) -> Option<&'static str> {
+    match action {
+        ActionCue::CarryUmbrella => Some("Now action: keep precipitation gear ready"),
+        ActionCue::LowVisibility => Some("Now action: travel with extra visibility caution"),
+        ActionCue::Comfortable => Some("Now action: conditions look comfortable"),
+        ActionCue::WinterTraction
+        | ActionCue::SecureLooseItems
+        | ActionCue::SunProtection
+        | ActionCue::Hydrate
+        | ActionCue::LayerUp => None,
+    }
+}
+
+fn dynamic_action_text(action: ActionCue, bundle: &ForecastBundle, units: Units) -> String {
     match action {
         ActionCue::WinterTraction => format_temp_action(
             "use winter traction + warm layers",
@@ -302,9 +322,9 @@ fn action_text(action: ActionCue, bundle: &ForecastBundle, units: Units) -> Stri
         ActionCue::LayerUp => {
             format_temp_action("layer up for cold", bundle.current.temperature_2m_c, units)
         }
-        ActionCue::CarryUmbrella => "Now action: keep precipitation gear ready".to_string(),
-        ActionCue::LowVisibility => "Now action: travel with extra visibility caution".to_string(),
-        ActionCue::Comfortable => "Now action: conditions look comfortable".to_string(),
+        ActionCue::CarryUmbrella | ActionCue::LowVisibility | ActionCue::Comfortable => {
+            unreachable!("handled in static_action_text")
+        }
     }
 }
 

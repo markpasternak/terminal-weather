@@ -38,7 +38,7 @@ fn same_place_missing_country_handled_as_empty_string() {
         ..stockholm_recent_location()
     };
     let b = RecentLocation {
-        country: Some("".to_string()),
+        country: Some(String::new()),
         ..stockholm_recent_location()
     };
     assert!(a.same_place(&b));

@@ -22,38 +22,53 @@ pub async fn detect_location() -> Option<Location> {
 }
 
 async fn detect_location_with_url(url: &str) -> Option<Location> {
-    let client = Client::builder()
+    let client = build_client()?;
+    let response = fetch_response(&client, url).await?;
+    response_to_location(response)
+}
+
+fn build_client() -> Option<Client> {
+    Client::builder()
         .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(5))
         .build()
-        .ok()?;
-    let response: IpApiResponse = client.get(url).send().await.ok()?.json().await.ok()?;
-    let name = response
-        .city
-        .filter(|c| !c.is_empty() && c.len() <= MAX_CITY_LEN)?;
-    let latitude = response.latitude?;
-    let longitude = response.longitude?;
-    if !(-90.0..=90.0).contains(&latitude) || !(-180.0..=180.0).contains(&longitude) {
-        return None;
-    }
+        .ok()
+}
+
+async fn fetch_response(client: &Client, url: &str) -> Option<IpApiResponse> {
+    client.get(url).send().await.ok()?.json().await.ok()
+}
+
+fn response_to_location(response: IpApiResponse) -> Option<Location> {
+    let name = valid_city(response.city)?;
+    let (latitude, longitude) = valid_coordinates(response.latitude?, response.longitude?)?;
     Some(Location {
         name: sanitize_text(&name),
         latitude,
         longitude,
-        country: response
-            .country_name
-            .filter(|s| s.len() <= MAX_COUNTRY_LEN)
-            .map(|s| sanitize_text(&s)),
-        admin1: response
-            .region
-            .filter(|s| s.len() <= MAX_REGION_LEN)
-            .map(|s| sanitize_text(&s)),
-        timezone: response
-            .timezone
-            .filter(|s| s.len() <= MAX_TIMEZONE_LEN)
-            .map(|s| sanitize_text(&s)),
+        country: sanitized_optional_field(response.country_name, MAX_COUNTRY_LEN),
+        admin1: sanitized_optional_field(response.region, MAX_REGION_LEN),
+        timezone: sanitized_optional_field(response.timezone, MAX_TIMEZONE_LEN),
         population: None,
     })
+}
+
+fn valid_city(city: Option<String>) -> Option<String> {
+    city.filter(|value| !value.is_empty() && value.len() <= MAX_CITY_LEN)
+}
+
+fn valid_coordinates(latitude: f64, longitude: f64) -> Option<(f64, f64)> {
+    if (-90.0..=90.0).contains(&latitude) && (-180.0..=180.0).contains(&longitude) {
+        Some((latitude, longitude))
+    } else {
+        None
+    }
+}
+
+fn sanitized_optional_field(value: Option<String>, max_len: usize) -> Option<String> {
+    value
+        .filter(|entry| entry.len() <= max_len)
+        .map(|entry| sanitize_text(&entry))
 }
 
 #[cfg(test)]
