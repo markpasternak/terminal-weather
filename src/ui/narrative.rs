@@ -88,10 +88,18 @@ fn truncate_with_ellipsis(input: &str, max_chars: usize) -> String {
     if max_chars <= 3 {
         return ".".repeat(max_chars);
     }
-    let keep = max_chars - 3;
-    let mut out = input.chars().take(keep).collect::<String>();
-    out.push_str("...");
-    out
+
+    // Performance Optimization: To truncate a string to a specific character count safely,
+    // we use char_indices() to find the byte boundary of the desired character count.
+    // This allows us to slice the string directly and allocate exactly once, avoiding
+    // the overhead of iterating over chars and repeatedly pushing to a new String.
+    if let Some((byte_idx, _)) = input.char_indices().nth(max_chars - 3) {
+        let mut out = String::with_capacity(byte_idx + 3);
+        out.push_str(&input[..byte_idx]);
+        out.push_str("...");
+        return out;
+    }
+    input.to_string()
 }
 
 #[cfg(test)]
