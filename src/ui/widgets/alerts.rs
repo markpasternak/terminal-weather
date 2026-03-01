@@ -73,7 +73,7 @@ fn push_alert_span(
         if index > 0 {
             return false;
         }
-        entry = truncate_alert_entry(&entry, remaining_after_separator);
+        truncate_alert_entry(&mut entry, remaining_after_separator);
     }
     let entry_width = entry.chars().count();
     spans.push(Span::styled(
@@ -134,19 +134,19 @@ fn alert_decision(alert: &WeatherAlert) -> &'static str {
     }
 }
 
-fn truncate_alert_entry(value: &str, max_chars: usize) -> String {
+fn truncate_alert_entry(value: &mut String, max_chars: usize) {
     if value.chars().count() <= max_chars {
-        return value.to_string();
+        return;
     }
     if max_chars <= 1 {
-        return "…".to_string();
+        value.clear();
+        value.push('…');
+        return;
     }
-    let mut out = String::with_capacity(max_chars);
-    for ch in value.chars().take(max_chars - 1) {
-        out.push(ch);
+    if let Some((idx, _)) = value.char_indices().nth(max_chars - 1) {
+        value.truncate(idx);
+        value.push('…');
     }
-    out.push('…');
-    out
 }
 
 #[must_use]
@@ -280,5 +280,34 @@ mod tests {
 
         let entry = format_alert_entry(&alert);
         assert!(entry.ends_with("Details: timing now"));
+    }
+
+    #[test]
+    fn test_truncate_alert_entry() {
+        use super::truncate_alert_entry;
+
+        let mut s = "Hello, world!".to_string();
+        truncate_alert_entry(&mut s, 5);
+        assert_eq!(s, "Hell…");
+
+        let mut s = "A".to_string();
+        truncate_alert_entry(&mut s, 5);
+        assert_eq!(s, "A");
+
+        let mut s = "Hello".to_string();
+        truncate_alert_entry(&mut s, 1);
+        assert_eq!(s, "…");
+
+        let mut s = "Hello".to_string();
+        truncate_alert_entry(&mut s, 0);
+        assert_eq!(s, "…");
+
+        let mut s = "This is a very long alert message".to_string();
+        truncate_alert_entry(&mut s, 10);
+        assert_eq!(s, "This is a…");
+
+        let mut s = "⚡This is a very long alert message".to_string();
+        truncate_alert_entry(&mut s, 10);
+        assert_eq!(s, "⚡This is …");
     }
 }
