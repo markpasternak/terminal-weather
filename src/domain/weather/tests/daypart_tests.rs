@@ -22,6 +22,17 @@ fn fahrenheit_conversion_rounding() {
 }
 
 #[test]
+fn temp_rounding_handles_positive_and_negative_values() {
+    assert_eq!(round_temp(2.4), 2);
+    assert_eq!(round_temp(2.5), 3);
+    assert_eq!(round_temp(2.6), 3);
+    assert_eq!(round_temp(-2.4), -2);
+    assert_eq!(round_temp(-2.5), -3);
+    assert_eq!(round_temp(-2.6), -3);
+    assert_eq!(round_temp(0.0), 0);
+}
+
+#[test]
 fn wind_speed_conversion_rounding() {
     // convert_wind_speed (km/h -> m/s)
     assert!((convert_wind_speed(0.0) - 0.0).abs() < f32::EPSILON);
