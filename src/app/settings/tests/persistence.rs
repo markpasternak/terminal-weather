@@ -142,3 +142,33 @@ fn save_runtime_settings_fails_when_path_is_directory() {
             || err_msg.contains("Access is denied")
     );
 }
+
+#[test]
+fn load_runtime_settings_with_missing_file_uses_defaults() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let path = temp_dir.path().join("settings.json");
+    assert!(!path.exists());
+
+    let (loaded, loaded_path) = with_test_config_dir(temp_dir.path(), || {
+        load_runtime_settings(&default_cli(), true)
+    });
+
+    assert!(loaded_path.is_some());
+    assert_eq!(loaded.units, crate::domain::weather::Units::Celsius);
+    assert_eq!(loaded.hourly_view, HourlyViewMode::Table);
+}
+
+#[test]
+fn load_runtime_settings_with_invalid_json_uses_defaults() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let path = temp_dir.path().join("settings.json");
+    std::fs::write(&path, "invalid json content").expect("write invalid json");
+
+    let (loaded, loaded_path) = with_test_config_dir(temp_dir.path(), || {
+        load_runtime_settings(&default_cli(), true)
+    });
+
+    assert!(loaded_path.is_some());
+    assert_eq!(loaded.units, crate::domain::weather::Units::Celsius);
+    assert_eq!(loaded.hourly_view, HourlyViewMode::Table);
+}

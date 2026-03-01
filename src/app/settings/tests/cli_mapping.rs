@@ -92,6 +92,10 @@ fn from_cli_defaults_hardcoded_fields() {
 
     assert_eq!(settings.hourly_view, HourlyViewMode::Table);
     assert!(settings.recent_locations.is_empty());
+    assert!(settings.inline_hints);
+    assert!(settings.command_bar_enabled);
+    assert!(settings.last_update_check_unix.is_none());
+    assert!(settings.last_seen_latest_version.is_none());
 }
 
 #[test]

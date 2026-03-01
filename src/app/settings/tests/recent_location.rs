@@ -104,6 +104,19 @@ fn display_name_both_none_returns_name_only() {
 }
 
 #[test]
+fn display_name_admin_only_returns_name_only() {
+    let loc = RecentLocation {
+        name: "London".to_string(),
+        latitude: 51.5,
+        longitude: -0.1,
+        country: None,
+        admin1: Some("Greater London".to_string()),
+        timezone: None,
+    };
+    assert_eq!(loc.display_name(), "London");
+}
+
+#[test]
 fn from_location_copies_all_fields() {
     let location = crate::test_support::stockholm_location();
 
