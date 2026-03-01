@@ -39,7 +39,7 @@ impl GeocodeClient {
             .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(8))
             .build()
-            .unwrap_or_else(|_| Client::new());
+            .expect("failed to initialize HTTP client");
         Self {
             client,
             base_url: base_url.into(),
