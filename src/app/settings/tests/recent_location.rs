@@ -61,24 +61,16 @@ fn display_name_both_none_returns_name_only() {
 
 #[test]
 fn from_location_copies_all_fields() {
-    let location = crate::domain::weather::Location {
-        name: "Test City".to_string(),
-        latitude: 12.34,
-        longitude: 56.78,
-        country: Some("Test Country".to_string()),
-        admin1: Some("Test State".to_string()),
-        timezone: Some("Test/Timezone".to_string()),
-        population: Some(123456),
-    };
+    let location = crate::test_support::stockholm_location();
 
     let recent = RecentLocation::from_location(&location);
 
-    assert_eq!(recent.name, "Test City");
-    assert!((recent.latitude - 12.34).abs() < f64::EPSILON);
-    assert!((recent.longitude - 56.78).abs() < f64::EPSILON);
-    assert_eq!(recent.country.as_deref(), Some("Test Country"));
-    assert_eq!(recent.admin1.as_deref(), Some("Test State"));
-    assert_eq!(recent.timezone.as_deref(), Some("Test/Timezone"));
+    assert_eq!(recent.name, location.name);
+    assert!((recent.latitude - location.latitude).abs() < f64::EPSILON);
+    assert!((recent.longitude - location.longitude).abs() < f64::EPSILON);
+    assert_eq!(recent.country, location.country);
+    assert_eq!(recent.admin1, location.admin1);
+    assert_eq!(recent.timezone, location.timezone);
 }
 
 #[test]
