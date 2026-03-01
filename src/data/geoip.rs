@@ -23,6 +23,7 @@ pub async fn detect_location() -> Option<Location> {
 
 async fn detect_location_with_url(url: &str) -> Option<Location> {
     let client = Client::builder()
+        .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(5))
         .build()
         .ok()?;

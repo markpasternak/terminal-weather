@@ -44,6 +44,7 @@ impl ForecastClient {
     #[must_use]
     pub fn with_urls(base_url: impl Into<String>, air_quality_url: impl Into<String>) -> Self {
         let client = Client::builder()
+            .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap_or_else(|_| Client::new());
