@@ -117,3 +117,20 @@ fn override_refresh_interval_non_default_updates() {
     let settings = RuntimeSettings::from_cli_defaults(&cli);
     assert_eq!(settings.refresh_interval_secs, 300);
 }
+
+#[test]
+
+fn test_hourly_view_from_cli() {
+    assert_eq!(
+        hourly_view_from_cli(HourlyViewArg::Table),
+        HourlyViewMode::Table
+    );
+    assert_eq!(
+        hourly_view_from_cli(HourlyViewArg::Hybrid),
+        HourlyViewMode::Hybrid
+    );
+    assert_eq!(
+        hourly_view_from_cli(HourlyViewArg::Chart),
+        HourlyViewMode::Chart
+    );
+}
