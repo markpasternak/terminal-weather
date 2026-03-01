@@ -71,6 +71,28 @@ fn from_location_and_to_location_roundtrip_core_fields() {
 }
 
 #[test]
+fn recent_location_to_location_preserves_fields() {
+    let recent = RecentLocation {
+        name: "Test City".to_string(),
+        latitude: 12.34,
+        longitude: 56.78,
+        country: Some("Test Country".to_string()),
+        admin1: Some("Test Admin".to_string()),
+        timezone: Some("Test/Zone".to_string()),
+    };
+
+    let location = recent.to_location();
+
+    assert_eq!(location.name, recent.name);
+    assert!((location.latitude - recent.latitude).abs() < f64::EPSILON);
+    assert!((location.longitude - recent.longitude).abs() < f64::EPSILON);
+    assert_eq!(location.country, recent.country);
+    assert_eq!(location.admin1, recent.admin1);
+    assert_eq!(location.timezone, recent.timezone);
+    assert_eq!(location.population, None);
+}
+
+#[test]
 fn same_place_lat_not_close_returns_false() {
     let a = stockholm_recent_location();
     let b = RecentLocation {
