@@ -91,3 +91,67 @@ fn deserialize_settings_without_update_fields_defaults_to_none() {
     assert!(restored.last_update_check_unix.is_none());
     assert!(restored.last_seen_latest_version.is_none());
 }
+
+#[test]
+fn load_runtime_settings_with_invalid_json_uses_defaults() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let path = temp_dir.path().join("settings.json");
+    std::fs::write(&path, "invalid json content").expect("write invalid json");
+
+    let (loaded, loaded_path) = with_test_config_dir(temp_dir.path(), || {
+        load_runtime_settings(&default_cli(), true)
+    });
+
+    assert!(loaded_path.is_some());
+    // Should fallback to defaults instead of crashing
+    assert_eq!(loaded.units, crate::domain::weather::Units::Celsius);
+    assert_eq!(loaded.hourly_view, HourlyViewMode::Table);
+}
+
+#[test]
+fn load_runtime_settings_with_no_available_config_dir_returns_none_path() {
+    let home = std::env::var_os("HOME");
+    let term_dir = std::env::var_os("TERMINAL_WEATHER_CONFIG_DIR");
+    let atmos_dir = std::env::var_os("ATMOS_TUI_CONFIG_DIR");
+
+    unsafe {
+        std::env::remove_var("HOME");
+        std::env::remove_var("TERMINAL_WEATHER_CONFIG_DIR");
+        std::env::remove_var("ATMOS_TUI_CONFIG_DIR");
+    }
+
+    let (loaded, loaded_path) =
+        with_settings_path_override(None, || load_runtime_settings(&default_cli(), true));
+
+    assert!(loaded_path.is_none());
+    assert_eq!(loaded.units, crate::domain::weather::Units::Celsius);
+
+    unsafe {
+        if let Some(h) = home {
+            std::env::set_var("HOME", h);
+        }
+        if let Some(t) = term_dir {
+            std::env::set_var("TERMINAL_WEATHER_CONFIG_DIR", t);
+        }
+        if let Some(a) = atmos_dir {
+            std::env::set_var("ATMOS_TUI_CONFIG_DIR", a);
+        }
+    }
+}
+
+#[test]
+fn load_runtime_settings_with_missing_file_uses_defaults() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let path = temp_dir.path().join("settings.json");
+    // Ensure file doesn't exist
+    assert!(!path.exists());
+
+    let (loaded, loaded_path) = with_test_config_dir(temp_dir.path(), || {
+        load_runtime_settings(&default_cli(), true)
+    });
+
+    assert!(loaded_path.is_some());
+    // Should fallback to defaults
+    assert_eq!(loaded.units, crate::domain::weather::Units::Celsius);
+    assert_eq!(loaded.hourly_view, HourlyViewMode::Table);
+}
