@@ -250,35 +250,35 @@ fn expanded_sun_time(
         .unwrap_or_else(|| "--:--".to_string())
 }
 
-fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'static>> {
+fn build_expanded_top_lines<'a>(data: &'a ExpandedTopData, theme: Theme) -> Vec<Line<'a>> {
     let mut top_lines = vec![
         expanded_temp_condition_line(data, theme),
         expanded_location_line(data, theme),
         expanded_status_line(data, theme),
-        themed_text_line(data.updated.clone(), theme.muted_text),
-        themed_bold_text_line(data.action_text.clone(), theme.accent),
+        themed_text_line(&data.updated, theme.muted_text),
+        themed_bold_text_line(&data.action_text, theme.accent),
     ];
-    if let Some(next_change) = data.next_change_text.clone() {
+    if let Some(next_change) = &data.next_change_text {
         top_lines.push(themed_text_line(next_change, theme.info));
     }
     top_lines.push(themed_text_line(
-        data.confidence_text.clone(),
+        &data.confidence_text,
         theme.muted_text,
     ));
-    if let Some(fetch_context) = data.fetch_context.clone() {
+    if let Some(fetch_context) = &data.fetch_context {
         top_lines.push(themed_text_line(fetch_context, theme.warning));
     }
     top_lines
 }
 
-fn expanded_temp_condition_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
+fn expanded_temp_condition_line<'a>(data: &'a ExpandedTopData, theme: Theme) -> Line<'a> {
     Line::from(vec![
         Span::styled(
             format!("{}°{}  ", data.temp, data.unit_symbol),
             Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            data.condition.clone(),
+            data.condition.as_str(),
             Style::default()
                 .fg(data.condition_color)
                 .add_modifier(Modifier::BOLD),
@@ -286,20 +286,20 @@ fn expanded_temp_condition_line(data: &ExpandedTopData, theme: Theme) -> Line<'s
     ])
 }
 
-fn expanded_location_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
+fn expanded_location_line<'a>(data: &'a ExpandedTopData, theme: Theme) -> Line<'a> {
     if let Some((high, low)) = data.high_low {
         return Line::from(vec![
             Span::styled(
                 format!("H:{high}°  L:{low}°  "),
                 Style::default().fg(theme.text),
             ),
-            Span::styled(data.location.clone(), Style::default().fg(theme.muted_text)),
+            Span::styled(data.location.as_str(), Style::default().fg(theme.muted_text)),
         ]);
     }
-    themed_text_line(data.location.clone(), theme.muted_text)
+    themed_text_line(&data.location, theme.muted_text)
 }
 
-fn expanded_status_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
+fn expanded_status_line<'a>(data: &'a ExpandedTopData, theme: Theme) -> Line<'a> {
     Line::from(vec![
         Span::styled("Status ", Style::default().fg(theme.muted_text)),
         Span::styled(
@@ -311,11 +311,11 @@ fn expanded_status_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
     ])
 }
 
-fn themed_text_line(text: String, color: Color) -> Line<'static> {
+fn themed_text_line<'a>(text: &'a str, color: Color) -> Line<'a> {
     Line::from(Span::styled(text, Style::default().fg(color)))
 }
 
-fn themed_bold_text_line(text: String, color: Color) -> Line<'static> {
+fn themed_bold_text_line<'a>(text: &'a str, color: Color) -> Line<'a> {
     Line::from(Span::styled(
         text,
         Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -436,3 +436,64 @@ fn expanded_fetch_context(state: &AppState) -> Option<String> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod benches {
+    use super::*;
+    use ratatui::style::Color;
+
+    #[test]
+    #[ignore]
+    fn bench_build_expanded_top_lines() {
+        let data = ExpandedTopData {
+            temp: 25,
+            unit_symbol: "C",
+            condition: "Sunny".to_string(),
+            condition_color: Color::Yellow,
+            location: "New York, USA".to_string(),
+            high_low: Some((30, 20)),
+            freshness: "Fresh",
+            freshness_color: Color::Green,
+            updated: "Just now".to_string(),
+            fetch_context: Some("from cache".to_string()),
+            action_text: "Enjoy the weather".to_string(),
+            next_change_text: Some("Rain later".to_string()),
+            confidence_text: "High confidence".to_string(),
+        };
+
+        let theme = crate::ui::theme::Theme {
+            top: ratatui::style::Color::Reset,
+            bottom: ratatui::style::Color::Reset,
+            surface: ratatui::style::Color::Reset,
+            surface_alt: ratatui::style::Color::Reset,
+            popup_surface: ratatui::style::Color::Reset,
+            accent: ratatui::style::Color::Reset,
+            text: ratatui::style::Color::Reset,
+            muted_text: ratatui::style::Color::Reset,
+            popup_text: ratatui::style::Color::Reset,
+            popup_muted_text: ratatui::style::Color::Reset,
+            particle: ratatui::style::Color::Reset,
+            border: ratatui::style::Color::Reset,
+            popup_border: ratatui::style::Color::Reset,
+            info: ratatui::style::Color::Reset,
+            success: ratatui::style::Color::Reset,
+            warning: ratatui::style::Color::Reset,
+            danger: ratatui::style::Color::Reset,
+            temp_freezing: ratatui::style::Color::Reset,
+            temp_cold: ratatui::style::Color::Reset,
+            temp_mild: ratatui::style::Color::Reset,
+            temp_warm: ratatui::style::Color::Reset,
+            temp_hot: ratatui::style::Color::Reset,
+            range_track: ratatui::style::Color::Reset,
+            landmark_warm: ratatui::style::Color::Reset,
+            landmark_cool: ratatui::style::Color::Reset,
+            landmark_neutral: ratatui::style::Color::Reset,
+        };
+        let start = std::time::Instant::now();
+        for _ in 0..100_000 {
+            let _lines = build_expanded_top_lines(&data, theme);
+        }
+        let elapsed = start.elapsed();
+        println!("Elapsed time for 100,000 iterations: {:?}", elapsed);
+    }
+}
