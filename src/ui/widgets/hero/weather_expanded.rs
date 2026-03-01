@@ -261,10 +261,7 @@ fn build_expanded_top_lines<'a>(data: &'a ExpandedTopData, theme: Theme) -> Vec<
     if let Some(next_change) = &data.next_change_text {
         top_lines.push(themed_text_line(next_change, theme.info));
     }
-    top_lines.push(themed_text_line(
-        &data.confidence_text,
-        theme.muted_text,
-    ));
+    top_lines.push(themed_text_line(&data.confidence_text, theme.muted_text));
     if let Some(fetch_context) = &data.fetch_context {
         top_lines.push(themed_text_line(fetch_context, theme.warning));
     }
@@ -293,7 +290,10 @@ fn expanded_location_line<'a>(data: &'a ExpandedTopData, theme: Theme) -> Line<'
                 format!("H:{high}°  L:{low}°  "),
                 Style::default().fg(theme.text),
             ),
-            Span::styled(data.location.as_str(), Style::default().fg(theme.muted_text)),
+            Span::styled(
+                data.location.as_str(),
+                Style::default().fg(theme.muted_text),
+            ),
         ]);
     }
     themed_text_line(&data.location, theme.muted_text)

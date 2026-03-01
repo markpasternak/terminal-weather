@@ -42,9 +42,9 @@ fn wind_speed_conversion_rounding() {
 
     // round_wind_speed (rounds to nearest integer m/s)
     assert_eq!(round_wind_speed(54.0), 15); // 15.0 -> 15
-    assert_eq!(round_wind_speed(10.0), 3);  // 2.777... -> 3
-    assert_eq!(round_wind_speed(15.0), 4);  // 4.166... -> 4
-    assert_eq!(round_wind_speed(16.2), 5);  // 4.5 -> 5
+    assert_eq!(round_wind_speed(10.0), 3); // 2.777... -> 3
+    assert_eq!(round_wind_speed(15.0), 4); // 4.166... -> 4
+    assert_eq!(round_wind_speed(16.2), 5); // 4.5 -> 5
 }
 
 #[test]
