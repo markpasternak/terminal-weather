@@ -206,6 +206,17 @@ fn location_display_name_name_only() {
 }
 
 #[test]
+fn parse_datetime_success_and_failure() {
+    assert_eq!(
+        parse_datetime("2026-02-12T06:00"),
+        chrono::NaiveDateTime::parse_from_str("2026-02-12T06:00", "%Y-%m-%dT%H:%M").ok()
+    );
+    assert!(parse_datetime("2026-02-12").is_none());
+    assert!(parse_datetime("not-a-datetime").is_none());
+    assert!(parse_datetime("2026-02-12T06:00:00").is_none());
+}
+
+#[test]
 fn parse_date_success_and_failure() {
     assert!(parse_date("2026-02-12").is_some());
     assert!(parse_date("not-a-date").is_none());
