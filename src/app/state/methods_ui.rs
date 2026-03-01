@@ -18,9 +18,9 @@ mod tests {
     fn test_handle_vertical_nav_movement_cases() {
         let cases = [
             (5, 10, KeyCode::Up, 4),
-            (0, 10, KeyCode::Up, 0),
+            (0, 10, KeyCode::Up, 10),
             (5, 10, KeyCode::Down, 6),
-            (10, 10, KeyCode::Down, 10),
+            (10, 10, KeyCode::Down, 0),
         ];
 
         for (start, max_index, key, expected) in cases {
