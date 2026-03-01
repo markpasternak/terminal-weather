@@ -60,6 +60,7 @@ pub async fn check_latest_version() -> anyhow::Result<Option<String>> {
 
 pub(crate) async fn check_latest_version_from_url(url: &str) -> anyhow::Result<Option<String>> {
     let client = Client::builder()
+        .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
         .timeout(Duration::from_secs(UPDATE_CHECK_TIMEOUT_SECS))
         .build()
         .context("failed to build update client")?;
