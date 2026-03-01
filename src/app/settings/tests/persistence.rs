@@ -45,7 +45,10 @@ fn clear_runtime_settings_returns_error_on_failure() {
     let temp_dir = tempfile::tempdir().expect("create temp dir");
     // Attempting to delete a directory as a file should result in an error
     let result = clear_runtime_settings(temp_dir.path());
-    assert!(result.is_err(), "Expected an error when clearing a directory");
+    assert!(
+        result.is_err(),
+        "Expected an error when clearing a directory"
+    );
 }
 
 #[test]
