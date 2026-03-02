@@ -294,11 +294,16 @@ fn truncate(value: &str, max_chars: usize) -> String {
     if value.chars().count() <= max_chars {
         return value.to_string();
     }
-    value
-        .chars()
-        .take(max_chars.saturating_sub(1))
-        .chain(std::iter::once('…'))
-        .collect()
+    // Performance Optimization: Truncate string by finding the exact byte boundary
+    // for the target character count using char_indices. This allows a single allocation
+    // and slice operation instead of iterating and pushing chars individually.
+    if let Some((byte_idx, _)) = value.char_indices().nth(max_chars.saturating_sub(1)) {
+        let mut out = String::with_capacity(byte_idx + 3);
+        out.push_str(&value[..byte_idx]);
+        out.push('…');
+        return out;
+    }
+    value.to_string()
 }
 
 #[cfg(test)]

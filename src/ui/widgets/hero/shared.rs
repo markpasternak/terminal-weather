@@ -66,12 +66,17 @@ pub(super) fn summarize_error(error: &str, max_len: usize) -> String {
         return text.to_string();
     }
 
-    let mut out = String::new();
-    for ch in text.chars().take(max_len.saturating_sub(1)) {
-        out.push(ch);
+    // Performance Optimization: Truncate string by finding the correct byte boundary
+    // corresponding to the target character count using char_indices. This allows a
+    // single memory allocation and string slice, eliminating the overhead of iterating
+    // over chars and repeatedly pushing to a new String.
+    if let Some((byte_idx, _)) = text.char_indices().nth(max_len.saturating_sub(1)) {
+        let mut out = String::with_capacity(byte_idx + 3);
+        out.push_str(&text[..byte_idx]);
+        out.push('…');
+        return out;
     }
-    out.push('…');
-    out
+    text.to_string()
 }
 
 pub(super) fn next_precip_probability(hourly: &[HourlyForecast]) -> String {
