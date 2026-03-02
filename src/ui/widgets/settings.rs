@@ -151,7 +151,7 @@ fn settings_list(items: Vec<ListItem<'static>>, panel_style: Style, theme: Theme
 }
 
 fn render_controls(frame: &mut Frame, area: Rect, theme: Theme) {
-    let controls = Paragraph::new("↑/↓ select  ←/→ or Enter change  Enter on actions  s close")
+    let controls = Paragraph::new("↑/↓ select  ←/→ or Enter change  Enter on actions  S close")
         .style(Style::default().fg(theme.popup_muted_text));
     frame.render_widget(controls, area);
 }
