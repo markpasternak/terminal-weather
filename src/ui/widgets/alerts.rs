@@ -141,12 +141,16 @@ fn truncate_alert_entry(value: &str, max_chars: usize) -> String {
     if max_chars <= 1 {
         return "…".to_string();
     }
-    let mut out = String::with_capacity(max_chars);
-    for ch in value.chars().take(max_chars - 1) {
-        out.push(ch);
+    // Performance Optimization: Truncate string efficiently by finding the byte boundary
+    // corresponding to the desired character length. This allows us to slice the string
+    // and allocate memory precisely once, eliminating the overhead of char-by-char iteration.
+    if let Some((byte_idx, _)) = value.char_indices().nth(max_chars - 1) {
+        let mut out = String::with_capacity(byte_idx + 3);
+        out.push_str(&value[..byte_idx]);
+        out.push('…');
+        return out;
     }
-    out.push('…');
-    out
+    value.to_string()
 }
 
 #[must_use]
