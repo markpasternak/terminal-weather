@@ -31,7 +31,7 @@ pub(super) fn render_loading_choreography(
     ];
     append_loading_skeleton_lines(&mut lines, area, state.frame_tick, theme);
     lines.push(Line::from(Span::styled(
-        "Tip: press l for cities, s for settings, r to retry, q to quit",
+        "Tip: press L for cities, S for settings, R to retry, Q to quit",
         Style::default().fg(theme.muted_text),
     )));
     frame.render_widget(Paragraph::new(lines), area);
