@@ -58,7 +58,7 @@ struct ExpandedTopData {
 struct ExpandedMetricsData {
     feels: i32,
     dew: i32,
-    wind_dir: String,
+    wind_dir: &'static str,
     wind: i32,
     gust: i32,
     visibility: String,
@@ -169,7 +169,7 @@ fn build_expanded_top_data(
         } else {
             "F"
         },
-        condition: weather_label_for_time(code, weather.current.is_day).to_string(),
+        condition: weather_label_for_time(code, weather.current.is_day).into(),
         condition_color: condition_color(&theme, weather_code_to_category(code)),
         location: weather.location.display_name(),
         high_low: weather.high_low(state.units),
@@ -210,7 +210,7 @@ fn build_expanded_metrics_data(state: &AppState, weather: &ForecastBundle) -> Ex
             state.units,
         )),
         dew: round_temp(convert_temp(weather.current.dew_point_2m_c, state.units)),
-        wind_dir: compass(weather.current.wind_direction_10m).to_string(),
+        wind_dir: compass(weather.current.wind_direction_10m),
         wind: round_wind_speed(weather.current.wind_speed_10m),
         gust: round_wind_speed(weather.current.wind_gusts_10m),
         visibility: format_visibility(weather.current.visibility_m),
@@ -322,17 +322,17 @@ fn themed_bold_text_line(text: &str, color: Color) -> Line<'_> {
     ))
 }
 
-fn build_expanded_metric_lines(
-    data: &ExpandedMetricsData,
+fn build_expanded_metric_lines<'a>(
+    data: &'a ExpandedMetricsData,
     theme: Theme,
-) -> (Vec<Line<'static>>, Vec<Line<'static>>) {
+) -> (Vec<Line<'a>>, Vec<Line<'a>>) {
     (
         expanded_left_metric_lines(data, theme),
         expanded_right_metric_lines(data, theme),
     )
 }
 
-fn expanded_left_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<Line<'static>> {
+fn expanded_left_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<Line<'_>> {
     vec![
         Line::from(vec![
             Span::styled("Feels ", Style::default().fg(theme.muted_text)),
@@ -349,12 +349,12 @@ fn expanded_left_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<L
             ),
             Span::raw("  "),
             Span::styled("Visibility ", Style::default().fg(theme.muted_text)),
-            Span::styled(data.visibility.clone(), Style::default().fg(theme.accent)),
+            Span::styled(data.visibility.as_str(), Style::default().fg(theme.accent)),
         ]),
     ]
 }
 
-fn expanded_right_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<Line<'static>> {
+fn expanded_right_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<Line<'_>> {
     vec![
         expanded_pressure_line(data, theme),
         expanded_cloud_line(data, theme),
@@ -362,7 +362,7 @@ fn expanded_right_metric_lines(data: &ExpandedMetricsData, theme: Theme) -> Vec<
     ]
 }
 
-fn expanded_pressure_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'static> {
+fn expanded_pressure_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'_> {
     Line::from(vec![
         Span::styled("Pressure ", Style::default().fg(theme.muted_text)),
         Span::styled(
@@ -378,7 +378,7 @@ fn expanded_pressure_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'sta
     ])
 }
 
-fn expanded_cloud_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'static> {
+fn expanded_cloud_line<'a>(data: &'a ExpandedMetricsData, theme: Theme) -> Line<'a> {
     Line::from(vec![
         Span::styled("Cloud ", Style::default().fg(theme.muted_text)),
         Span::styled(
@@ -387,32 +387,32 @@ fn expanded_cloud_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'static
         ),
         Span::raw(" "),
         Span::styled(
-            data.cloud_split.clone(),
+            data.cloud_split.as_str(),
             Style::default().fg(theme.muted_text),
         ),
         Span::raw("  "),
         Span::styled("UV ", Style::default().fg(theme.muted_text)),
-        Span::styled(data.uv_today.clone(), Style::default().fg(theme.warning)),
+        Span::styled(data.uv_today.as_str(), Style::default().fg(theme.warning)),
         Span::raw("  "),
         Span::styled("P ", Style::default().fg(theme.muted_text)),
         Span::styled(
-            data.precip_probability.clone(),
+            data.precip_probability.as_str(),
             Style::default().fg(theme.info),
         ),
     ])
 }
 
-fn expanded_sun_aqi_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'static> {
+fn expanded_sun_aqi_line<'a>(data: &'a ExpandedMetricsData, theme: Theme) -> Line<'a> {
     Line::from(vec![
         Span::styled("Sunrise ", Style::default().fg(theme.muted_text)),
-        Span::styled(data.sunrise.clone(), Style::default().fg(theme.warning)),
+        Span::styled(data.sunrise.as_str(), Style::default().fg(theme.warning)),
         Span::raw("  "),
         Span::styled("Sunset ", Style::default().fg(theme.muted_text)),
-        Span::styled(data.sunset.clone(), Style::default().fg(theme.warning)),
+        Span::styled(data.sunset.as_str(), Style::default().fg(theme.warning)),
         Span::raw("  "),
         Span::styled("AQI ", Style::default().fg(theme.muted_text)),
         Span::styled(
-            data.aqi.clone(),
+            data.aqi.as_str(),
             Style::default().fg(expanded_aqi_color(data, theme)),
         ),
     ])
