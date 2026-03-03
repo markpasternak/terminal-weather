@@ -34,12 +34,15 @@ impl GeocodeClient {
         Self::with_urls(base_url, reverse_url)
     }
 
+    /// # Panics
+    ///
+    /// Panics if the `reqwest::Client` fails to build with the required security configurations (e.g., timeout).
     pub fn with_urls(base_url: impl Into<String>, reverse_url: impl Into<String>) -> Self {
         let client = Client::builder()
             .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(8))
             .build()
-            .unwrap_or_else(|_| Client::new());
+            .expect("failed to build geocode client");
         Self {
             client,
             base_url: base_url.into(),

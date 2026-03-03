@@ -42,12 +42,15 @@ impl ForecastClient {
     }
 
     #[must_use]
+    /// # Panics
+    ///
+    /// Panics if the `reqwest::Client` fails to build with the required security configurations (e.g., timeout).
     pub fn with_urls(base_url: impl Into<String>, air_quality_url: impl Into<String>) -> Self {
         let client = Client::builder()
             .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(10))
             .build()
-            .unwrap_or_else(|_| Client::new());
+            .expect("failed to build forecast client");
         Self {
             client,
             base_url: base_url.into(),
