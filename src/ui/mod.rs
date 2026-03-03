@@ -268,14 +268,14 @@ fn base_footer_text_for_width(width: u16, state: &AppState) -> String {
     let focus_hint = format!("  Tab Focus({})", state.panel_focus.label());
     if width >= 92 {
         format!(
-            "r Refresh  v Hourly View  l Cities  s Settings  <-/-> Scroll  q Quit{focus_hint}{command_hint}"
+            "R Refresh  V Hourly View  L Cities  S Settings  <-/-> Scroll  Q Quit{focus_hint}{command_hint}"
         )
     } else if width >= 72 {
-        format!("r Refresh  v View  l Cities  s Settings  <-/-> Scroll  q Quit{command_hint}")
+        format!("R Refresh  V View  L Cities  S Settings  <-/-> Scroll  Q Quit{command_hint}")
     } else if width >= 52 {
-        format!("r Refresh  v View  l Cities  s Settings  q Quit{command_hint}")
+        format!("R Refresh  V View  L Cities  S Settings  Q Quit{command_hint}")
     } else {
-        "r Refresh  q Quit".to_string()
+        "R Refresh  Q Quit".to_string()
     }
 }
 

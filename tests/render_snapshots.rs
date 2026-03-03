@@ -223,7 +223,7 @@ fn snapshot_80x24_syncing_badge() {
 #[test]
 fn regular_layout_renders_footer_shortcuts() {
     let rendered = render_to_string(120, 40, 0);
-    assert!(rendered.contains("r Refresh"));
+    assert!(rendered.contains("R Refresh"));
     assert!(rendered.contains("F1/? Help"));
 }
 
