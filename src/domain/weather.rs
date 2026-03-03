@@ -1,7 +1,5 @@
 #![allow(clippy::cast_possible_truncation, clippy::must_use_candidate)]
 
-use std::collections::BTreeMap;
-
 use chrono::{NaiveDate, NaiveDateTime, Timelike};
 
 mod conditions;
@@ -134,19 +132,32 @@ fn matches_daypart(hour: &HourlyForecast, date: NaiveDate, part: Daypart) -> boo
 }
 
 fn dominant_weather_code(samples: &[&HourlyForecast], fallback: u8) -> u8 {
-    let mut counts = BTreeMap::<u8, usize>::new();
+    // OPTIMIZATION: Use a fixed-size array instead of a BTreeMap to count frequencies.
+    // Weather codes are between 0 and 99, so we can use an array of size 100 to achieve
+    // O(N) insertion and O(1) resolution without heap allocations.
+    let mut counts = [0usize; 100];
+    let mut max_count = 0;
+    let mut best_code = fallback;
+
     for sample in samples {
-        if let Some(code) = sample.weather_code {
-            *counts.entry(code).or_default() += 1;
+        if let Some(code) = sample.weather_code
+            && code < 100
+        {
+            let count = counts[code as usize] + 1;
+            counts[code as usize] = count;
+
+            if count > max_count {
+                max_count = count;
+                best_code = code;
+            } else if count == max_count && code < best_code {
+                // Replicate the previous exact logic: when counts tie, the smaller weather code wins.
+                // This was previously achieved by `.then_with(|| code_b.cmp(code_a))`.
+                best_code = code;
+            }
         }
     }
 
-    counts
-        .into_iter()
-        .max_by(|(code_a, count_a), (code_b, count_b)| {
-            count_a.cmp(count_b).then_with(|| code_b.cmp(code_a))
-        })
-        .map_or(fallback, |(code, _)| code)
+    if max_count == 0 { fallback } else { best_code }
 }
 
 fn median(values: impl Iterator<Item = f32>) -> Option<f32> {
