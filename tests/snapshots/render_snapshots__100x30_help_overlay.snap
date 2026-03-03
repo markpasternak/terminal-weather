@@ -8,10 +8,10 @@ expression: "render_help_to_string(100, 30, 61)"
 │H:9°  L:│Start here                                                                      │╱       │
 │Stockhol│1) Read top-left triad: now action, next change, confidence/freshness           │        │
 │Now acti│2) Press Tab to focus Hourly or 7-Day for deeper context                        │        │
-│Next cha│3) Use :city <name> or l to switch location quickly                             │▒░      │
+│Next cha│3) Use :city <name> or L to switch location quickly                             │▒░      │
 │Next 6h:│                                                                                │▁▁▁▁    │
 │● Confid│Switch city                                                                     │▃▃▃▃    │
-│Wind 3/6│Press l, type city, Enter search                                                │████    │
+│Wind 3/6│Press L, type city, Enter search                                                │████    │
 │Pressure│Use 1..9 for recent locations                                                   │████    │
 │Dew 2°  │When ambiguous results appear, choose 1..5                                      │        │
 └────────│                                                                                │────────┘
@@ -22,12 +22,12 @@ expression: "render_help_to_string(100, 30, 61)"
 │        │                                                                                │        │
 └────────│Fix stale/offline                                                               │────────┘
 ┌7-Day Fo│Watch status badge: fresh / stale / offline                                     │────────┐
-│Day  Wx │Press r to retry immediately                                                    │        │
+│Day  Wx │Press R to retry immediately                                                    │        │
 │Thu  🌧  │Reliability lines show data age and retry timer                                 │        │
 │Fri  🌧  │                                                                                │        │
 │Sat  🌧  │Customize visuals                                                               │        │
-│Sun  🌧  │Open settings with s for theme, icons, and hourly view                          │        │
-│Mon  🌧  │Use v to cycle hourly views quickly                                             │        │
+│Sun  🌧  │Open settings with S for theme, icons, and hourly view                          │        │
+│Mon  🌧  │Use V to cycle hourly views quickly                                             │        │
 │Tue  🌧  │Type :theme <name> or :view <table|hybrid|chart>                                │        │
 │Wed  🌧  └────────────────────────────────────────────────────────────────────────────────┘        │
 │                                                                                                  │

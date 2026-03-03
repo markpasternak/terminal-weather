@@ -54,13 +54,13 @@ const CORE_HELP_SECTIONS: [HelpSection; 5] = [
         body: &[
             "1) Read top-left triad: now action, next change, confidence/freshness",
             "2) Press Tab to focus Hourly or 7-Day for deeper context",
-            "3) Use :city <name> or l to switch location quickly",
+            "3) Use :city <name> or L to switch location quickly",
         ],
     },
     HelpSection {
         title: "Switch city",
         body: &[
-            "Press l, type city, Enter search",
+            "Press L, type city, Enter search",
             "Use 1..9 for recent locations",
             "When ambiguous results appear, choose 1..5",
         ],
@@ -77,15 +77,15 @@ const CORE_HELP_SECTIONS: [HelpSection; 5] = [
         title: "Fix stale/offline",
         body: &[
             "Watch status badge: fresh / stale / offline",
-            "Press r to retry immediately",
+            "Press R to retry immediately",
             "Reliability lines show data age and retry timer",
         ],
     },
     HelpSection {
         title: "Customize visuals",
         body: &[
-            "Open settings with s for theme, icons, and hourly view",
-            "Use v to cycle hourly views quickly",
+            "Open settings with S for theme, icons, and hourly view",
+            "Use V to cycle hourly views quickly",
             "Type :theme <name> or :view <table|hybrid|chart>",
         ],
     },
@@ -97,9 +97,9 @@ fn append_key_reference_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
         theme,
         "Key reference",
         &[
-            "q / Esc quit  |  Ctrl+C immediate quit",
-            "r refresh now  |  Ctrl+L force redraw",
-            "s settings  |  l city picker  |  f/c units  |  v hourly view",
+            "Q / Esc quit  |  Ctrl+C immediate quit",
+            "R refresh now  |  Ctrl+L force redraw",
+            "S settings  |  L city picker  |  F/C units  |  V hourly view",
             "Tab / Shift+Tab panel focus  |  : command bar",
         ],
     );
