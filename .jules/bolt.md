@@ -1,0 +1,3 @@
+## 2023-10-25 - [Optimize Date/Time Parsing for Open-Meteo Payloads]
+**Learning:** `chrono::NaiveDateTime::parse_from_str` with format strings like `"%Y-%m-%dT%H:%M"` is very slow because it handles generic formatting dynamically. In systems where APIs return massive arrays of timestamps in exact formats, this quickly becomes a bottleneck. Replacing it with manual byte indexing and parsing integer substrings yields a ~300x performance increase.
+**Action:** When repeatedly parsing known, fixed-length datetime formats from high-frequency APIs, prefer manual byte-slicing and integer calculation over generic `chrono` string parsing logic (with `parse_from_str` as a fallback).
