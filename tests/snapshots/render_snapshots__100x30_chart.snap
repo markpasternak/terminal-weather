@@ -31,4 +31,4 @@ expression: "render_with_hourly_mode_to_string(100, 30, 61, HourlyViewMode::Char
 │Mon  🌧   2°    ···███████████████████████████···· 12°    4.9                                      │
 │Tue  🌧   3°    ····████████████████████████████·· 13°    5.5                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
-r Refresh  v Hourly View  l Cities  s Settings  <-/-> Scroll  q Quit  Tab Focus(Hourly)  : Command
+R Refresh  V Hourly View  L Cities  S Settings  <-/-> Scroll  Q Quit  Tab Focus(Hourly)  : Command

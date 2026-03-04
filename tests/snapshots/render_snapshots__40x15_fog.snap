@@ -16,4 +16,4 @@ expression: "render_to_string(40, 15, 45)"
 │Thu  1°    ███████████······· 8°      │
 │Fri  1°    ████████████······ 9°      │
 └──────────────────────────────────────┘
-r Refresh  q Quit  F1/? Help
+R Refresh  Q Quit  F1/? Help
