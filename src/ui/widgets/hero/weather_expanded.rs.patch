@@ -1,0 +1,34 @@
+--- src/ui/widgets/hero/weather_expanded.rs
++++ src/ui/widgets/hero/weather_expanded.rs
+@@ -322,10 +322,10 @@
+     ))
+ }
+
+-fn build_expanded_metric_lines<'a>(
+-    data: &'a ExpandedMetricsData,
++fn build_expanded_metric_lines(
++    data: &ExpandedMetricsData,
+     theme: Theme,
+-) -> (Vec<Line<'a>>, Vec<Line<'a>>) {
++) -> (Vec<Line<'_>>, Vec<Line<'_>>) {
+     (
+         expanded_left_metric_lines(data, theme),
+         expanded_right_metric_lines(data, theme),
+@@ -378,7 +378,7 @@
+     ])
+ }
+
+-fn expanded_cloud_line<'a>(data: &'a ExpandedMetricsData, theme: Theme) -> Line<'a> {
++fn expanded_cloud_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'_> {
+     Line::from(vec![
+         Span::styled("Cloud ", Style::default().fg(theme.muted_text)),
+         Span::styled(
+@@ -402,7 +402,7 @@
+     ])
+ }
+
+-fn expanded_sun_aqi_line<'a>(data: &'a ExpandedMetricsData, theme: Theme) -> Line<'a> {
++fn expanded_sun_aqi_line(data: &ExpandedMetricsData, theme: Theme) -> Line<'_> {
+     Line::from(vec![
+         Span::styled("Sunrise ", Style::default().fg(theme.muted_text)),
+         Span::styled(data.sunrise.as_str(), Style::default().fg(theme.warning)),
