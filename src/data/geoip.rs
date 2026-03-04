@@ -36,7 +36,15 @@ fn build_client() -> Option<Client> {
 }
 
 async fn fetch_response(client: &Client, url: &str) -> Option<IpApiResponse> {
-    client.get(url).send().await.ok()?.json().await.ok()
+    let mut response = client.get(url).send().await.ok()?;
+    let mut body_bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.ok()? {
+        if body_bytes.len() + chunk.len() > 1024 * 1024 {
+            return None;
+        }
+        body_bytes.extend_from_slice(&chunk);
+    }
+    serde_json::from_slice(&body_bytes).ok()
 }
 
 fn response_to_location(response: IpApiResponse) -> Option<Location> {

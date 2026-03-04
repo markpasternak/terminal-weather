@@ -62,7 +62,7 @@ impl GeocodeClient {
     }
 
     pub async fn reverse_resolve(&self, latitude: f64, longitude: f64) -> Result<Option<Location>> {
-        let response = self
+        let mut response = self
             .client
             .get(&self.reverse_url)
             .query(&[
@@ -77,9 +77,19 @@ impl GeocodeClient {
             .error_for_status()
             .context("reverse geocoding request returned non-success status")?;
 
-        let payload: ReverseGeocodeResponse = response
-            .json()
+        let mut body_bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
             .await
+            .context("reading reverse geocoding chunk failed")?
+        {
+            if body_bytes.len() + chunk.len() > 2 * 1024 * 1024 {
+                anyhow::bail!("reverse geocoding response too large");
+            }
+            body_bytes.extend_from_slice(&chunk);
+        }
+
+        let payload: ReverseGeocodeResponse = serde_json::from_slice(&body_bytes)
             .context("failed to decode reverse geocoding response")?;
 
         Ok(payload
@@ -93,17 +103,26 @@ impl GeocodeClient {
         country_code: Option<&str>,
     ) -> Result<GeocodeResponse> {
         let request = self.build_geocode_request(city, country_code);
-        let response = request
+        let mut response = request
             .send()
             .await
             .context("geocoding request failed")?
             .error_for_status()
             .context("geocoding request returned non-success status")?;
 
-        response
-            .json()
+        let mut body_bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
             .await
-            .context("failed to decode geocoding response")
+            .context("reading geocoding chunk failed")?
+        {
+            if body_bytes.len() + chunk.len() > 2 * 1024 * 1024 {
+                anyhow::bail!("geocoding response too large");
+            }
+            body_bytes.extend_from_slice(&chunk);
+        }
+
+        serde_json::from_slice(&body_bytes).context("failed to decode geocoding response")
     }
 
     fn build_geocode_request(

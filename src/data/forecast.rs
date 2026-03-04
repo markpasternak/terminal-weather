@@ -65,7 +65,7 @@ impl ForecastClient {
     }
 
     pub async fn fetch(&self, location: Location) -> Result<ForecastBundle> {
-        let response = self
+        let mut response = self
             .client
             .get(&self.base_url)
             .query(&forecast_query(&location))
@@ -75,10 +75,20 @@ impl ForecastClient {
             .error_for_status()
             .context("forecast request returned non-success status")?;
 
-        let payload: ForecastResponse = response
-            .json()
+        let mut body_bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
             .await
-            .context("failed to parse forecast payload")?;
+            .context("reading forecast chunk failed")?
+        {
+            if body_bytes.len() + chunk.len() > 2 * 1024 * 1024 {
+                anyhow::bail!("forecast response too large");
+            }
+            body_bytes.extend_from_slice(&chunk);
+        }
+
+        let payload: ForecastResponse =
+            serde_json::from_slice(&body_bytes).context("failed to parse forecast payload")?;
 
         let daily = parse_daily(&payload.daily);
         let current = current_from_payload(&payload, &daily);
@@ -95,7 +105,7 @@ impl ForecastClient {
     }
 
     async fn fetch_air_quality(&self, location: &Location) -> Option<AirQualityReading> {
-        let response = self
+        let mut response = self
             .client
             .get(&self.air_quality_url)
             .query(&air_quality_query(location))
@@ -104,7 +114,15 @@ impl ForecastClient {
             .ok()?
             .error_for_status()
             .ok()?;
-        let payload: AirQualityResponse = response.json().await.ok()?;
+
+        let mut body_bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await.ok()? {
+            if body_bytes.len() + chunk.len() > 2 * 1024 * 1024 {
+                return None;
+            }
+            body_bytes.extend_from_slice(&chunk);
+        }
+        let payload: AirQualityResponse = serde_json::from_slice(&body_bytes).ok()?;
         parse_air_quality(payload.current.as_ref())
     }
 }
