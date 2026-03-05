@@ -312,6 +312,10 @@ fn build_error_lines(state: &AppState, theme: Theme) -> Vec<Line<'static>> {
             Style::default().fg(theme.muted_text),
         )));
     }
+    lines.push(Line::from(Span::styled(
+        "Tip: press L for cities, S for settings, R to retry, Q to quit",
+        Style::default().fg(theme.muted_text),
+    )));
     lines
 }
 
