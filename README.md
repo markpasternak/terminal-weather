@@ -11,6 +11,7 @@ Weather, in your terminal. Beautiful by default, scriptable by design.
 ![terminal weather demo](assets/screenshots/demo.gif)
 
 - **3 panels** — Current hero, Hourly (Table / Hybrid / Chart), 7-Day forecast
+- **Weather-native motion** — cinematic, standard, reduced, and off modes with condition-aware scenes
 - **Auto-location** — detects your city from IP when you launch without arguments
 - **18 themes** — auto-selected by terminal capability; TrueColor to 16-color fallback
 - **`--one-shot`** — pipe a weather snapshot to stdout; works in scripts, cron, and shell prompts
@@ -44,7 +45,8 @@ terminal-weather                                         # auto-detect location 
 terminal-weather Stockholm
 terminal-weather --units fahrenheit Tokyo
 terminal-weather --theme midnight-cyan --hero-visual gauge-cluster "San Diego"
-terminal-weather --hero-visual sky-observatory --reduced-motion London
+terminal-weather --hero-visual sky-observatory --motion cinematic London
+terminal-weather --motion reduced London
 terminal-weather --ascii-icons --no-animation Reykjavik
 terminal-weather --nerd-font Stockholm                   # use Nerd Font weather icons
 terminal-weather --lat 59.3293 --lon 18.0686
@@ -64,8 +66,9 @@ Arguments:
 Options:
   --units <celsius|fahrenheit>
   --fps <N>                             15..60 (default: 30)
-  --no-animation                        Disable particle animation
-  --reduced-motion                      Lower motion mode
+  --motion <cinematic|standard|reduced|off>
+  --no-animation                        Alias for --motion off
+  --reduced-motion                      Alias for --motion reduced
   --no-flash                            Disable thunder flash
   --ascii-icons                         Force ASCII icons
   --emoji-icons                         Force emoji icons
@@ -109,7 +112,7 @@ Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` 
 | `:` | Open command bar (when enabled in Settings) |
 | `1..5` | Select ambiguous location |
 
-**Settings panel:** `↑`/`↓` navigate · `←`/`→` or `Enter` change value · `s`/`Esc` close
+**Settings panel:** `↑`/`↓` navigate in visual order · `←`/`→` or `Enter` change value · `s`/`Esc` close
 
 **City switcher:** type to search · `Enter` confirm · `↑`/`↓` browse recents · `1..9` quick-switch · `Delete` clear all · `Esc` close
 
@@ -121,7 +124,7 @@ Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` 
 
 Settings persist to `~/.config/terminal-weather/settings.json`. Override the directory with `TERMINAL_WEATHER_CONFIG_DIR` (legacy `ATMOS_TUI_CONFIG_DIR` is also supported).
 
-Persisted values: units, theme, motion (`full`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`/`nerd-font`), inline hints, command bar enabled/disabled, hourly view, hero visual, refresh interval, recent locations, and update-check metadata (`last_update_check_unix`, `last_seen_latest_version`).
+Persisted values: units, theme, motion (`cinematic`/`standard`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`/`nerd-font`), inline hints, command bar enabled/disabled, hourly view, hero visual, refresh interval, recent locations, and update-check metadata (`last_update_check_unix`, `last_seen_latest_version`).
 
 Color detection falls back TrueColor → xterm-256 → 16-color based on `COLORTERM` and `TERM`. `NO_COLOR` is honored in `auto` mode.
 
@@ -152,6 +155,10 @@ Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (yo
 
 ## What's New in v0.7.0
 
+- **Cinematic weather motion** — the app now uses a dedicated motion system with condition-aware choreography across the hero, landmark scenes, loading states, and panel transitions.
+- **Motion tiers** — `--motion cinematic|standard|reduced|off` is now the primary control, while `--reduced-motion` and `--no-animation` remain as compatibility aliases.
+- **Expanded hourly chart** — chart mode now uses the pane height more effectively with a real temperature plot, a compact precipitation lane, and clearer scale placement.
+- **Settings navigation alignment** — keyboard navigation in Settings now follows the same top-to-bottom order shown on screen.
 - **Silent Homebrew update checks** — startup now performs a background, timeout-bounded check against the Homebrew tap formula to detect newer releases.
 - **Quiet-by-default UX** — no messages are shown for failures or no-update states; a subtle footer hint appears only when a newer version is available.
 - **24-hour check cadence** — update-check metadata is persisted in settings and throttled to once per day.
