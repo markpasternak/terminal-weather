@@ -83,6 +83,11 @@ fn render_small_terminal_hint(
     lines.push(Line::from(format!(
         "Need {MIN_RENDER_WIDTH}x{MIN_RENDER_HEIGHT}+"
     )));
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "Tip: press Q to quit",
+        Style::default().fg(theme.muted_text),
+    )));
 
     let warning = Paragraph::new(lines)
         .style(Style::default().fg(theme.text).bg(theme.surface))
