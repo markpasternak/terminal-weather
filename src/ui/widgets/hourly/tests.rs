@@ -259,7 +259,7 @@ fn collect_render_mode_results(
     render_loading_placeholder(
         frame,
         Rect::new(0, 0, 20, 0),
-        0,
+        crate::test_support::test_motion_context(),
         Style::default(),
         theme.accent,
         theme.muted_text,
@@ -276,6 +276,19 @@ fn collect_render_mode_results(
 fn hourly_panel_title_empty_slice_includes_focus_prefix() {
     let title = hourly_panel_title(HourlyViewMode::Chart, &[], true);
     assert_eq!(title, "▶ Hourly · Chart");
+}
+
+#[test]
+fn compact_chart_context_line_is_shorter_and_removes_now_action_prefix() {
+    let mut state = AppState::new(&crate::test_support::state_test_cli());
+    state.refresh_meta.mark_success();
+    let bundle = crate::test_support::sample_bundle();
+    let narrative = crate::ui::narrative::build_narrative(&state, &bundle);
+
+    let line = compact_chart_context_line(&state, &narrative, 120);
+
+    assert!(!line.contains("Now action:"));
+    assert!(line.contains("Fresh"));
 }
 
 #[test]

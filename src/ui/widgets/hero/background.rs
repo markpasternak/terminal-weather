@@ -228,6 +228,8 @@ mod tests {
             glyph: '●',
             vx: 0.0,
             vy: 0.0,
+            ttl: 1.0,
+            age: 0.0,
         };
         let pos = particle_position(area, &particle);
         assert!(pos.is_some());
@@ -245,6 +247,8 @@ mod tests {
             glyph: '●',
             vx: 0.0,
             vy: 0.0,
+            ttl: 1.0,
+            age: 0.0,
         };
         let pos = particle_position(area, &particle);
         assert!(pos.is_some());

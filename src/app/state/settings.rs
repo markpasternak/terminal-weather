@@ -4,6 +4,7 @@ mod options;
 pub(crate) use adjust::adjust_setting_selection;
 pub(super) use adjust::cycle;
 pub(super) use options::HOURLY_VIEW_OPTIONS;
+pub(crate) use options::SETTINGS_ORDER;
 pub use options::SettingsSelection;
 
 #[cfg(test)]
@@ -18,9 +19,9 @@ mod tests {
 
     #[test]
     fn settings_selection_navigation_is_bounded() {
-        assert_eq!(SettingsSelection::Units.prev(), SettingsSelection::Units);
+        assert_eq!(SettingsSelection::Theme.prev(), SettingsSelection::Theme);
         assert_eq!(SettingsSelection::Close.next(), SettingsSelection::Close);
-        assert!(SettingsSelection::Theme.to_usize() > SettingsSelection::Units.to_usize());
+        assert_eq!(SettingsSelection::default(), SettingsSelection::Theme);
     }
 
     #[test]
@@ -36,12 +37,16 @@ mod tests {
     fn settings_entries_include_actions_and_editable_rows() {
         let state = state();
         let entries = state.settings_entries();
-        assert_eq!(entries.len(), 11);
+        assert_eq!(entries.len(), 12);
         assert!(entries[0].editable);
-        assert_eq!(entries[9].label, "Action");
-        assert!(!entries[9].editable);
-        assert_eq!(entries[10].label, "Panel");
+        assert_eq!(entries[0].label, "Theme");
+        assert_eq!(entries[1].label, "Motion");
+        assert_eq!(entries[4].label, "Hero Visual");
+        assert_eq!(entries[8].label, "Units");
+        assert_eq!(entries[10].label, "Action");
         assert!(!entries[10].editable);
+        assert_eq!(entries[11].label, "Panel");
+        assert!(!entries[11].editable);
     }
 
     #[test]

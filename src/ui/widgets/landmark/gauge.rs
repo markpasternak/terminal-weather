@@ -5,6 +5,7 @@
 )]
 
 use crate::domain::weather::{ForecastBundle, Units, weather_code_to_category};
+use crate::ui::animation::UiMotionContext;
 use crate::ui::widgets::landmark::shared::{fit_lines, fit_lines_centered};
 use crate::ui::widgets::landmark::{LandmarkScene, tint_for_category};
 
@@ -29,6 +30,7 @@ pub fn scene_for_gauge_cluster(
     units: Units,
     width: u16,
     height: u16,
+    motion: UiMotionContext,
 ) -> LandmarkScene {
     let w = width as usize;
     let h = height as usize;
@@ -46,16 +48,45 @@ pub fn scene_for_gauge_cluster(
         append_wind_direction_block(&mut lines, data.wind_direction_10m);
     }
 
+    let mut fitted = if h >= 12 {
+        fit_lines_centered(lines, w, h)
+    } else {
+        fit_lines(lines, w, h)
+    };
+    apply_gauge_accent(&mut fitted, motion, w);
+
     LandmarkScene {
         label: "Gauge Cluster · Live Instruments".to_string(),
-        lines: if h >= 12 {
-            fit_lines_centered(lines, w, h)
-        } else {
-            fit_lines(lines, w, h)
-        },
+        lines: fitted,
         tint: tint_for_category(category),
         context_line: Some(gauge_context_line(&data)),
     }
+}
+
+fn apply_gauge_accent(lines: &mut [String], motion: UiMotionContext, width: usize) {
+    if !matches!(
+        motion.motion_mode,
+        crate::ui::animation::MotionMode::Cinematic | crate::ui::animation::MotionMode::Standard
+    ) {
+        return;
+    }
+    let Some(first_line) = lines.first_mut() else {
+        return;
+    };
+    if width < 20 || first_line.len() + 2 >= width {
+        return;
+    }
+    let glyph = if motion
+        .lane("gauge-accent")
+        .pulse(motion.elapsed_seconds, 1.1, 0)
+        > 0.6
+    {
+        '•'
+    } else {
+        '·'
+    };
+    first_line.push(' ');
+    first_line.push(glyph);
 }
 
 #[cfg(test)]
@@ -199,7 +230,13 @@ mod tests {
     #[test]
     fn scene_for_gauge_cluster_renders_context_and_lines() {
         let bundle = bundle_with_hourly(24);
-        let scene = scene_for_gauge_cluster(&bundle, Units::Celsius, 90, 12);
+        let scene = scene_for_gauge_cluster(
+            &bundle,
+            Units::Celsius,
+            90,
+            12,
+            crate::test_support::test_motion_context(),
+        );
         assert!(!scene.lines.is_empty());
         assert!(scene.context_line.is_some());
     }

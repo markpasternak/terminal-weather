@@ -5,10 +5,10 @@ expression: "render_help_to_string(100, 30, 61)"
 ┌Current · L cities · S settings · ? help──────────────────────────────────────────────────────────┐
 │7°C                                            │  Atmos Canvas · Rain                   ‹V›       │
 │Slight r┌Help────────────────────────────────────────────────────────────────────────────┐C 🌧     │
-│H:9°  L:│Start here                                                                      │╱       │
-│Stockhol│1) Read top-left triad: now action, next change, confidence/freshness           │        │
-│Now acti│2) Press Tab to focus Hourly or 7-Day for deeper context                        │        │
-│Next cha│3) Use :city <name> or L to switch location quickly                             │▒░      │
+│H:9°  L:│Start here                                                                      │        │
+│Stockhol│1) Read top-left triad: now action, next change, confidence/freshness           │  ╱     │
+│Now acti│2) Press Tab to focus Hourly or 7-Day for deeper context                        │░       │
+│Next cha│3) Use :city <name> or L to switch location quickly                             │░       │
 │Next 6h:│                                                                                │▁▁▁▁    │
 │● Confid│Switch city                                                                     │▃▃▃▃    │
 │Wind 3/6│Press L, type city, Enter search                                                │████    │

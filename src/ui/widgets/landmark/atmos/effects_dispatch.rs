@@ -11,9 +11,25 @@ pub(super) fn paint_weather_effects(canvas: &mut [Vec<char>], ctx: WeatherEffect
     match ctx.category {
         WeatherCategory::Clear => paint_clear_effects(canvas, ctx),
         WeatherCategory::Rain => paint_rain_effects(canvas, ctx, is_freezing),
-        WeatherCategory::Snow => paint_snowfall(canvas, ctx.phase, ctx.horizon_y, ctx.width),
+        WeatherCategory::Snow => paint_snowfall(
+            canvas,
+            ctx.phase,
+            ctx.elapsed_seconds,
+            ctx.seed.lane("snow"),
+            ctx.motion_mode,
+            ctx.horizon_y,
+            ctx.width,
+        ),
         WeatherCategory::Fog => {
-            paint_fog_banks(canvas, ctx.phase, ctx.horizon_y, ctx.width, ctx.height);
+            paint_fog_banks(
+                canvas,
+                ctx.phase,
+                ctx.elapsed_seconds,
+                ctx.seed.lane("fog"),
+                ctx.horizon_y,
+                ctx.width,
+                ctx.height,
+            );
         }
         WeatherCategory::Thunder => paint_thunder_effects(canvas, ctx, has_hail),
         _ => {}
@@ -27,7 +43,16 @@ fn paint_clear_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext) {
 }
 
 fn paint_rain_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext, is_freezing: bool) {
-    paint_rain(canvas, ctx.precip_mm, ctx.phase, ctx.horizon_y, ctx.width);
+    paint_rain(
+        canvas,
+        ctx.precip_mm,
+        ctx.phase,
+        ctx.elapsed_seconds,
+        ctx.seed.lane("rain"),
+        ctx.motion_mode,
+        ctx.horizon_y,
+        ctx.width,
+    );
     if is_freezing {
         paint_ice_glaze(canvas, ctx.horizon_y, ctx.width);
     }
@@ -38,11 +63,30 @@ fn paint_thunder_effects(canvas: &mut [Vec<char>], ctx: WeatherEffectsContext, h
         canvas,
         ctx.precip_mm.max(1.0),
         ctx.phase,
+        ctx.elapsed_seconds,
+        ctx.seed.lane("storm-rain"),
+        ctx.motion_mode,
         ctx.horizon_y,
         ctx.width,
     );
-    paint_lightning_bolts(canvas, ctx.phase, ctx.horizon_y, ctx.width);
+    paint_lightning_bolts(
+        canvas,
+        ctx.phase,
+        ctx.elapsed_seconds,
+        ctx.seed.lane("lightning"),
+        ctx.motion_mode,
+        ctx.horizon_y,
+        ctx.width,
+    );
     if has_hail {
-        paint_hail(canvas, ctx.phase, ctx.horizon_y, ctx.width);
+        paint_hail(
+            canvas,
+            ctx.phase,
+            ctx.elapsed_seconds,
+            ctx.seed.lane("hail"),
+            ctx.motion_mode,
+            ctx.horizon_y,
+            ctx.width,
+        );
     }
 }

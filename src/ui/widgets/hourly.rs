@@ -22,8 +22,8 @@ use crate::{
         weather_label_for_time,
     },
     ui::layout::visible_hour_count,
-    ui::narrative::build_narrative,
     ui::theme::{Theme, detect_color_capability, icon_color, temp_color, theme_for},
+    ui::{motion_context, narrative::build_narrative},
 };
 
 mod daypart;
@@ -72,7 +72,7 @@ fn render_hourly_loading(
     render_loading_placeholder(
         frame,
         inner,
-        state.frame_tick,
+        motion_context(state, "hourly-loading"),
         panel_style,
         theme.accent,
         theme.muted_text,
@@ -100,28 +100,13 @@ fn render_hourly_with_bundle(
         &slice,
         state.panel_focus == crate::app::state::PanelFocus::Hourly,
     );
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(title)
-        .style(panel_style)
-        .border_style(Style::default().fg(theme.border).bg(theme.surface));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
-    if slice.is_empty() {
-        render_loading_placeholder(
-            frame,
-            inner,
-            state.frame_tick,
-            panel_style,
-            theme.accent,
-            theme.muted_text,
-        );
+    let inner = render_hourly_block(frame, area, title, panel_style, theme);
+    if render_empty_hourly_slice(frame, inner, state, &slice, panel_style, theme) {
         return;
     }
 
-    let content_area = render_hourly_context_strip(frame, inner, state, bundle, theme);
+    let content_area =
+        render_hourly_context_strip(frame, inner, state, bundle, theme, effective_mode);
     render_hourly_mode(
         frame,
         content_area,
@@ -133,12 +118,52 @@ fn render_hourly_with_bundle(
     );
 }
 
+fn render_hourly_block(
+    frame: &mut Frame,
+    area: Rect,
+    title: String,
+    panel_style: Style,
+    theme: Theme,
+) -> Rect {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .style(panel_style)
+        .border_style(Style::default().fg(theme.border).bg(theme.surface));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    inner
+}
+
+fn render_empty_hourly_slice(
+    frame: &mut Frame,
+    inner: Rect,
+    state: &AppState,
+    slice: &[&HourlyForecast],
+    panel_style: Style,
+    theme: Theme,
+) -> bool {
+    if !slice.is_empty() {
+        return false;
+    }
+    render_loading_placeholder(
+        frame,
+        inner,
+        motion_context(state, "hourly-empty"),
+        panel_style,
+        theme.accent,
+        theme.muted_text,
+    );
+    true
+}
+
 fn render_hourly_context_strip(
     frame: &mut Frame,
     inner: Rect,
     state: &AppState,
     bundle: &ForecastBundle,
     theme: Theme,
+    mode: HourlyViewMode,
 ) -> Rect {
     if !state.settings.inline_hints || state.panel_focus != PanelFocus::Hourly || inner.height < 8 {
         return inner;
@@ -146,10 +171,98 @@ fn render_hourly_context_strip(
 
     let rows = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(inner);
     let narrative = build_narrative(state, bundle);
-    let line = narrative.compact_triage_line(rows[0].width);
+    let motion = motion_context(state, "hourly-focus");
+    let pulse =
+        if motion.animate && motion.lane("focus").pulse(motion.elapsed_seconds, 0.9, 0) > 0.58 {
+            "◦ "
+        } else {
+            "· "
+        };
+    let line = match mode {
+        HourlyViewMode::Chart => compact_chart_context_line(state, &narrative, rows[0].width),
+        _ => format!(
+            "{pulse}{}",
+            narrative.compact_triage_line(rows[0].width.saturating_sub(2))
+        ),
+    };
     let hint = Paragraph::new(line).style(Style::default().fg(theme.muted_text));
     frame.render_widget(hint, rows[0]);
     rows[1]
+}
+
+fn compact_chart_context_line(
+    state: &AppState,
+    narrative: &crate::ui::narrative::UiNarrativeState,
+    width: u16,
+) -> String {
+    let action = narrative
+        .now_action
+        .strip_prefix("Now action: ")
+        .unwrap_or(&narrative.now_action);
+    let next_change = shorten_next_change(&narrative.next_change);
+    let freshness = chart_freshness_summary(state);
+    let raw = format!("{action}  |  {next_change}  |  {freshness}");
+    truncate_with_ellipsis(&raw, width as usize)
+}
+
+fn shorten_next_change(next_change: &str) -> String {
+    next_change
+        .strip_prefix("Next change in ")
+        .map_or_else(|| next_change.to_string(), |value| format!("+{value}"))
+}
+
+fn chart_freshness_summary(state: &AppState) -> String {
+    freshness_summary_for_state(
+        state,
+        state
+            .refresh_meta
+            .age_minutes()
+            .map(|minutes| format!("{minutes}m")),
+    )
+}
+
+fn freshness_summary_for_state(state: &AppState, age: Option<String>) -> String {
+    use crate::resilience::freshness::FreshnessState;
+
+    match state.refresh_meta.state {
+        FreshnessState::Fresh => freshness_age_label("Fresh", age),
+        FreshnessState::Stale => freshness_age_label("Stale", age),
+        FreshnessState::Offline => offline_freshness_label(state),
+    }
+}
+
+fn freshness_age_label(label: &str, age: Option<String>) -> String {
+    age.map_or_else(|| label.to_string(), |value| format!("{label} {value}"))
+}
+
+fn offline_freshness_label(state: &AppState) -> String {
+    state.refresh_meta.retry_in_seconds().map_or_else(
+        || "Offline".to_string(),
+        |retry| format!("Offline retry {retry}s"),
+    )
+}
+
+fn truncate_with_ellipsis(input: &str, max_chars: usize) -> String {
+    if max_chars == 0 {
+        return String::new();
+    }
+    let count = input.chars().count();
+    if count <= max_chars {
+        return input.to_string();
+    }
+    if max_chars <= 3 {
+        return ".".repeat(max_chars);
+    }
+
+    input.char_indices().nth(max_chars - 3).map_or_else(
+        || input.to_string(),
+        |(byte_idx, _)| {
+            let mut out = String::with_capacity(byte_idx + 3);
+            out.push_str(&input[..byte_idx]);
+            out.push_str("...");
+            out
+        },
+    )
 }
 
 fn hourly_slice(bundle: &ForecastBundle, offset: usize, area_width: u16) -> Vec<&HourlyForecast> {
@@ -260,7 +373,7 @@ fn render_chart_mode(
         return false;
     }
 
-    let chunks = Layout::vertical([Constraint::Min(6), Constraint::Length(2)]).split(area);
+    let chunks = Layout::vertical([Constraint::Min(6), Constraint::Length(1)]).split(area);
     let timeline_stats = render_temp_precip_timeline(frame, chunks[0], slice, theme, state.units);
     render_chart_metrics(frame, chunks[1], timeline_stats, theme);
     true
@@ -269,7 +382,7 @@ fn render_chart_mode(
 fn render_loading_placeholder(
     frame: &mut Frame,
     area: Rect,
-    frame_tick: u64,
+    motion: crate::ui::animation::UiMotionContext,
     panel_style: Style,
     accent: Color,
     muted: Color,
@@ -278,20 +391,27 @@ fn render_loading_placeholder(
         return;
     }
     let slots = (usize::from(area.width) / 6).max(4);
-    let mut shimmer = vec!['·'; slots];
-    let idx = (frame_tick as usize) % slots;
-    shimmer[idx] = '◆';
-    if idx > 0 {
-        shimmer[idx - 1] = '◇';
-    }
-    let row1 = shimmer.iter().collect::<String>();
+    let row1 = (0..slots)
+        .map(|idx| {
+            let wave = motion
+                .lane("hourly-loading")
+                .pulse(motion.elapsed_seconds, 1.0, idx as u64);
+            if wave > 0.82 {
+                '◆'
+            } else if wave > 0.68 {
+                '◇'
+            } else {
+                '·'
+            }
+        })
+        .collect::<String>();
     let row2 = (0..slots)
         .map(|i| {
-            if (i + idx).is_multiple_of(3) {
-                '◦'
-            } else {
-                ' '
-            }
+            let wave =
+                motion
+                    .lane("hourly-loading-bottom")
+                    .pulse(motion.elapsed_seconds, 0.7, i as u64);
+            if wave > 0.62 { '◦' } else { ' ' }
         })
         .collect::<String>();
 

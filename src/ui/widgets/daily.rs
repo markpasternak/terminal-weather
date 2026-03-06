@@ -9,7 +9,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Paragraph, Row},
 };
 
 use crate::{
@@ -20,6 +20,7 @@ use crate::{
         weather_code_to_category, weather_icon,
     },
     ui::{
+        motion_context,
         narrative::build_narrative,
         theme::{detect_color_capability, icon_color, temp_color, theme_for},
     },
@@ -28,10 +29,11 @@ use crate::{
 mod layout;
 mod loading;
 mod summary;
+mod table;
 
 use layout::DailyLayout;
 use loading::render_loading_daily;
-use summary::render_week_summary;
+use table::{build_daily_table, render_daily_table_and_summary};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     let capability = detect_color_capability(state.color_mode);
@@ -70,7 +72,7 @@ fn render_daily_loading(
     render_loading_daily(
         frame,
         inner,
-        state.frame_tick,
+        motion_context(state, "daily-loading"),
         panel_style,
         theme.accent,
         theme.muted_text,
@@ -101,7 +103,8 @@ fn render_daily_with_bundle(
         global_min,
         global_max,
     };
-    let rows = build_daily_rows(bundle, max_rows, ctx);
+    let reveal_rows = visible_reveal_rows(max_rows, state.transition_progress());
+    let rows = build_daily_rows(bundle, reveal_rows, ctx);
     let table = build_daily_table(rows, panel_style, layout, theme.muted_text);
     render_daily_table_and_summary(
         frame,
@@ -112,6 +115,14 @@ fn render_daily_with_bundle(
         theme,
         layout,
     );
+}
+
+fn visible_reveal_rows(max_rows: usize, transition_progress: Option<f32>) -> usize {
+    let progress = transition_progress.unwrap_or(1.0);
+    if progress >= 0.999 {
+        return max_rows;
+    }
+    (((max_rows as f32) * progress.max(0.28)).ceil() as usize).max(usize::from(max_rows > 0))
 }
 
 fn prepare_daily_bundle_panel(
@@ -160,40 +171,6 @@ fn render_daily_context_strip(
     let hint = Paragraph::new(line).style(Style::default().fg(theme.muted_text));
     frame.render_widget(hint, rows[0]);
     rows[1]
-}
-
-fn build_daily_table(
-    rows: Vec<Row<'static>>,
-    panel_style: Style,
-    layout: DailyLayout,
-    muted_text: Color,
-) -> Table<'static> {
-    let mut table = Table::new(rows, daily_table_widths(layout))
-        .column_spacing(layout.column_spacing)
-        .style(panel_style);
-    if layout.show_header {
-        table = table
-            .header(Row::new(daily_header_cells(layout)).style(Style::default().fg(muted_text)));
-    }
-    table
-}
-
-fn render_daily_table_and_summary(
-    frame: &mut Frame,
-    inner: Rect,
-    table: Table<'static>,
-    bundle: &ForecastBundle,
-    units: Units,
-    theme: crate::ui::theme::Theme,
-    layout: DailyLayout,
-) {
-    let row_count = bundle.daily.len().min(layout.max_rows(inner.height)) as u16;
-    let table_height = row_count.saturating_add(u16::from(layout.show_header));
-    let (table_area, summary_slot) = split_table_and_summary(inner, table_height);
-    frame.render_widget(table, table_area);
-    if let Some(summary_area) = summary_slot {
-        render_week_summary(frame, summary_area, bundle, units, theme);
-    }
 }
 
 fn global_temp_bounds(bundle: &ForecastBundle) -> (f32, f32) {
@@ -415,66 +392,6 @@ fn build_range_bar(
         Span::styled(fill, Style::default().fg(theme.accent)),
         Span::styled(after, Style::default().fg(theme.range_track)),
     ])
-}
-
-fn daily_table_widths(layout: DailyLayout) -> Vec<Constraint> {
-    let mut widths = vec![Constraint::Length(4)];
-    if layout.show_icon {
-        widths.push(Constraint::Length(3));
-    }
-    widths.push(Constraint::Length(5));
-    if layout.show_bar {
-        widths.push(Constraint::Length(layout.bar_width as u16));
-    }
-    widths.push(Constraint::Length(5));
-    if layout.show_precip_col {
-        widths.push(Constraint::Length(5));
-    }
-    if layout.show_gust_col {
-        widths.push(Constraint::Length(4));
-    }
-    widths
-}
-
-fn daily_header_cells(layout: DailyLayout) -> Vec<&'static str> {
-    let mut cells = vec!["Day"];
-    if layout.show_icon {
-        cells.push("Wx");
-    }
-    cells.push("Low");
-    if layout.show_bar {
-        cells.push("Range");
-    }
-    cells.push("High");
-    if layout.show_precip_col {
-        cells.push("Pmm");
-    }
-    if layout.show_gust_col {
-        cells.push("Gst");
-    }
-    cells
-}
-
-fn split_table_and_summary(inner: Rect, table_height: u16) -> (Rect, Option<Rect>) {
-    if inner.height <= table_height.saturating_add(2) {
-        return (inner, None);
-    }
-
-    let summary_y = inner.y.saturating_add(table_height);
-    let summary_height = inner.bottom().saturating_sub(summary_y);
-    let table_area = Rect {
-        x: inner.x,
-        y: inner.y,
-        width: inner.width,
-        height: table_height,
-    };
-    let summary_slot = (summary_height > 0).then_some(Rect {
-        x: inner.x,
-        y: summary_y,
-        width: inner.width,
-        height: summary_height,
-    });
-    (table_area, summary_slot)
 }
 
 #[must_use]

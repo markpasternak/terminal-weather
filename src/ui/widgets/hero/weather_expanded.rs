@@ -107,7 +107,10 @@ pub fn render_weather_info_expanded(
     let trends_data = collect_trend_series(weather, state.units, trend_area, scale);
 
     frame.render_widget(
-        Paragraph::new(build_expanded_top_lines(&top_data, theme)),
+        Paragraph::new(apply_top_reveal(
+            build_expanded_top_lines(&top_data, theme),
+            state.transition_progress(),
+        )),
         top_area,
     );
 
@@ -125,6 +128,25 @@ pub fn render_weather_info_expanded(
         )),
         trend_area,
     );
+}
+
+fn apply_top_reveal(
+    lines: Vec<Line<'static>>,
+    transition_progress: Option<f32>,
+) -> Vec<Line<'static>> {
+    let progress = transition_progress.unwrap_or(1.0).clamp(0.0, 1.0);
+    if progress >= 0.999 {
+        return lines;
+    }
+
+    let visible = ((lines.len() as f32) * progress.max(0.3)).ceil() as usize;
+    let vertical_offset = ((1.0 - progress) * 2.0).round() as usize;
+    let mut revealed = Vec::with_capacity(visible + vertical_offset);
+    for _ in 0..vertical_offset {
+        revealed.push(Line::from(""));
+    }
+    revealed.extend(lines.into_iter().take(visible.max(1)));
+    revealed
 }
 
 fn expanded_sections(area: Rect) -> std::rc::Rc<[Rect]> {
@@ -250,7 +272,7 @@ fn expanded_sun_time(
         .unwrap_or_else(|| "--:--".to_string())
 }
 
-fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'_>> {
+fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'static>> {
     let mut top_lines = vec![
         expanded_temp_condition_line(data, theme),
         expanded_location_line(data, theme),
@@ -268,14 +290,14 @@ fn build_expanded_top_lines(data: &ExpandedTopData, theme: Theme) -> Vec<Line<'_
     top_lines
 }
 
-fn expanded_temp_condition_line(data: &ExpandedTopData, theme: Theme) -> Line<'_> {
+fn expanded_temp_condition_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
     Line::from(vec![
         Span::styled(
             format!("{}°{}  ", data.temp, data.unit_symbol),
             Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            data.condition.as_str(),
+            data.condition.clone(),
             Style::default()
                 .fg(data.condition_color)
                 .add_modifier(Modifier::BOLD),
@@ -283,23 +305,20 @@ fn expanded_temp_condition_line(data: &ExpandedTopData, theme: Theme) -> Line<'_
     ])
 }
 
-fn expanded_location_line(data: &ExpandedTopData, theme: Theme) -> Line<'_> {
+fn expanded_location_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
     if let Some((high, low)) = data.high_low {
         return Line::from(vec![
             Span::styled(
                 format!("H:{high}°  L:{low}°  "),
                 Style::default().fg(theme.text),
             ),
-            Span::styled(
-                data.location.as_str(),
-                Style::default().fg(theme.muted_text),
-            ),
+            Span::styled(data.location.clone(), Style::default().fg(theme.muted_text)),
         ]);
     }
     themed_text_line(&data.location, theme.muted_text)
 }
 
-fn expanded_status_line(data: &ExpandedTopData, theme: Theme) -> Line<'_> {
+fn expanded_status_line(data: &ExpandedTopData, theme: Theme) -> Line<'static> {
     Line::from(vec![
         Span::styled("Status ", Style::default().fg(theme.muted_text)),
         Span::styled(
@@ -311,13 +330,13 @@ fn expanded_status_line(data: &ExpandedTopData, theme: Theme) -> Line<'_> {
     ])
 }
 
-fn themed_text_line(text: &str, color: Color) -> Line<'_> {
-    Line::from(Span::styled(text, Style::default().fg(color)))
+fn themed_text_line(text: &str, color: Color) -> Line<'static> {
+    Line::from(Span::styled(text.to_string(), Style::default().fg(color)))
 }
 
-fn themed_bold_text_line(text: &str, color: Color) -> Line<'_> {
+fn themed_bold_text_line(text: &str, color: Color) -> Line<'static> {
     Line::from(Span::styled(
-        text,
+        text.to_string(),
         Style::default().fg(color).add_modifier(Modifier::BOLD),
     ))
 }

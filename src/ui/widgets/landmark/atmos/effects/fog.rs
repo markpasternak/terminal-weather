@@ -1,7 +1,11 @@
+use crate::ui::animation::SeededMotion;
+
 #[allow(clippy::needless_range_loop)]
 pub(in super::super) fn paint_fog_banks(
     canvas: &mut [Vec<char>],
     phase: usize,
+    elapsed_seconds: f32,
+    seed: SeededMotion,
     horizon_y: usize,
     w: usize,
     h: usize,
@@ -9,13 +13,15 @@ pub(in super::super) fn paint_fog_banks(
     if w == 0 {
         return;
     }
-    paint_fog_bands(canvas, phase, horizon_y, w, h);
-    paint_upper_mist(canvas, phase, horizon_y, w, h);
+    paint_fog_bands(canvas, phase, elapsed_seconds, seed, horizon_y, w, h);
+    paint_upper_mist(canvas, phase, elapsed_seconds, seed, horizon_y, w, h);
 }
 
 fn paint_fog_bands(
     canvas: &mut [Vec<char>],
     phase: usize,
+    elapsed_seconds: f32,
+    seed: SeededMotion,
     horizon_y: usize,
     width: usize,
     height: usize,
@@ -26,7 +32,10 @@ fn paint_fog_bands(
         if base_y >= height {
             continue;
         }
-        let drift = (phase + band * 7) % width;
+        let drift = ((elapsed_seconds * (1.1 + band as f32 * 0.2)).round() as usize
+            + phase
+            + (seed.unit(band as u64 + 5) * width as f32) as usize)
+            % width;
         let row = &mut canvas[base_y];
         for (x, cell) in row.iter_mut().enumerate().take(width) {
             let shifted = (x + drift) % width;
@@ -42,6 +51,8 @@ fn paint_fog_bands(
 fn paint_upper_mist(
     canvas: &mut [Vec<char>],
     phase: usize,
+    elapsed_seconds: f32,
+    seed: SeededMotion,
     horizon_y: usize,
     width: usize,
     height: usize,
@@ -49,7 +60,8 @@ fn paint_upper_mist(
     let upper = horizon_y.saturating_sub(3).min(height);
     for (y, row) in canvas.iter_mut().enumerate().take(upper).skip(2) {
         for (x, cell) in row.iter_mut().enumerate().take(width) {
-            if (x + y + phase / 3).is_multiple_of(7) && *cell == ' ' {
+            let breathing = (seed.pulse(elapsed_seconds, 0.35, (x + y) as u64) * 3.0) as usize;
+            if (x + y + phase / 3 + breathing).is_multiple_of(7) && *cell == ' ' {
                 *cell = '·';
             }
         }

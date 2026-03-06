@@ -6,6 +6,7 @@
 )]
 
 use crate::domain::weather::{ForecastBundle, weather_code_to_category};
+use crate::ui::animation::UiMotionContext;
 use crate::ui::widgets::landmark::compact::compact_condition_scene;
 use crate::ui::widgets::landmark::shared::canvas_to_lines;
 use crate::ui::widgets::landmark::{LandmarkScene, tint_for_category};
@@ -30,8 +31,7 @@ use strip::{paint_horizon_strip, plot_hourly_strip, write_summary_line};
 #[must_use]
 pub fn scene_for_sky_observatory(
     bundle: &ForecastBundle,
-    frame_tick: u64,
-    animate: bool,
+    motion: UiMotionContext,
     width: u16,
     height: u16,
 ) -> LandmarkScene {
@@ -42,7 +42,7 @@ pub fn scene_for_sky_observatory(
         return compact_condition_scene(category, bundle.current.is_day, width, height);
     }
 
-    let canvas = build_sky_observatory_canvas(bundle, frame_tick, animate, w, h);
+    let canvas = build_sky_observatory_canvas(bundle, motion, w, h);
     let (sunrise_h, sunset_h) = sun_window(bundle);
     let now_h = current_hour(bundle);
     LandmarkScene {
@@ -61,8 +61,7 @@ pub fn scene_for_sky_observatory(
 #[allow(clippy::needless_range_loop)]
 fn build_sky_observatory_canvas(
     bundle: &ForecastBundle,
-    frame_tick: u64,
-    animate: bool,
+    motion: UiMotionContext,
     width: usize,
     height: usize,
 ) -> Vec<Vec<char>> {
@@ -92,8 +91,7 @@ fn build_sky_observatory_canvas(
         width,
         arc_bottom,
         bundle.current.is_day,
-        animate,
-        frame_tick,
+        motion,
     );
 
     let strip_y = height.saturating_sub(3);
@@ -225,14 +223,16 @@ mod tests {
     fn scene_for_sky_observatory_compact_for_tiny_area() {
         let bundle = crate::test_support::sample_bundle();
         // Below minimum size → compact scene (short lines)
-        let scene = scene_for_sky_observatory(&bundle, 0, true, 10, 4);
+        let scene =
+            scene_for_sky_observatory(&bundle, crate::test_support::test_motion_context(), 10, 4);
         assert!(!scene.lines.is_empty());
     }
 
     #[test]
     fn scene_for_sky_observatory_full_for_normal_area() {
         let bundle = crate::test_support::sample_bundle();
-        let scene = scene_for_sky_observatory(&bundle, 5, true, 60, 16);
+        let scene =
+            scene_for_sky_observatory(&bundle, crate::test_support::test_motion_context(), 60, 16);
         assert!(!scene.lines.is_empty());
         assert!(scene.context_line.is_some());
         assert!(scene.label.contains("Sky Observatory"));

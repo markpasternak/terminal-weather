@@ -1,5 +1,6 @@
 #![allow(clippy::cast_possible_truncation)]
 
+pub mod animation;
 pub mod layout;
 pub mod narrative;
 pub mod particles;
@@ -20,12 +21,39 @@ use crate::{
     cli::Cli,
     domain::weather::{HourlyViewMode, weather_label_for_time},
     resilience::freshness::FreshnessState,
-    ui::{narrative::build_narrative, theme::resolved_theme},
+    ui::{
+        animation::{SeededMotion, UiMotionContext},
+        narrative::build_narrative,
+        theme::resolved_theme,
+    },
     update::UpdateStatus,
 };
 
 const MIN_RENDER_WIDTH: u16 = 20;
 const MIN_RENDER_HEIGHT: u16 = 10;
+
+#[must_use]
+pub fn motion_context(state: &AppState, lane: &str) -> UiMotionContext {
+    let animate = state.animate_ui && state.motion_mode.allows_animation();
+    UiMotionContext {
+        elapsed_seconds: if animate {
+            state.animation_clock.elapsed_seconds
+        } else {
+            0.0
+        },
+        dt_seconds: if animate {
+            state.animation_clock.dt_seconds
+        } else {
+            0.0
+        },
+        frame_index: state.animation_clock.frame_index,
+        motion_mode: state.motion_mode,
+        seed: SeededMotion::new(state.motion_seed(lane)),
+        weather_profile: state.weather_motion_profile,
+        transition_progress: state.transition_progress(),
+        animate,
+    }
+}
 
 pub fn render(frame: &mut Frame, state: &AppState, cli: &Cli) {
     let area = frame.area();

@@ -3,6 +3,8 @@
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 
+use crate::ui::animation::MotionMode;
+
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum UnitsArg {
     Celsius,
@@ -75,7 +77,7 @@ pub enum HeroVisualArg {
     about = "Animated terminal weather dashboard"
 )]
 pub struct Cli {
-    /// City name (default: Stockholm)
+    /// City name. Interactive mode auto-detects via IP if omitted; --one-shot falls back to Stockholm.
     pub city: Option<String>,
 
     /// Default units
@@ -93,6 +95,10 @@ pub struct Cli {
     /// Lower motion mode
     #[arg(long)]
     pub reduced_motion: bool,
+
+    /// Motion system preset
+    #[arg(long, value_enum)]
+    pub motion: Option<MotionMode>,
 
     /// Disable thunder flash
     #[arg(long)]
@@ -195,6 +201,12 @@ impl Cli {
             self.color
         }
     }
+
+    #[must_use]
+    pub fn effective_motion_mode(&self) -> MotionMode {
+        self.motion
+            .unwrap_or_else(|| MotionMode::from_legacy(self.no_animation, self.reduced_motion))
+    }
 }
 
 #[cfg(test)]
@@ -202,6 +214,7 @@ mod tests {
     use clap::Parser;
 
     use super::{Cli, ColorArg, HourlyViewArg};
+    use crate::ui::animation::MotionMode;
 
     #[test]
     fn parses_color_enum_values() {
@@ -239,6 +252,23 @@ mod tests {
 
         let cli = Cli::parse_from(["terminal-weather"]);
         assert_eq!(cli.effective_color_mode(), ColorArg::Auto);
+    }
+
+    #[test]
+    fn effective_motion_mode_prefers_explicit_motion_flag() {
+        let cli = Cli::parse_from([
+            "terminal-weather",
+            "--no-animation",
+            "--motion",
+            "cinematic",
+        ]);
+        assert_eq!(cli.effective_motion_mode(), MotionMode::Cinematic);
+
+        let cli = Cli::parse_from(["terminal-weather", "--reduced-motion"]);
+        assert_eq!(cli.effective_motion_mode(), MotionMode::Reduced);
+
+        let cli = Cli::parse_from(["terminal-weather", "--no-animation"]);
+        assert_eq!(cli.effective_motion_mode(), MotionMode::Off);
     }
 
     #[test]

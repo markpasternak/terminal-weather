@@ -1,5 +1,6 @@
 use super::super::AmbientSkyLifeContext;
 use crate::domain::weather::WeatherCategory;
+use crate::ui::animation::{MotionMode, SeededMotion, UiMotionContext};
 
 pub(super) fn blank_canvas(width: usize, height: usize) -> Vec<Vec<char>> {
     vec![vec![' '; width]; height]
@@ -23,7 +24,26 @@ pub(super) fn base_ctx() -> AmbientSkyLifeContext {
         animate: true,
         horizon_y: 10,
         width: 40,
+        seed: SeededMotion::new(17),
+        elapsed_seconds: 1.4,
     }
+}
+
+pub(super) fn motion() -> UiMotionContext {
+    UiMotionContext {
+        elapsed_seconds: 1.0,
+        dt_seconds: 0.05,
+        frame_index: 8,
+        motion_mode: MotionMode::Cinematic,
+        seed: SeededMotion::new(99),
+        weather_profile: None,
+        transition_progress: None,
+        animate: true,
+    }
+}
+
+pub(super) fn seed(label: &str) -> SeededMotion {
+    SeededMotion::new(crate::ui::animation::stable_hash(&label))
 }
 
 pub(super) fn bundle_for_category(

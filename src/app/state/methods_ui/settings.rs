@@ -98,16 +98,35 @@ impl AppState {
     }
 
     pub(crate) fn apply_runtime_settings(&mut self) {
+        let previous_signature = self
+            .last_render_signature
+            .clone()
+            .unwrap_or_else(|| self.render_signature());
+        let hero_visual_changed = previous_signature.hero_visual != self.settings.hero_visual;
+        let previous_motion_mode = self.motion_mode;
         self.units = self.settings.units;
         self.hourly_view_mode = self.settings.hourly_view;
-        self.animate_ui = true;
+        self.motion_mode = self.settings.motion_mode;
+        self.animate_ui = self.motion_mode.allows_animation();
         if !self.settings.command_bar_enabled {
             self.command_bar.close();
         }
         self.refresh_interval_secs_runtime
             .store(self.settings.refresh_interval_secs, Ordering::Relaxed);
         self.particles
-            .set_options(false, false, self.settings.no_flash);
+            .set_options(self.motion_mode, self.settings.no_flash);
+        if hero_visual_changed {
+            self.begin_transition(
+                crate::ui::animation::SceneTransitionState::hero_visual_switch(self.motion_mode),
+            );
+        } else if previous_motion_mode != self.motion_mode && self.motion_mode.allows_transitions()
+        {
+            self.begin_transition(crate::ui::animation::SceneTransitionState::fetch_reveal(
+                self.motion_mode,
+            ));
+        }
+        self.sync_motion_profile();
+        self.last_render_signature = Some(self.render_signature());
     }
 
     pub(crate) fn persist_settings(&mut self) {

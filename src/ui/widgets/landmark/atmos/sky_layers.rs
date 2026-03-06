@@ -1,6 +1,7 @@
 use chrono::Timelike;
 
 use crate::domain::weather::ForecastBundle;
+use crate::ui::animation::{SeededMotion, UiMotionContext};
 use crate::ui::widgets::landmark::shared::paint_char;
 
 use super::effects::draw_ambient_cloud;
@@ -13,7 +14,7 @@ pub(super) fn paint_starfield(
     canvas: &mut [Vec<char>],
     width: usize,
     horizon_y: usize,
-    phase: usize,
+    motion: UiMotionContext,
     cloud_pct: f32,
 ) {
     if width == 0 || horizon_y < 2 || cloud_pct >= 92.0 {
@@ -28,7 +29,16 @@ pub(super) fn paint_starfield(
 
     let glyphs = ['*', '✶', '✦', '*', '✶', '✦'];
     for i in 0..star_count {
-        paint_star(canvas, width, horizon_y, sky_h, phase, i, &glyphs);
+        paint_star(
+            canvas,
+            width,
+            horizon_y,
+            sky_h,
+            motion.lane("starfield"),
+            motion.elapsed_seconds,
+            i,
+            &glyphs,
+        );
     }
 }
 
@@ -38,25 +48,26 @@ fn star_count(width: usize, sky_h: usize, cloud_pct: f32) -> usize {
     ((base_count as f32) * visibility_factor).round() as usize
 }
 
+#[allow(clippy::too_many_arguments)]
 fn paint_star(
     canvas: &mut [Vec<char>],
     width: usize,
     horizon_y: usize,
     sky_h: usize,
-    phase: usize,
+    seed: SeededMotion,
+    elapsed_seconds: f32,
     i: usize,
     glyphs: &[char],
 ) {
-    let seed = i.wrapping_mul(7919).wrapping_add(31);
-    let x = seed % width;
-    let y = 1 + (seed / width) % sky_h;
+    let x = ((seed.unit(i as u64 + 3) * width as f32) as usize).min(width.saturating_sub(1));
+    let y =
+        1 + ((seed.unit(i as u64 + 9) * sky_h.max(1) as f32) as usize).min(sky_h.saturating_sub(1));
     if y >= horizon_y || x >= width || canvas[y][x] != ' ' {
         return;
     }
-    if (i + phase / 4).is_multiple_of(7) {
-        return;
-    }
-    let glyph_idx = (seed / 3) % glyphs.len();
+    let twinkle = seed.pulse(elapsed_seconds, 0.45, i as u64);
+    let glyph_idx = (((seed.unit(i as u64 + 14) + twinkle * 0.25) * glyphs.len() as f32) as usize)
+        .min(glyphs.len() - 1);
     canvas[y][x] = glyphs[glyph_idx];
 }
 
@@ -139,7 +150,8 @@ pub(super) fn paint_cloud_layer(
     canvas: &mut [Vec<char>],
     cloud_pct: f32,
     wind_speed: f32,
-    phase: usize,
+    seed: SeededMotion,
+    elapsed_seconds: f32,
     horizon_y: usize,
     width: usize,
 ) {
@@ -147,32 +159,69 @@ pub(super) fn paint_cloud_layer(
         return;
     }
 
-    // Number and size of clouds scale with cloud coverage.
-    let cloud_count = ((cloud_pct / 15.0).ceil() as usize).clamp(1, 8);
-    let max_cloud_w = if cloud_pct > 80.0 {
+    let cloud_count = cloud_count(cloud_pct);
+    let max_cloud_w = max_cloud_width(cloud_pct, width);
+    let cloud_rows = cloud_row_count(cloud_pct);
+    let drift = (elapsed_seconds * (2.0 + wind_speed.max(3.0) / 6.0)).round() as usize;
+    let sky_band = horizon_y.saturating_sub(2);
+
+    for i in 0..cloud_count {
+        let lane_seed = cloud_lane_seed(seed, i);
+        let base_x = cloud_base_x(lane_seed, i, width, max_cloud_w, drift);
+        let base_y = cloud_base_y(lane_seed, i, sky_band);
+        if base_y >= horizon_y.saturating_sub(1) {
+            continue;
+        }
+        let cloud_w = cloud_width(lane_seed, i, max_cloud_w);
+        draw_ambient_cloud(
+            canvas, base_x, base_y, cloud_w, cloud_rows, width, horizon_y,
+        );
+    }
+}
+
+fn cloud_count(cloud_pct: f32) -> usize {
+    ((cloud_pct / 15.0).ceil() as usize).clamp(1, 8)
+}
+
+fn max_cloud_width(cloud_pct: f32, width: usize) -> usize {
+    if cloud_pct > 80.0 {
         width / 2
     } else if cloud_pct > 50.0 {
         width / 3
     } else {
         width / 5
     }
-    .clamp(6, 40);
-    let cloud_rows = if cloud_pct > 70.0 { 3 } else { 2 };
+    .clamp(6, 40)
+}
 
-    // Wind drift offset.
-    let drift = (phase as f32 * wind_speed.max(3.0) / 40.0) as usize;
+fn cloud_row_count(cloud_pct: f32) -> usize {
+    if cloud_pct > 70.0 { 3 } else { 2 }
+}
 
-    let sky_band = horizon_y.saturating_sub(2);
-    for i in 0..cloud_count {
-        let seed = i.wrapping_mul(4001).wrapping_add(17);
-        let base_x = (seed.wrapping_mul(13) + drift) % (width + max_cloud_w);
-        let base_y = 1 + (seed % sky_band.max(1));
-        if base_y >= horizon_y.saturating_sub(1) {
-            continue;
-        }
-        let cloud_w = (max_cloud_w / 2) + (seed % (max_cloud_w / 2 + 1));
-        draw_ambient_cloud(
-            canvas, base_x, base_y, cloud_w, cloud_rows, width, horizon_y,
-        );
-    }
+fn cloud_lane_seed(seed: SeededMotion, index: usize) -> SeededMotion {
+    seed.lane(match index % 3 {
+        0 => "high",
+        1 => "mid",
+        _ => "low",
+    })
+}
+
+fn cloud_base_x(
+    lane_seed: SeededMotion,
+    index: usize,
+    width: usize,
+    max_cloud_w: usize,
+    drift: usize,
+) -> usize {
+    (((lane_seed.unit(index as u64 + 5) * (width + max_cloud_w) as f32) as usize) + drift)
+        % (width + max_cloud_w)
+}
+
+fn cloud_base_y(lane_seed: SeededMotion, index: usize, sky_band: usize) -> usize {
+    1 + ((lane_seed.unit(index as u64 + 9) * sky_band.max(1) as f32) as usize)
+}
+
+fn cloud_width(lane_seed: SeededMotion, index: usize, max_cloud_w: usize) -> usize {
+    (max_cloud_w / 2)
+        + ((lane_seed.unit(index as u64 + 11) * (max_cloud_w / 2 + 1) as f32) as usize)
 }

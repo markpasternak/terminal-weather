@@ -1,11 +1,11 @@
 use super::super::{paint_horizon_haze, scene_for_weather, terrain::overlay_horizon_line};
-use super::test_support::{blank_canvas, bundle_for_category};
+use super::test_support::{blank_canvas, bundle_for_category, motion};
 use crate::domain::weather::Units;
 
 #[test]
 fn scene_for_weather_compact_for_small_area() {
     let bundle = crate::test_support::sample_bundle();
-    let scene = scene_for_weather(&bundle, Units::Celsius, 0, false, 10, 5);
+    let scene = scene_for_weather(&bundle, Units::Celsius, motion(), 10, 5);
     assert!(!scene.lines.is_empty());
 }
 
@@ -21,7 +21,7 @@ fn scene_for_weather_renders_all_weather_categories() {
     ];
     for (code, is_day, label) in cases {
         let bundle = bundle_for_category(code, is_day);
-        let scene = scene_for_weather(&bundle, Units::Celsius, 5, false, 80, 24);
+        let scene = scene_for_weather(&bundle, Units::Celsius, motion(), 80, 24);
         assert!(
             !scene.lines.is_empty(),
             "scene for {label} (code={code}) should not be empty"
@@ -37,8 +37,8 @@ fn scene_for_weather_renders_all_weather_categories() {
 fn scene_for_weather_night_vs_day_produces_different_output() {
     let day = bundle_for_category(0, true);
     let night = bundle_for_category(0, false);
-    let day_scene = scene_for_weather(&day, Units::Celsius, 0, false, 80, 24);
-    let night_scene = scene_for_weather(&night, Units::Celsius, 0, false, 80, 24);
+    let day_scene = scene_for_weather(&day, Units::Celsius, motion(), 80, 24);
+    let night_scene = scene_for_weather(&night, Units::Celsius, motion(), 80, 24);
     assert_ne!(
         day_scene.lines, night_scene.lines,
         "day vs night should differ"
@@ -49,7 +49,7 @@ fn scene_for_weather_night_vs_day_produces_different_output() {
 fn scene_for_weather_freezing_rain_no_panic() {
     // Code 56 = freezing drizzle
     let bundle = bundle_for_category(56, true);
-    let scene = scene_for_weather(&bundle, Units::Fahrenheit, 10, true, 60, 20);
+    let scene = scene_for_weather(&bundle, Units::Fahrenheit, motion(), 60, 20);
     assert!(!scene.lines.is_empty());
 }
 
@@ -58,7 +58,7 @@ fn scene_for_weather_hail_code_no_panic() {
     // Code 96 and 99 = thunderstorm with hail → exercises has_hail=true branch
     for code in [96u8, 99] {
         let bundle = bundle_for_category(code, true);
-        let scene = scene_for_weather(&bundle, Units::Celsius, 5, true, 60, 20);
+        let scene = scene_for_weather(&bundle, Units::Celsius, motion(), 60, 20);
         assert!(!scene.lines.is_empty());
     }
 }
@@ -68,7 +68,7 @@ fn scene_for_weather_few_hourly_samples_falls_back_to_compact() {
     // 1 hourly sample → build_atmos_canvas returns None → compact fallback
     let mut bundle = bundle_for_category(0, true);
     bundle.hourly.truncate(1);
-    let scene = scene_for_weather(&bundle, Units::Celsius, 0, false, 60, 20);
+    let scene = scene_for_weather(&bundle, Units::Celsius, motion(), 60, 20);
     assert!(!scene.lines.is_empty());
 }
 

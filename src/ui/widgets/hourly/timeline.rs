@@ -1,4 +1,6 @@
 use super::*;
+mod chart;
+use chart::expanded_timeline_lines;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub(super) struct TimelineStats {
@@ -18,9 +20,8 @@ pub(super) fn render_temp_precip_timeline(
         return TimelineStats::default();
     }
 
-    let cols = area.width.saturating_sub(7) as usize;
     let series = timeline_series(slice, units);
-    let lines = timeline_lines(&series, cols, area.height, theme);
+    let lines = timeline_lines(&series, area.width as usize, area.height, theme);
     frame.render_widget(Paragraph::new(lines), area);
     timeline_stats(slice)
 }
@@ -87,6 +88,31 @@ fn timeline_series(slice: &[&HourlyForecast], units: Units) -> TimelineSeries {
 }
 
 fn timeline_lines(
+    series: &TimelineSeries,
+    width: usize,
+    height: u16,
+    theme: Theme,
+) -> Vec<TimelineLine> {
+    if width >= 24 && height >= 5 {
+        return expanded_timeline_lines(series, width, height, theme);
+    }
+
+    let mut lines = vec![
+        temp_timeline_line(series, width.saturating_sub(7), theme),
+        rain_timeline_line(series, width.saturating_sub(7), theme),
+    ];
+    if height >= 3 {
+        lines.push(time_axis_timeline_line(
+            series,
+            width.saturating_sub(7),
+            theme,
+        ));
+    }
+    lines.truncate(height as usize);
+    lines
+}
+
+fn compact_timeline_lines(
     series: &TimelineSeries,
     cols: usize,
     height: u16,

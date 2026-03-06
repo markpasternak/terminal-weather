@@ -1,288 +1,265 @@
 # AGENTS.md
 
-Agent instructions for `terminal-weather` — an animated terminal weather dashboard written in Rust.
+Agent instructions for `terminal-weather`, an animated Rust terminal weather app with both an interactive TUI and a `--one-shot` CLI mode.
 
 ---
 
 ## Project Overview
 
-Single-binary Rust TUI app (Rust 2024 edition) using:
+This is a single-binary Rust 2024 project built around:
 
-- **`ratatui` + `crossterm`** — terminal UI and raw-mode event loop
-- **`tokio`** — async runtime (multi-thread)
-- **`reqwest` + `serde`** — HTTP client for Open-Meteo and geocoding APIs
-- **`clap`** — CLI argument parsing
-- **`anyhow` / `thiserror`** — error handling
-- **Dev:** `insta` (snapshot tests), `proptest` (property tests), `wiremock` (HTTP mocking)
-- **Static tooling:** `jq`, `rust-code-analysis-cli` `0.0.25`
+- `ratatui` + `crossterm` for terminal rendering and input
+- `tokio` for async tasks and timers
+- `reqwest` + `serde` for Open-Meteo, geocoding, geo-IP, and update-check HTTP calls
+- `clap` for CLI parsing
+- `anyhow` + `thiserror` for error handling
+- Test tooling: `insta`, `proptest`, `wiremock`
+- Optional local analysis tooling: `jq`, `rust-code-analysis-cli` `0.0.25`, `cargo-dupes` `0.2.1`, `cargo-llvm-cov`
+
+Two runtime paths matter:
+
+- Interactive TUI: launched normally, with async event loop, rendering, overlays, settings persistence, and background update checks
+- One-shot mode: `--one-shot`, which resolves a location, fetches a forecast, prints to stdout, and exits without entering the TUI
 
 ---
 
 ## Commands
 
-Run this before marking anything done:
+Run this before calling work complete:
 
 ```bash
-./scripts/check.sh                               # unified quality gate — runs everything, prints report
+./scripts/check.sh
 ```
 
-The script runs all checks and prints a final report classifying each as REQUIRED or RECOMMENDED:
+Useful variants:
 
-| Step | Classification |
-|------|---------------|
-| `cargo fmt --check` | REQUIRED |
-| `cargo clippy -D warnings` | REQUIRED |
-| `cargo clippy pedantic` | REQUIRED |
-| `complexity-gate.sh` | REQUIRED |
-| `cargo check` | REQUIRED |
-| `cargo test` | REQUIRED |
-| `cargo build --release` | REQUIRED |
-| `duplication-gate.sh` | RECOMMENDED |
-| `complexity-audit.sh` | RECOMMENDED |
-| `coverage.sh` | RECOMMENDED |
+```bash
+./scripts/check.sh --verbose
+cargo check --all-targets --all-features
+cargo test --all --all-features
+cargo run -- Stockholm
+cargo run -- --demo
+cargo run -- --one-shot Stockholm
+```
 
-Steps requiring optional tooling auto-skip with install hints if the tool is missing.
+Install optional tooling once for full local coverage:
 
-For individual checks or fast iteration:
-
-Install static tooling once:
 ```bash
 cargo install --locked rust-code-analysis-cli --version 0.0.25
 cargo install --locked cargo-dupes --version 0.2.1
-# jq via package manager (brew/apt/etc.)
+cargo install --locked cargo-llvm-cov
+# install jq via brew/apt/etc.
 ```
 
-Static gate thresholds (enforced by CI and local script):
-- cyclomatic complexity: `< 20`
-- cognitive complexity: `< 30`
-- maintainability index (MI): `>= 30`
-- scope: all functions in `src/` + `tests/`
+`./scripts/check.sh` classifications:
 
-Complexity audit thresholds (`scripts/complexity-audit.sh`):
-- file NLOC: medium `> 500`, critical `> 1000`
-- function NLOC: medium `> 50`, critical `> 100`
-- cyclomatic complexity: medium `> 8`, critical `> 12`
-- function parameter count: medium `> 8`, critical `> 12`
-- default fail policy: fail critical (`TW_COMPLEXITY_FAIL_ON_CRITICAL=1`), report medium (`TW_COMPLEXITY_FAIL_ON_MEDIUM=0`)
+| Step | Classification |
+|------|---------------|
+| `cargo fmt --all -- --check` | REQUIRED |
+| `cargo clippy --all-targets --all-features -- -D warnings` | REQUIRED |
+| `cargo clippy --all-targets --all-features -- -D warnings -D clippy::pedantic ...` | REQUIRED |
+| `scripts/complexity-gate.sh` | REQUIRED |
+| `cargo check --all-targets --all-features` | REQUIRED |
+| `cargo test --all --all-features` | REQUIRED |
+| `cargo build --release` | REQUIRED |
+| `scripts/duplication-gate.sh` | RECOMMENDED |
+| `scripts/complexity-audit.sh` | RECOMMENDED |
+| `scripts/coverage.sh` | RECOMMENDED |
+| `scripts/file-length-audit.sh` | RECOMMENDED |
 
-Duplication gate defaults (`scripts/duplication-gate.sh`):
-- mode: advisory (`TW_DUPES_ENFORCE=0`) — reports but does not fail
-- strict mode: `TW_DUPES_ENFORCE=1`
-- strict thresholds (when enabled): `TW_DUPES_MAX_EXACT_PERCENT=5.0`, `TW_DUPES_MAX_NEAR_PERCENT=10.0`
+Checks that require optional tooling auto-skip with install hints.
 
-Coverage gate thresholds (`scripts/coverage-thresholds.env`, enforced by `scripts/coverage.sh`):
-- line coverage: `>= 85%`
-- function coverage: `>= 85%`
-- branch coverage: `>= 75%`
-- ratchet policy: only raise thresholds; never lower them
+Current local thresholds:
 
-For fast iteration during development:
-```bash
-cargo check                       # fastest type-check
-cargo test <test_name>            # single test
-cargo run -- Stockholm            # run with a city
-cargo run -- --demo               # run scripted demo mode
-cargo run -- --one-shot Stockholm # non-interactive snapshot to stdout
-```
+- Complexity gate: cyclomatic `< 20`, cognitive `< 30`, MI `>= 30`
+- Complexity audit: file NLOC medium `> 500`, critical `> 1000`; function NLOC medium `> 50`, critical `> 100`
+- Duplication gate: advisory by default unless `TW_DUPES_ENFORCE=1`
+- Coverage gate: line `>= 85%`, function `>= 85%`, branch `>= 75%`
+- File-length audit: warns on Rust files over `500` lines
 
-Update snapshots when UI changes are intentional:
+Update snapshots only when UI changes are intentional:
+
 ```bash
 INSTA_UPDATE=always cargo test --all --all-features
 ```
 
 ---
 
-## Project Structure
+## Source Map
 
-```
+Prefer these as anchors when exploring:
+
+```text
 src/
-  main.rs           # entrypoint, wires Cli + App
-  lib.rs            # crate root, re-exports
-  cli.rs            # clap CLI definitions, flags, enums
-  events.rs         # top-level event dispatch
+  main.rs                 # CLI entrypoint
+  lib.rs                  # interactive runtime + one-shot path
+  cli.rs                  # clap definitions and validation
+  update.rs               # background Homebrew update-check logic
   app/
-    mod.rs          # App struct, run loop
-    events.rs       # AppEvent enum + handlers
-    settings.rs     # persistent settings (JSON at ~/.config/terminal-weather/)
-    state.rs        # AppState machine: Loading → SelectingLocation → Ready → Error → Quit
-    state/
-      methods_async.rs
-      methods_fetch.rs
-      methods_ui.rs
+    events.rs             # AppEvent enum, input/timer/demo tasks
+    settings.rs           # persisted settings and config path resolution
+    state.rs              # AppState/AppMode and shared state
+    state/                # async, fetch, input, and UI state handlers
   data/
-    mod.rs
-    forecast.rs     # Open-Meteo API client + DTO parsing
-    geocode.rs      # Nominatim geocoding
-    geoip.rs        # IP-based location fallback
+    forecast.rs           # Open-Meteo forecast + AQI client
+    geocode.rs            # forward/reverse geocoding
+    geoip.rs              # IP-based location lookup
   domain/
-    weather.rs      # domain types (ForecastBundle, etc.)
-    weather/
-      tests.rs
-  resilience/       # retry/backoff logic, freshness semantics
+    weather.rs            # weather domain surface, re-exports
+    weather/              # types, conversions, insights, tests
+    alerts.rs             # alert domain types
+  resilience/
+    backoff.rs            # retry scheduling
+    freshness.rs          # stale/offline freshness semantics
   ui/
-    mod.rs          # render entrypoint
-    layout.rs       # responsive breakpoint helpers
-    particles.rs    # particle animation engine
-    theme.rs        # semantic color tokens, theme variants, capability tiers
-    theme/
-      capability.rs
-      data.rs
-      extended.rs
-      tests.rs
-    widgets/
-      hero/         # current conditions hero panel (readouts, sparklines, background)
-      hourly.rs     # per-hour table/chart panel
-      hourly/
-        daypart.rs
-        table.rs
-        timeline.rs
-        tests.rs
-      daily.rs      # 7-day forecast panel
-      daily/
-        layout.rs
-        summary.rs
-        summary/utils.rs
-        tests.rs
-      landmark/     # ASCII landmark art scenes (AtmosCanvas / GaugeCluster / SkyObservatory)
-        atmos/
-          effects.rs
-          tests.rs
-      city_picker.rs
-      settings.rs
-      alerts.rs
-      help.rs
-      selector.rs
+    mod.rs                # render entrypoint and overlays
+    animation.rs          # motion tiers and transitions
+    layout.rs             # responsive layout rules
+    particles.rs          # particle engine
+    narrative.rs          # weather narrative text
+    theme/                # palette/capability resolution
+    widgets/              # hero, hourly, daily, alerts, help, settings, pickers, landmarks
 
 tests/
-  flows.rs                    # integration: unit toggle, hourly scroll, key events
-  freshness_integration.rs    # stale/offline semantics
-  geocode_ambiguity.rs        # multi-result city picker flow
-  property_range_bar.rs       # proptest: range bar widget
-  render_snapshots.rs         # insta snapshots at 40x15, 60x20, 80x24, 120x40
-  snapshots/                  # committed snapshot files — update intentionally only
+  render_snapshots.rs
+  flows.rs
+  freshness_integration.rs
+  geocode_ambiguity.rs
+  property_range_bar.rs
+  caching.rs
+
+scripts/
+  check.sh
+  complexity-gate.sh
+  complexity-audit.sh
+  duplication-gate.sh
+  coverage.sh
+  file-length-audit.sh
 ```
+
+Do not mirror this tree mechanically in new docs or comments. It changes often.
 
 ---
 
 ## Architecture Contracts
 
-**State machine:** `Loading` → `SelectingLocation` → `Ready` → `Error` → `Quit`
+State machine:
 
-**Event model:** `Bootstrap`, `TickFrame`, `TickRefresh`, `Input`, `FetchStarted`, `GeocodeResolved`, `FetchSucceeded`, `FetchFailed`, `Quit`
+- `Loading` -> `SelectingLocation` -> `Ready` -> `Error` -> `Quit`
 
-**DTO boundary:** data layer (`src/data/`) parses Open-Meteo DTOs into domain types (`src/domain/weather.rs`). UI only consumes `ForecastBundle` + `AppState`.
+Core event model:
 
-**Render order:**
-1. Background gradient
-2. Particle overlay
-3. Widgets / text / overlays (status bar, panels, dialogs)
+- `Bootstrap`
+- `TickFrame`
+- `TickRefresh`
+- `ForceRedraw`
+- `Input`
+- `FetchStarted`
+- `GeocodeResolved`
+- `FetchSucceeded`
+- `FetchFailed`
+- `UpdateCheckFinished`
+- `Demo`
+- `Quit`
+
+Important boundaries:
+
+- `src/data/` owns HTTP DTO parsing and external API interactions
+- `src/domain/` owns app-facing weather and alert types
+- `src/ui/` should consume domain/app state, not raw API DTOs
+- `src/update.rs` is separate from forecast fetching; do not couple update-check behavior into weather clients
+- `src/lib.rs` is the split point between interactive mode and `--one-shot`
+
+Rendering model:
+
+- `ui::render` composes the main panels, status badge, footer/command bar, and modal overlays
+- Hero rendering owns its background gradient and particle paint path
+- Overlays include selector, settings, city picker, and help
+
+Persistence/config:
+
+- Runtime settings live in `settings.json`
+- Config path precedence is `TERMINAL_WEATHER_CONFIG_DIR` -> legacy `ATMOS_TUI_CONFIG_DIR` -> `~/.config/terminal-weather/settings.json`
 
 ---
 
 ## Code Style
 
-Rust 2024 edition idioms. Match the surrounding code's style exactly before adding anything new.
+Match the surrounding file before introducing new patterns.
 
-**Prefer:**
-- `thiserror` for domain errors, `anyhow` for application-level propagation
-- Strongly typed enums over stringly-typed flags
-- `impl Display` and `From` impls over manual error messages
-- Functional iterator chains over imperative loops where clarity improves
-- Descriptive variable names — no single-letter vars outside tight loops
+Prefer:
 
-**Avoid:**
+- typed enums over stringly flags
+- `thiserror` for domain-level errors and `anyhow` for app-level propagation
+- small, direct helpers over speculative abstractions
+- borrowing over unnecessary cloning
+- descriptive names over short names
+
+Avoid:
+
 - `unwrap()` / `expect()` outside tests
-- Dead code — delete unused functions and fields
-- Unnecessary `clone()` — prefer borrowing
-- Adding dependencies for trivial things the stdlib or existing deps already handle
-- Touching snapshot files manually — let `insta` manage them
+- dead code
+- dependency additions for trivial needs
+- manual snapshot editing
+- mixing unrelated refactors into a focused fix
 
-**Naming:**
-- Types: `PascalCase`, files: `snake_case`, modules: `snake_case`
-- Match existing module naming — look at the file before naming a new one
+Naming:
+
+- types: `PascalCase`
+- files/modules: `snake_case`
+- keep naming aligned with adjacent modules
 
 ---
 
 ## Testing
 
-- Every non-trivial behavioral change needs a test or a snapshot update
-- Snapshot tests live in `tests/render_snapshots.rs` — update intentionally with `INSTA_UPDATE=always`
-- Unit tests for small/medium modules go in `#[cfg(test)]` blocks in the same file; for files over ~500 lines, put tests in a dedicated `<module>/tests.rs` subfile declared with `#[cfg(test)] mod tests;`
-- Integration tests go in `tests/`
-- Don't delete tests to make the suite green — fix the underlying issue
+- Every non-trivial behavior change needs a test, or an intentional snapshot update
+- Prefer local unit tests in the same file unless the module is already split into a dedicated `tests.rs`
+- Integration flows belong in `tests/`
+- Snapshot coverage lives in `tests/render_snapshots.rs`
+- Do not delete tests to get green; fix the behavior or the expectation
+
+When a UI change is intentional, update snapshots with `INSTA_UPDATE=always cargo test --all --all-features` and review the diff.
 
 ---
 
 ## Git Workflow
 
-- Work on `main` branch (single-developer project)
-- Commit messages: `type: short description` (types: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`)
-- Keep commits atomic — one logical change per commit
-- Never force-push without explicit instruction
-- Never commit: secrets, `.env` files, `target/`, `.claude/`, `.agent/`
+- Work on `main`
+- Keep commits atomic
+- Use commit subjects like `feat: ...`, `fix: ...`, `refactor: ...`, `chore: ...`, `docs: ...`, `test: ...`
+- Never force-push unless explicitly told
+- Never commit secrets, `.env`, `target/`, `.claude/`, or `.agent/`
 - Run the full quality gate before committing
 
 ---
 
-## Boundaries — Never Touch
+## Boundaries
 
-- `Cargo.lock` version pins without explicit instruction (dependency updates are deliberate)
-- Snapshot files in `tests/snapshots/` without running the test suite and confirming intent
-- `~/.config/terminal-weather/` — user's live settings (only tests or the app itself touch this)
-- Release profile settings in `Cargo.toml` (`lto`, `codegen-units`, `strip`) — tuned deliberately
+Do not change these without explicit instruction:
 
----
-
-## Workflow Principles
-
-### Plan Before Acting
-Enter plan mode for any task with 3+ steps or architectural decisions. Write the plan out, check in before implementing. If something goes sideways mid-task, stop and re-plan — don't push forward blindly.
-
-### Subagent Strategy
-Use subagents to keep the main context clean. Offload research, codebase exploration, and parallel analysis. One focused tack per subagent.
-
-### Verification Before Done
-Never call a task complete without proving it works. Run the full quality gate. Ask: *"Would a staff engineer approve this?"* Diff behavior between before and after when relevant.
-
-### Autonomous Bug Fixing
-Given a bug report: fix it. Don't ask for hand-holding. Point at logs, errors, failing tests — resolve them. Fix failing CI without being told how.
-
-### Demand Elegance (Balanced)
-For non-trivial changes: pause and ask "is there a more elegant solution?" If a fix feels hacky: "Knowing everything I know now, implement the elegant solution." Skip this for obvious one-liners — don't over-engineer.
-
-### Self-Improvement Loop
-After any correction: capture the pattern so it doesn't repeat. Update your understanding of what this project values. Ruthlessly reduce mistake rate.
+- `Cargo.lock` version pins
+- release profile tuning in `Cargo.toml`
+- committed snapshots in `tests/snapshots/` unless produced and reviewed through the test flow
+- real user config under `~/.config/terminal-weather/`
 
 ---
 
-## Task Management
+## Working Rules
 
-1. **Plan first** — write a plan with checkable items before touching code
-2. **Verify the plan** — check in before starting implementation on anything non-trivial
-3. **Track progress** — mark items complete as you go
-4. **Explain changes** — high-level summary at each significant step
-5. **Document results** — summarize what was done and what was verified
+For multi-step work:
 
----
+- make a short plan before editing
+- verify facts against the repo before changing docs or architecture-sensitive code
+- prefer the smallest change that solves the real problem
+- use subagents selectively for focused exploration or parallel analysis
+- state assumptions and proceed unless the missing information is risky or product-significant
+- fix root causes, not symptoms
 
-## Core Principles
+Before calling work done:
 
-- **Simplicity first** — make every change as simple as possible, touching minimal code
-- **No laziness** — find root causes, no temporary workarounds, senior-developer standards
-- **Minimal impact** — changes should only affect what's necessary; avoid collateral modifications
-- **No over-engineering** — three similar lines beat a premature abstraction; YAGNI
-- **No security holes** — no `unwrap()` on untrusted input, no command injection, validate at boundaries
+- run `./scripts/check.sh`
+- mention any skipped checks or missing optional tooling
+- summarize behavior changes and verification clearly
 
----
-
-## Interview Me Relentlessly
-
-Before starting any non-trivial task, ask questions until you understand:
-
-1. **Intent** — what outcome does the user actually want? Not just what they typed, but why.
-2. **Taste** — what does "good" look like to them? Ask for examples or comparisons if unclear.
-3. **Constraints** — what must not change? What are the hard limits?
-4. **Priority** — if tradeoffs arise (speed vs. correctness, simplicity vs. features), what wins?
-5. **Definition of done** — how will we know when it's finished?
-
-Don't start implementing until you can answer all five. If the answer to any of them is "I'm not sure," ask. A single clarifying question now saves hours of rework. Keep asking until you have a crisp mental model of what success looks like — then build exactly that, nothing more.
+If something in these instructions conflicts with the repository as checked into source, trust the source and update this file.

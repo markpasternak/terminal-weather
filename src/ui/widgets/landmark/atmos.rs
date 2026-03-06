@@ -9,6 +9,7 @@
 use chrono::Timelike;
 
 use crate::domain::weather::{ForecastBundle, Units, WeatherCategory, weather_code_to_category};
+use crate::ui::animation::{MotionMode, SeededMotion, UiMotionContext};
 use crate::ui::widgets::landmark::compact::compact_condition_scene;
 use crate::ui::widgets::landmark::shared::{canvas_to_lines, paint_char};
 use crate::ui::widgets::landmark::{LandmarkScene, scene_name, tint_for_category};
@@ -34,8 +35,7 @@ use terrain::{compute_terrain, paint_horizon_haze, paint_terrain};
 pub fn scene_for_weather(
     bundle: &ForecastBundle,
     units: Units,
-    frame_tick: u64,
-    animate: bool,
+    motion: UiMotionContext,
     width: u16,
     height: u16,
 ) -> LandmarkScene {
@@ -47,7 +47,7 @@ pub fn scene_for_weather(
         return compact_condition_scene(category, bundle.current.is_day, width, height);
     }
 
-    let Some(mut canvas) = build_atmos_canvas(bundle, frame_tick, animate, category, w, h) else {
+    let Some(mut canvas) = build_atmos_canvas(bundle, motion, category, w, h) else {
         return compact_condition_scene(category, bundle.current.is_day, width, height);
     };
 
@@ -66,8 +66,7 @@ pub fn scene_for_weather(
 
 fn build_atmos_canvas(
     bundle: &ForecastBundle,
-    frame_tick: u64,
-    animate: bool,
+    motion: UiMotionContext,
     category: WeatherCategory,
     width: usize,
     height: usize,
@@ -83,32 +82,44 @@ fn build_atmos_canvas(
     }
 
     let mut canvas = vec![vec![' '; width]; height];
-    let phase = animation_phase(animate, frame_tick);
-    let horizon_y =
-        paint_base_atmos_layers(&mut canvas, bundle, &temps, phase, category, width, height);
+    let phase = animation_phase(motion);
+    let horizon_y = paint_base_atmos_layers(
+        &mut canvas,
+        bundle,
+        &temps,
+        phase,
+        category,
+        width,
+        height,
+        motion,
+    );
     paint_effect_atmos_layers(
         &mut canvas,
         bundle,
         AtmosLayerContext {
             category,
-            animate,
+            motion_mode: motion.motion_mode,
             phase,
+            elapsed_seconds: motion.elapsed_seconds,
             horizon_y,
             width,
             height,
+            seed: motion.lane("atmos-effects"),
         },
     );
     Some(canvas)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn paint_base_atmos_layers(
     canvas: &mut [Vec<char>],
     bundle: &ForecastBundle,
     temps: &[f32],
-    phase: usize,
+    _phase: usize,
     category: WeatherCategory,
     width: usize,
     height: usize,
+    motion: UiMotionContext,
 ) -> usize {
     let horizon_y = (height.saturating_mul(72) / 100).clamp(4, height.saturating_sub(2));
     let terrain_amp = (horizon_y / 4).clamp(1, 6);
@@ -124,7 +135,7 @@ fn paint_base_atmos_layers(
             canvas,
             width,
             horizon_y,
-            phase,
+            motion,
             bundle.current.cloud_cover.clamp(0.0, 100.0),
         );
     }
@@ -154,11 +165,13 @@ fn paint_base_atmos_layers(
 #[derive(Debug, Clone, Copy)]
 struct AtmosLayerContext {
     category: WeatherCategory,
-    animate: bool,
+    motion_mode: MotionMode,
     phase: usize,
+    elapsed_seconds: f32,
     horizon_y: usize,
     width: usize,
     height: usize,
+    seed: SeededMotion,
 }
 
 fn paint_effect_atmos_layers(
@@ -172,7 +185,8 @@ fn paint_effect_atmos_layers(
         canvas,
         cloud_pct,
         wind_speed,
-        ctx.phase,
+        ctx.seed.lane("clouds"),
+        ctx.elapsed_seconds,
         ctx.horizon_y,
         ctx.width,
     );
@@ -184,9 +198,11 @@ fn paint_effect_atmos_layers(
             cloud_pct,
             wind_speed,
             phase: ctx.phase,
-            animate: ctx.animate,
+            animate: ctx.motion_mode.allows_animation(),
             horizon_y: ctx.horizon_y,
             width: ctx.width,
+            seed: ctx.seed.lane("ambient"),
+            elapsed_seconds: ctx.elapsed_seconds,
         },
     );
 
@@ -199,9 +215,12 @@ fn paint_effect_atmos_layers(
             temp_c: bundle.current.temperature_2m_c,
             precip_mm: bundle.current.precipitation_mm.max(0.0),
             phase: ctx.phase,
+            elapsed_seconds: ctx.elapsed_seconds,
             horizon_y: ctx.horizon_y,
             width: ctx.width,
             height: ctx.height,
+            motion_mode: ctx.motion_mode,
+            seed: ctx.seed.lane("weather"),
         },
     );
 }
@@ -214,14 +233,17 @@ struct WeatherEffectsContext {
     temp_c: f32,
     precip_mm: f32,
     phase: usize,
+    elapsed_seconds: f32,
     horizon_y: usize,
     width: usize,
     height: usize,
+    motion_mode: MotionMode,
+    seed: SeededMotion,
 }
 
-fn animation_phase(animate: bool, frame_tick: u64) -> usize {
-    if animate {
-        ((frame_tick / 6) % 512) as usize
+fn animation_phase(motion: UiMotionContext) -> usize {
+    if motion.animate {
+        ((motion.elapsed_seconds * 12.0) as usize) % 512
     } else {
         0
     }
@@ -237,6 +259,8 @@ struct AmbientSkyLifeContext {
     animate: bool,
     horizon_y: usize,
     width: usize,
+    seed: SeededMotion,
+    elapsed_seconds: f32,
 }
 
 #[cfg(test)]

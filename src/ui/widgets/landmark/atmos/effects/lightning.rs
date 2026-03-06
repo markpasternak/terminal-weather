@@ -1,15 +1,26 @@
+use crate::ui::animation::{MotionMode, SeededMotion};
+
 pub(in super::super) fn paint_lightning_bolts(
     canvas: &mut [Vec<char>],
     phase: usize,
+    elapsed_seconds: f32,
+    seed: SeededMotion,
+    motion_mode: MotionMode,
     horizon_y: usize,
     w: usize,
 ) {
-    if !lightning_visible(w, horizon_y, phase) {
+    if !lightning_visible(w, horizon_y, elapsed_seconds, seed, motion_mode) {
         return;
     }
-    let bolt_count = 1 + (phase / 7) % 2;
+    let bolt_count = if motion_mode.is_cinematic() && seed.pulse(elapsed_seconds, 0.9, 0) > 0.72 {
+        2
+    } else {
+        1
+    };
     for b in 0..bolt_count {
-        let start_x = (w / 3 + b * w / 3 + phase % (w / 4 + 1)).min(w.saturating_sub(3));
+        let start_x = (((seed.unit(b as u64 + 5) * (w.saturating_sub(3)) as f32) as usize)
+            + phase % (w / 5 + 1))
+            .min(w.saturating_sub(3));
         draw_lightning_bolt(canvas, start_x, horizon_y, w);
     }
 }
@@ -55,8 +66,24 @@ fn paint_heat_shimmer_row(row: &mut [char], phase: usize, width: usize) {
     }
 }
 
-fn lightning_visible(width: usize, horizon_y: usize, phase: usize) -> bool {
-    width >= 6 && horizon_y >= 5 && (phase / 3).is_multiple_of(5)
+fn lightning_visible(
+    width: usize,
+    horizon_y: usize,
+    elapsed_seconds: f32,
+    seed: SeededMotion,
+    motion_mode: MotionMode,
+) -> bool {
+    if width < 6 || horizon_y < 5 || !motion_mode.allows_animation() {
+        return false;
+    }
+
+    let pulse = seed.pulse(elapsed_seconds, 0.75, 1);
+    let threshold = if motion_mode.is_cinematic() {
+        0.88
+    } else {
+        0.94
+    };
+    pulse > threshold
 }
 
 fn draw_lightning_bolt(canvas: &mut [Vec<char>], start_x: usize, horizon_y: usize, width: usize) {

@@ -132,7 +132,7 @@ fn new_initializes_with_correct_defaults() {
     assert_eq!(state.hourly_cursor, 0);
     assert!(!state.fetch_in_flight);
     assert_eq!(state.frame_tick, 0);
-    assert!(state.animate_ui);
+    assert!(!state.animate_ui);
     assert_eq!(state.viewport_width, 80);
     assert!(!state.demo_mode);
     assert!(!state.settings_open);
