@@ -77,7 +77,7 @@ pub enum HeroVisualArg {
     about = "Animated terminal weather dashboard"
 )]
 pub struct Cli {
-    /// City name (default: Stockholm)
+    /// City name. Interactive mode auto-detects via IP if omitted; --one-shot falls back to Stockholm.
     pub city: Option<String>,
 
     /// Default units

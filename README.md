@@ -6,15 +6,17 @@
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-FBB040?logo=homebrew&logoColor=white)](https://github.com/markpasternak/homebrew-tap)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)](LICENSE)
 
-Weather, in your terminal. Beautiful by default, scriptable by design.
+Weather, in your terminal. Animated by default, scriptable when you need text, and packaged for a quick Homebrew install.
 
 ![terminal weather demo](assets/screenshots/demo.gif)
 
-- **3 panels** — Current hero, Hourly (Table / Hybrid / Chart), 7-Day forecast
-- **Weather-native motion** — cinematic, standard, reduced, and off modes with condition-aware scenes
-- **Auto-location** — detects your city from IP when you launch without arguments
-- **18 themes** — auto-selected by terminal capability; TrueColor to 16-color fallback
-- **`--one-shot`** — pipe a weather snapshot to stdout; works in scripts, cron, and shell prompts
+- **Weather-native motion**: cinematic, standard, reduced, and off presets with condition-aware hero, loading, and landmark scenes
+- **Three forecast panels**: current conditions, hourly detail in table or chart form, and a seven-day outlook
+- **Multiple hero visuals**: `atmos-canvas`, `gauge-cluster`, and `sky-observatory`
+- **Script-friendly mode**: `--one-shot` prints a clean forecast snapshot to stdout and exits
+- **Location UX that fits the terminal**: auto-detect on interactive launch, city picker, recent locations, and command bar support
+- **Terminal-aware themes**: 18 themes with TrueColor, 256-color, and 16-color fallback
+- **Quiet update awareness**: subtle in-app Homebrew upgrade hint when a newer release is available
 
 ---
 
@@ -26,6 +28,11 @@ brew tap markpasternak/tap
 brew install markpasternak/tap/terminal-weather
 ```
 
+Upgrade later with:
+```bash
+brew upgrade markpasternak/tap/terminal-weather
+```
+
 **Build from source** (requires Rust stable):
 ```bash
 git clone https://github.com/markpasternak/terminal-weather.git
@@ -34,34 +41,51 @@ cargo build --release
 # binary: target/release/terminal-weather
 ```
 
-Requires a UTF-8 capable terminal. TrueColor recommended for full theme fidelity.
+Requires a UTF-8 terminal. TrueColor gives the best result, but the app falls back cleanly on more limited terminals.
 
 ---
 
 ## Usage
 
+### Interactive
+
 ```bash
-terminal-weather                                         # auto-detect location via IP
+terminal-weather
 terminal-weather Stockholm
 terminal-weather --units fahrenheit Tokyo
+terminal-weather --lat 59.3293 --lon 18.0686
+```
+
+If you launch the full TUI without a city, the app first tries GeoIP auto-location and falls back to Stockholm if that lookup fails.
+
+### Customization
+
+```bash
 terminal-weather --theme midnight-cyan --hero-visual gauge-cluster "San Diego"
 terminal-weather --hero-visual sky-observatory --motion cinematic London
 terminal-weather --motion reduced London
 terminal-weather --ascii-icons --no-animation Reykjavik
-terminal-weather --nerd-font Stockholm                   # use Nerd Font weather icons
-terminal-weather --lat 59.3293 --lon 18.0686
-terminal-weather --one-shot Tokyo                        # snapshot to stdout and exit
-terminal-weather --one-shot | head -10                   # pipe-friendly
-terminal-weather --demo                                  # scripted showcase
+terminal-weather --nerd-font Stockholm
+terminal-weather --demo
 ```
+
+### Scripts And Automation
+
+```bash
+terminal-weather --one-shot Tokyo
+terminal-weather --one-shot "San Francisco"
+terminal-weather --one-shot Tokyo | head -10
+```
+
+`--one-shot` is non-interactive. If you omit the city there, it resolves Stockholm rather than doing GeoIP auto-location.
 
 ### CLI options
 
-```
+```text
 terminal-weather [OPTIONS] [CITY]
 
 Arguments:
-  [CITY]  City name (default: auto-detect via IP, fallback: Stockholm)
+  [CITY]  City name. Interactive mode auto-detects via IP if omitted, then falls back to Stockholm. --one-shot falls back to Stockholm directly.
 
 Options:
   --units <celsius|fahrenheit>
@@ -103,7 +127,7 @@ Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` 
 | `?` / `F1` | Help overlay |
 | `Ctrl+L` | Force full redraw |
 | `r` | Manual refresh |
-| `v` | Cycle hourly view (Table → Hybrid → Chart) |
+| `v` | Cycle hourly view (Table -> Hybrid -> Chart) |
 | `s` | Settings panel |
 | `l` | City switcher |
 | `f` / `c` | Switch to Fahrenheit / Celsius |
@@ -112,70 +136,74 @@ Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` 
 | `:` | Open command bar (when enabled in Settings) |
 | `1..5` | Select ambiguous location |
 
-**Settings panel:** `↑`/`↓` navigate in visual order · `←`/`→` or `Enter` change value · `s`/`Esc` close
+**Settings panel:** `↑`/`↓` navigate in visual order, `←`/`→` or `Enter` change a value, `s` or `Esc` close
 
-**City switcher:** type to search · `Enter` confirm · `↑`/`↓` browse recents · `1..9` quick-switch · `Delete` clear all · `Esc` close
+**City switcher:** type to search, `Enter` confirm, `↑`/`↓` browse recents, `1..9` quick-switch, `Delete` clear all, `Esc` close
 
-**Command bar:** `:refresh` · `:quit` · `:units c|f` · `:view table|hybrid|chart` · `:theme <name>` · `:city <name>`
+Recent-location navigation wraps around, and searches keep the picker open so you can refine input without reopening it.
+
+**Command bar:** `:refresh`, `:quit`, `:units c|f`, `:view table|hybrid|chart`, `:theme <name>`, `:city <name>`
+
+If a fetch fails, the error state now shows direct keyboard actions so recovery does not require guesswork.
 
 ---
 
 ## Configuration
 
-Settings persist to `~/.config/terminal-weather/settings.json`. Override the directory with `TERMINAL_WEATHER_CONFIG_DIR` (legacy `ATMOS_TUI_CONFIG_DIR` is also supported).
+Settings persist to `~/.config/terminal-weather/settings.json`. Override the directory with `TERMINAL_WEATHER_CONFIG_DIR`. The legacy `ATMOS_TUI_CONFIG_DIR` name still works for compatibility.
 
-Persisted values: units, theme, motion (`cinematic`/`standard`/`reduced`/`off`), thunder flash, icon mode (`unicode`/`ascii`/`emoji`/`nerd-font`), inline hints, command bar enabled/disabled, hourly view, hero visual, refresh interval, recent locations, and update-check metadata (`last_update_check_unix`, `last_seen_latest_version`).
+Persisted values include units, theme, motion mode, thunder flash, icon mode, inline hints, command bar enabled/disabled, hourly view, hero visual, refresh interval, recent locations, and update-check metadata (`last_update_check_unix`, `last_seen_latest_version`).
 
-Color detection falls back TrueColor → xterm-256 → 16-color based on `COLORTERM` and `TERM`. `NO_COLOR` is honored in `auto` mode.
+Color detection falls back from TrueColor to xterm-256 to 16-color based on `COLORTERM` and `TERM`. `NO_COLOR` is honored when color mode is `auto`.
 
 API endpoint overrides:
 
 - `TERMINAL_WEATHER_FORECAST_URL` sets the forecast endpoint
 - `TERMINAL_WEATHER_AIR_QUALITY_URL` sets the air-quality endpoint
-- `--forecast-url` / `--air-quality-url` override env vars for the current run
+- `--forecast-url` and `--air-quality-url` override those environment variables for the current run
 
 Update-check controls:
 
-- `TERMINAL_WEATHER_DISABLE_UPDATE_CHECK=1` disables background Homebrew update checks
-- `TERMINAL_WEATHER_UPDATE_FORMULA_URL=<url>` overrides the Homebrew formula source (advanced/testing)
+- `TERMINAL_WEATHER_DISABLE_UPDATE_CHECK=1` disables the background Homebrew update check
+- `TERMINAL_WEATHER_UPDATE_FORMULA_URL=<url>` overrides the Homebrew formula source for testing
 
-Precedence is: CLI flag → environment variable → built-in default URL.
+Precedence is: CLI flag -> environment variable -> built-in default URL.
 
-Custom endpoints must remain Open-Meteo compatible (same query parameters and response shape).
+Custom endpoints must stay Open-Meteo compatible with the same query parameters and response shape.
 
 ---
 
 ## Privacy
 
-When launched without a city argument, `terminal-weather` sends your IP address to [ipapi.co](https://ipapi.co/) to determine your location. Pass a city name or `--lat`/`--lon` to skip this lookup entirely.
+When you launch the interactive app without a city, `terminal-weather` may send your IP address to [ipapi.co](https://ipapi.co/) to estimate your location. Pass a city name or `--lat` and `--lon` to skip that lookup entirely.
 
-Weather and city search data come from [Open-Meteo](https://open-meteo.com/) (your coordinates and search string are sent). Reverse geocoding for coordinate-based locations (for example `--lat/--lon` and coordinate-only history entries) uses [Nominatim](https://nominatim.openstreetmap.org/) (your coordinates are sent). The IP-based auto-location lookup uses [ipapi.co](https://ipapi.co/). Startup may also request the Homebrew formula file from `raw.githubusercontent.com` to detect a newer release; this check is throttled to once per 24 hours, has a short timeout, and can be disabled with `TERMINAL_WEATHER_DISABLE_UPDATE_CHECK=1`. No account or API key is required, and this app does not persist data outside local settings/history on your machine.
+Forecast and forward-geocoding requests go to [Open-Meteo](https://open-meteo.com/). Reverse geocoding for coordinate-based locations goes to [Nominatim](https://nominatim.openstreetmap.org/). The app also may fetch the Homebrew formula from `raw.githubusercontent.com` to check whether a newer release exists. That update check is throttled to once every 24 hours, has a short timeout, ignores quiet failure cases, and can be disabled with `TERMINAL_WEATHER_DISABLE_UPDATE_CHECK=1`.
+
+Remote text from GeoIP and geocoding responses is sanitized before it reaches the UI, and network requests use bounded timeouts and payload limits. No account or API key is required. Outside local settings and recent-location history on your machine, the app does not persist your data.
 
 ---
 
-## What's New in v0.7.0
+## What's New in v0.8.0
 
-- **Cinematic weather motion** — the app now uses a dedicated motion system with condition-aware choreography across the hero, landmark scenes, loading states, and panel transitions.
-- **Motion tiers** — `--motion cinematic|standard|reduced|off` is now the primary control, while `--reduced-motion` and `--no-animation` remain as compatibility aliases.
-- **Expanded hourly chart** — chart mode now uses the pane height more effectively with a real temperature plot, a compact precipitation lane, and clearer scale placement.
-- **Settings navigation alignment** — keyboard navigation in Settings now follows the same top-to-bottom order shown on screen.
-- **Silent Homebrew update checks** — startup now performs a background, timeout-bounded check against the Homebrew tap formula to detect newer releases.
-- **Quiet-by-default UX** — no messages are shown for failures or no-update states; a subtle footer hint appears only when a newer version is available.
-- **24-hour check cadence** — update-check metadata is persisted in settings and throttled to once per day.
-- **Legacy settings compatibility** — new update metadata fields are backward-compatible with existing `settings.json` files.
-- **Code quality hardening** — complexity and file-length audit warnings were eliminated while keeping all required and recommended local gates green.
+- **Cinematic motion across the app**: hero visuals, loading states, landmark scenes, and panel transitions now move with weather-aware choreography.
+- **A stronger hourly chart**: chart mode uses space better, reads more clearly, and carries temperature and precipitation detail more cleanly.
+- **Faster recovery and navigation**: the city picker is more forgiving, recent-location shortcuts are easier to use, and error states show actionable keys.
+- **Safer network behavior**: update checks and API calls now fail quietly, time out aggressively, and reject oversized or unsafe remote payloads.
+- **Better Homebrew release awareness**: the app can quietly detect a newer tap release and surface a subtle upgrade hint in the UI.
+
+For the full release narrative, see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
 ## Contributing
 
-Bug reports and pull requests are welcome. [Open an issue](https://github.com/markpasternak/terminal-weather/issues) to discuss a bug or feature before sending a PR.
+Bug reports and pull requests are welcome. [Open an issue](https://github.com/markpasternak/terminal-weather/issues) before sending a PR for a larger bug or feature change.
 
 To contribute code:
 
 1. Fork the repo and create a branch from `main`
 2. Make your changes
-3. Run `./scripts/check.sh` — CI must pass before a PR can merge
+3. Run `./scripts/check.sh`
 4. Open a pull request against `main`
 
 The maintainer reviews and merges all PRs. Direct pushes to `main` are restricted.
@@ -183,13 +211,13 @@ The maintainer reviews and merges all PRs. Direct pushes to `main` are restricte
 ### Local Quality Gate
 
 ```bash
-./scripts/check.sh            # structured summary (default)
+./scripts/check.sh             # structured summary (default)
 ./scripts/check.sh --verbose   # full tool output
 ```
 
-The script checks formatting, linting (including pedantic), complexity, duplication, tests, release build, and coverage — then prints a final report classifying each check as **required** or **recommended**.
+The script checks formatting, linting, pedantic Clippy, complexity, duplication, tests, release build, and coverage, then prints a final report that labels each check as required or recommended.
 
-Checks requiring optional tooling are auto-skipped when the tool is missing. Install everything for full coverage:
+Checks that depend on optional tooling are auto-skipped when the tool is missing. Install everything for full coverage:
 
 ```bash
 cargo install --locked rust-code-analysis-cli --version 0.0.25
