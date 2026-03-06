@@ -1,7 +1,3 @@
-## 2025-02-23 - TUI Update Loop Optimization
-**Learning:** Even seemingly cheap operations like `rand::rng()` (TLS access) and `sin()` (trig) consume measurable CPU in tight update loops (e.g., 60Hz).
-**Action:** Guard update logic with early returns or conditionals based on state (e.g., `if weather != Clear`) to skip processing for invisible effects.
-
-## 2026-02-24 - Vec::retain vs swap_remove for Front Removal
-**Learning:** `Vec::retain` (linear `memmove`) outperforms manual `swap_remove` (multiple small copies) when removing contiguous blocks from the front of small/medium vectors (<1000 items).
-**Action:** Prefer `retain` over `swap_remove` loops for FIFO-like patterns in vectors unless order explicitly doesn't matter AND removal is truly random/scattered.
+## 2023-10-25 - [Optimize Date/Time Parsing for Open-Meteo Payloads]
+**Learning:** `chrono::NaiveDateTime::parse_from_str` with format strings like `"%Y-%m-%dT%H:%M"` is very slow because it handles generic formatting dynamically. In systems where APIs return massive arrays of timestamps in exact formats, this quickly becomes a bottleneck. Replacing it with manual byte indexing and parsing integer substrings yields a ~300x performance increase.
+**Action:** When repeatedly parsing known, fixed-length datetime formats from high-frequency APIs, prefer manual byte-slicing and integer calculation over generic `chrono` string parsing logic (with `parse_from_str` as a fallback).
