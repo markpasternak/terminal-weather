@@ -64,16 +64,18 @@ fn should_reflect_star(canvas: &[Vec<char>], source_y: usize, target_y: usize, x
 
 fn paint_ambient_birds(canvas: &mut [Vec<char>], ctx: AmbientSkyLifeContext, sky_rows: usize) {
     let bird_count = (ctx.width / 90).clamp(1, 2);
-    let bird_cycle = (ctx.width * 8).max(1);
-    let phase = ctx.phase / 8;
     for i in 0..bird_count {
-        let x = ((phase + i * 29) % bird_cycle) as isize - 2;
-        let lane = 1 + ((i * 2 + phase / 23) % sky_rows.saturating_sub(2).max(1));
-        let wing = if ((phase / 12) + i).is_multiple_of(2) {
-            '^'
-        } else {
-            '~'
-        };
+        let pulse = ctx
+            .seed
+            .pulse(ctx.elapsed_seconds, 0.16 + i as f32 * 0.04, i as u64);
+        let travel = ((ctx.elapsed_seconds * (4.0 + i as f32 * 0.8)).round() as usize
+            + (ctx.seed.unit(i as u64 + 10) * ctx.width as f32) as usize)
+            % (ctx.width + 6).max(1);
+        let x = travel as isize - 2;
+        let lane = 1
+            + (((ctx.seed.unit(i as u64 + 22) * sky_rows as f32) as usize)
+                .min(sky_rows.saturating_sub(2).max(1)));
+        let wing = if pulse > 0.5 { '^' } else { '~' };
         // Render a tiny 3-cell bird sprite so it reads as a bird instead of a lone moving glyph.
         paint_char(canvas, x, lane as isize, '<', false);
         paint_char(canvas, x + 1, lane as isize, wing, false);

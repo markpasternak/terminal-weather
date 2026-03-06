@@ -32,27 +32,35 @@ pub fn round_temp(value: f32) -> i32 {
 #[must_use]
 #[allow(clippy::collapsible_if)]
 pub fn parse_datetime(value: &str) -> Option<NaiveDateTime> {
-    if value.len() == 16 {
-        let b = value.as_bytes();
-        if b[4] == b'-' && b[7] == b'-' && b[10] == b'T' && b[13] == b':' {
-            let parts = (
-                parse_four(&b[0..4]),
-                parse_two(&b[5..7]),
-                parse_two(&b[8..10]),
-                parse_two(&b[11..13]),
-                parse_two(&b[14..16]),
-            );
-            if let (Some(y), Some(m), Some(d), Some(h), Some(min)) = parts {
-                if let Some(date) = NaiveDate::from_ymd_opt(y, m, d) {
-                    if let Some(dt) = date.and_hms_opt(h, min, 0) {
-                        return Some(dt);
-                    }
-                }
-            }
-        }
+    if let Some(datetime) = fast_parse_datetime(value) {
+        return Some(datetime);
     }
     // Fallback for unexpected formats
     NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M").ok()
+}
+
+fn fast_parse_datetime(value: &str) -> Option<NaiveDateTime> {
+    if value.len() != 16 || !looks_like_iso_datetime(value.as_bytes()) {
+        return None;
+    }
+    let b = value.as_bytes();
+    let (year, month, day, hour, minute) = parse_datetime_parts(b)?;
+    let date = NaiveDate::from_ymd_opt(year, month, day)?;
+    date.and_hms_opt(hour, minute, 0)
+}
+
+fn looks_like_iso_datetime(bytes: &[u8]) -> bool {
+    bytes[4] == b'-' && bytes[7] == b'-' && bytes[10] == b'T' && bytes[13] == b':'
+}
+
+fn parse_datetime_parts(bytes: &[u8]) -> Option<(i32, u32, u32, u32, u32)> {
+    Some((
+        parse_four(&bytes[0..4])?,
+        parse_two(&bytes[5..7])?,
+        parse_two(&bytes[8..10])?,
+        parse_two(&bytes[11..13])?,
+        parse_two(&bytes[14..16])?,
+    ))
 }
 
 #[must_use]

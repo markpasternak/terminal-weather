@@ -1,19 +1,19 @@
 use super::super::{moon_visible, paint_starfield, place_celestial_body};
-use super::test_support::{blank_canvas, bundle_for_category};
+use super::test_support::{blank_canvas, bundle_for_category, motion};
 
 #[test]
 fn paint_starfield_small_canvas_no_panic() {
     let mut canvas = blank_canvas(4, 4);
     // horizon_y < 2 → early return
-    paint_starfield(&mut canvas, 4, 1, 0, 0.0);
+    paint_starfield(&mut canvas, 4, 1, motion(), 0.0);
     // w == 0 → early return
-    paint_starfield(&mut canvas, 0, 4, 0, 0.0);
+    paint_starfield(&mut canvas, 0, 4, motion(), 0.0);
 }
 
 #[test]
 fn paint_starfield_normal_canvas_writes_stars() {
     let mut canvas = blank_canvas(40, 16);
-    paint_starfield(&mut canvas, 40, 10, 5, 10.0);
+    paint_starfield(&mut canvas, 40, 10, motion(), 10.0);
     let stars = canvas
         .iter()
         .flatten()
@@ -25,7 +25,7 @@ fn paint_starfield_normal_canvas_writes_stars() {
 #[test]
 fn paint_starfield_overcast_skips_stars() {
     let mut canvas = blank_canvas(40, 16);
-    paint_starfield(&mut canvas, 40, 10, 5, 95.0);
+    paint_starfield(&mut canvas, 40, 10, motion(), 95.0);
     let stars = canvas
         .iter()
         .flatten()

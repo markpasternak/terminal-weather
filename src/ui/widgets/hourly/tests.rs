@@ -259,7 +259,7 @@ fn collect_render_mode_results(
     render_loading_placeholder(
         frame,
         Rect::new(0, 0, 20, 0),
-        0,
+        crate::test_support::test_motion_context(),
         Style::default(),
         theme.accent,
         theme.muted_text,

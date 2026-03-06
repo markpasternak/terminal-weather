@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     cli::{Cli, HeroVisualArg, HourlyViewArg, IconMode, ThemeArg, UnitsArg},
     domain::weather::{HourlyViewMode, Location, Units},
+    ui::animation::MotionMode,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,6 +20,7 @@ use crate::{
 pub struct RuntimeSettings {
     pub units: Units,
     pub theme: ThemeArg,
+    pub motion_mode: MotionMode,
     pub no_flash: bool,
     pub icon_mode: IconMode,
     pub hourly_view: HourlyViewMode,
@@ -56,6 +58,7 @@ impl RuntimeSettings {
         Self {
             units,
             theme: cli.theme,
+            motion_mode: cli.effective_motion_mode(),
             no_flash: cli.no_flash,
             icon_mode,
             hourly_view: HourlyViewMode::Table,
@@ -75,6 +78,7 @@ impl Default for RuntimeSettings {
         Self {
             units: Units::Celsius,
             theme: ThemeArg::Auto,
+            motion_mode: MotionMode::Cinematic,
             no_flash: false,
             icon_mode: IconMode::Unicode,
             hourly_view: HourlyViewMode::Table,
@@ -180,6 +184,7 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
 fn apply_cli_overrides(settings: &mut RuntimeSettings, cli: &Cli) {
     override_units(settings, cli);
     override_theme(settings, cli);
+    override_motion(settings, cli);
     override_flash(settings, cli);
     override_icon_mode(settings, cli);
     override_hero_visual(settings, cli);
@@ -195,6 +200,13 @@ fn override_units(settings: &mut RuntimeSettings, cli: &Cli) {
 fn override_theme(settings: &mut RuntimeSettings, cli: &Cli) {
     if cli.theme != ThemeArg::Auto {
         settings.theme = cli.theme;
+    }
+}
+
+fn override_motion(settings: &mut RuntimeSettings, cli: &Cli) {
+    let motion_mode = cli.effective_motion_mode();
+    if cli.motion.is_some() || cli.no_animation || cli.reduced_motion {
+        settings.motion_mode = motion_mode;
     }
 }
 

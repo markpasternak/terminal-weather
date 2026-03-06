@@ -3,6 +3,7 @@ use chrono::{NaiveDate, NaiveDateTime, Utc};
 use crate::{
     cli::{Cli, ColorArg, HeroVisualArg, ThemeArg, UnitsArg},
     domain::weather::{CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location},
+    ui::animation::{MotionMode, SeededMotion, UiMotionContext},
 };
 
 fn parse_time(value: &str) -> NaiveDateTime {
@@ -16,6 +17,7 @@ fn base_test_cli() -> Cli {
         fps: 30,
         no_animation: true,
         reduced_motion: false,
+        motion: None,
         no_flash: true,
         ascii_icons: false,
         emoji_icons: false,
@@ -135,5 +137,18 @@ pub(crate) fn sample_bundle() -> ForecastBundle {
         daily: vec![sample_daily()],
         air_quality: None,
         fetched_at: Utc::now(),
+    }
+}
+
+pub(crate) fn test_motion_context() -> UiMotionContext {
+    UiMotionContext {
+        elapsed_seconds: 1.0,
+        dt_seconds: 0.05,
+        frame_index: 12,
+        motion_mode: MotionMode::Cinematic,
+        seed: SeededMotion::new(42),
+        weather_profile: None,
+        transition_progress: None,
+        animate: true,
     }
 }

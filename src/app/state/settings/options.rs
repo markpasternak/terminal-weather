@@ -46,28 +46,30 @@ pub(super) const THEME_LABELS: &[(ThemeArg, &str)] = &THEME_LABEL_TABLE;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SettingsSelection {
     #[default]
-    Units,
     Theme,
+    Motion,
     Flash,
     Icons,
+    HeroVisual,
     InlineHints,
     CommandBar,
     HourlyView,
-    HeroVisual,
+    Units,
     RefreshInterval,
     RefreshNow,
     Close,
 }
 
-pub(super) const SETTINGS_ORDER: [SettingsSelection; 11] = [
-    SettingsSelection::Units,
+pub(crate) const SETTINGS_ORDER: [SettingsSelection; 12] = [
     SettingsSelection::Theme,
+    SettingsSelection::Motion,
     SettingsSelection::Flash,
     SettingsSelection::Icons,
+    SettingsSelection::HeroVisual,
     SettingsSelection::InlineHints,
     SettingsSelection::CommandBar,
     SettingsSelection::HourlyView,
-    SettingsSelection::HeroVisual,
+    SettingsSelection::Units,
     SettingsSelection::RefreshInterval,
     SettingsSelection::RefreshNow,
     SettingsSelection::Close,

@@ -22,8 +22,8 @@ use crate::{
         weather_label_for_time,
     },
     ui::layout::visible_hour_count,
-    ui::narrative::build_narrative,
     ui::theme::{Theme, detect_color_capability, icon_color, temp_color, theme_for},
+    ui::{motion_context, narrative::build_narrative},
 };
 
 mod daypart;
@@ -72,7 +72,7 @@ fn render_hourly_loading(
     render_loading_placeholder(
         frame,
         inner,
-        state.frame_tick,
+        motion_context(state, "hourly-loading"),
         panel_style,
         theme.accent,
         theme.muted_text,
@@ -113,7 +113,7 @@ fn render_hourly_with_bundle(
         render_loading_placeholder(
             frame,
             inner,
-            state.frame_tick,
+            motion_context(state, "hourly-empty"),
             panel_style,
             theme.accent,
             theme.muted_text,
@@ -146,7 +146,17 @@ fn render_hourly_context_strip(
 
     let rows = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(inner);
     let narrative = build_narrative(state, bundle);
-    let line = narrative.compact_triage_line(rows[0].width);
+    let motion = motion_context(state, "hourly-focus");
+    let pulse =
+        if motion.animate && motion.lane("focus").pulse(motion.elapsed_seconds, 0.9, 0) > 0.58 {
+            "◦ "
+        } else {
+            "· "
+        };
+    let line = format!(
+        "{pulse}{}",
+        narrative.compact_triage_line(rows[0].width.saturating_sub(2))
+    );
     let hint = Paragraph::new(line).style(Style::default().fg(theme.muted_text));
     frame.render_widget(hint, rows[0]);
     rows[1]
@@ -269,7 +279,7 @@ fn render_chart_mode(
 fn render_loading_placeholder(
     frame: &mut Frame,
     area: Rect,
-    frame_tick: u64,
+    motion: crate::ui::animation::UiMotionContext,
     panel_style: Style,
     accent: Color,
     muted: Color,
@@ -278,20 +288,27 @@ fn render_loading_placeholder(
         return;
     }
     let slots = (usize::from(area.width) / 6).max(4);
-    let mut shimmer = vec!['·'; slots];
-    let idx = (frame_tick as usize) % slots;
-    shimmer[idx] = '◆';
-    if idx > 0 {
-        shimmer[idx - 1] = '◇';
-    }
-    let row1 = shimmer.iter().collect::<String>();
+    let row1 = (0..slots)
+        .map(|idx| {
+            let wave = motion
+                .lane("hourly-loading")
+                .pulse(motion.elapsed_seconds, 1.0, idx as u64);
+            if wave > 0.82 {
+                '◆'
+            } else if wave > 0.68 {
+                '◇'
+            } else {
+                '·'
+            }
+        })
+        .collect::<String>();
     let row2 = (0..slots)
         .map(|i| {
-            if (i + idx).is_multiple_of(3) {
-                '◦'
-            } else {
-                ' '
-            }
+            let wave =
+                motion
+                    .lane("hourly-loading-bottom")
+                    .pulse(motion.elapsed_seconds, 0.7, i as u64);
+            if wave > 0.62 { '◦' } else { ' ' }
         })
         .collect::<String>();
 

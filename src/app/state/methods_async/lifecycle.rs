@@ -32,6 +32,8 @@ impl AppState {
         cli: &Cli,
     ) -> Result<()> {
         cli.validate()?;
+        self.last_render_signature = Some(self.render_signature());
+        self.sync_motion_profile();
         start_frame_task(tx.clone(), cli.fps);
         start_refresh_task(tx.clone(), self.refresh_interval_secs_runtime.clone());
         if cli.demo {
@@ -46,19 +48,33 @@ impl AppState {
         let delta = now.duration_since(self.last_frame_at);
         self.last_frame_at = now;
         self.frame_tick = self.frame_tick.saturating_add(1);
+        self.animation_clock.advance(delta);
 
-        self.particles.update(
-            self.weather
-                .as_ref()
-                .map(ForecastBundle::current_weather_code),
-            self.weather.as_ref().map(|w| w.current.wind_speed_10m),
-            self.weather.as_ref().map(|w| w.current.wind_direction_10m),
-            delta,
-        );
+        if let Some(active_transition) = self.active_transition.as_mut() {
+            active_transition.advance(self.animation_clock.dt_seconds);
+            if active_transition.finished() {
+                self.active_transition = None;
+            }
+        }
+
+        let previous_freshness = self.refresh_meta.state;
         self.refresh_meta.state = evaluate_freshness(
             self.refresh_meta.last_success,
             self.refresh_meta.consecutive_failures,
         );
+        if previous_freshness != self.refresh_meta.state && self.active_transition.is_none() {
+            self.begin_transition(crate::ui::animation::SceneTransitionState::freshness_pulse(
+                self.motion_mode,
+            ));
+        }
+
+        self.sync_motion_profile();
+        self.particles.update(
+            self.weather_motion_profile,
+            delta,
+            self.motion_seed("hero-particles"),
+        );
+        self.last_render_signature = Some(self.render_signature());
     }
 
     pub(crate) async fn handle_tick_refresh(
@@ -113,6 +129,11 @@ impl AppState {
     }
 
     pub(crate) fn handle_fetch_succeeded(&mut self, bundle: ForecastBundle) {
+        let previous_signature = self
+            .last_render_signature
+            .clone()
+            .unwrap_or_else(|| self.render_signature());
+        let had_weather = self.weather.is_some();
         let location = bundle.location.clone();
         let key: LocationKey = (&location).into();
         self.forecast_cache.put(key, bundle.clone());
@@ -128,6 +149,24 @@ impl AppState {
         self.persist_settings();
         self.city_status = None;
         self.city_picker_open = false;
+        if self.active_transition.is_none() {
+            let transition = if had_weather {
+                crate::ui::animation::SceneTransitionState::fetch_reveal(self.motion_mode)
+            } else {
+                crate::ui::animation::SceneTransitionState::app_ready(self.motion_mode)
+            };
+            self.begin_transition(transition);
+        }
+        self.sync_motion_profile();
+        let next_signature = self.render_signature();
+        if previous_signature.location_name != next_signature.location_name
+            && self.active_transition.is_none()
+        {
+            self.begin_transition(crate::ui::animation::SceneTransitionState::city_switch(
+                self.motion_mode,
+            ));
+        }
+        self.last_render_signature = Some(next_signature);
     }
 
     pub(crate) fn handle_fetch_failed(&mut self, tx: &mpsc::Sender<AppEvent>, err: String) {
@@ -144,6 +183,8 @@ impl AppState {
         let delay = self.backoff.next_delay();
         self.refresh_meta.schedule_retry_in(delay);
         schedule_retry(tx.clone(), delay);
+        self.sync_motion_profile();
+        self.last_render_signature = Some(self.render_signature());
     }
 
     fn start_update_check_if_needed(&self, tx: &mpsc::Sender<AppEvent>, cli: &Cli) {

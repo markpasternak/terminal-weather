@@ -31,6 +31,7 @@ use crate::{
         evaluate_freshness,
     },
     resilience::backoff::Backoff,
+    ui::animation::{AnimationClockState, MotionMode, SceneTransitionState, WeatherMotionProfile},
     ui::layout::visible_hour_count,
     ui::particles::ParticleEngine,
     update::UpdateStatus,
@@ -44,6 +45,7 @@ mod settings;
 
 use input::command_char;
 pub(crate) use input::initial_selected_location;
+pub(crate) use settings::SETTINGS_ORDER;
 pub use settings::SettingsSelection;
 use settings::{HOURLY_VIEW_OPTIONS, cycle};
 
@@ -123,6 +125,16 @@ pub struct SettingsEntry {
     pub editable: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenderSignature {
+    pub location_name: Option<String>,
+    pub weather_code: Option<u8>,
+    pub is_day: bool,
+    pub hero_visual: HeroVisualArg,
+    pub motion_mode: MotionMode,
+    pub freshness_state: crate::resilience::freshness::FreshnessState,
+}
+
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct LocationKey {
     name: String,
@@ -164,6 +176,11 @@ pub struct AppState {
     pub fetch_in_flight: bool,
     pub last_frame_at: Instant,
     pub frame_tick: u64,
+    pub animation_clock: AnimationClockState,
+    pub motion_mode: MotionMode,
+    pub active_transition: Option<SceneTransitionState>,
+    pub last_render_signature: Option<RenderSignature>,
+    pub weather_motion_profile: Option<WeatherMotionProfile>,
     pub animate_ui: bool,
     pub viewport_width: u16,
     pub demo_mode: bool,
@@ -195,8 +212,17 @@ impl AppState {
         let selected_location = initial_selected_location(cli, &settings);
         let refresh_interval_secs_runtime =
             Arc::new(AtomicU64::new(settings.refresh_interval_secs));
-        let panel_focus = PanelFocus::Hourly;
+        let mut state =
+            Self::new_runtime_state(&settings, selected_location, refresh_interval_secs_runtime);
+        state.apply_cli_runtime_defaults(cli, settings, settings_path, runtime_hourly_view);
+        state
+    }
 
+    fn new_runtime_state(
+        settings: &RuntimeSettings,
+        selected_location: Option<Location>,
+        refresh_interval_secs_runtime: Arc<AtomicU64>,
+    ) -> Self {
         Self {
             mode: AppMode::Loading,
             running: true,
@@ -210,15 +236,20 @@ impl AppState {
             units: settings.units,
             hourly_offset: 0,
             hourly_cursor: 0,
-            particles: ParticleEngine::new(false, false, settings.no_flash),
+            particles: ParticleEngine::new(settings.motion_mode, settings.no_flash),
             backoff: Backoff::new(10, 300),
             fetch_in_flight: false,
             last_frame_at: Instant::now(),
             frame_tick: 0,
-            animate_ui: true,
+            animation_clock: AnimationClockState::default(),
+            motion_mode: settings.motion_mode,
+            active_transition: None,
+            last_render_signature: None,
+            weather_motion_profile: None,
+            animate_ui: settings.motion_mode.allows_animation(),
             viewport_width: 80,
-            demo_mode: cli.demo,
-            settings,
+            demo_mode: false,
+            settings: settings.clone(),
             settings_open: false,
             help_open: false,
             settings_selected: SettingsSelection::default(),
@@ -226,16 +257,88 @@ impl AppState {
             city_query: String::new(),
             city_history_selected: 0,
             city_status: None,
-            color_mode: cli.effective_color_mode(),
-            hourly_view_mode: runtime_hourly_view,
-            panel_focus,
+            color_mode: ColorArg::Auto,
+            hourly_view_mode: settings.hourly_view,
+            panel_focus: PanelFocus::Hourly,
             update_status: UpdateStatus::Unknown,
             command_bar: CommandBarState::default(),
             refresh_interval_secs_runtime,
-            forecast_url_override: cli.forecast_url.clone(),
-            air_quality_url_override: cli.air_quality_url.clone(),
-            settings_path,
+            forecast_url_override: None,
+            air_quality_url_override: None,
+            settings_path: None,
         }
+    }
+
+    fn apply_cli_runtime_defaults(
+        &mut self,
+        cli: &Cli,
+        settings: RuntimeSettings,
+        settings_path: Option<PathBuf>,
+        runtime_hourly_view: HourlyViewMode,
+    ) {
+        self.demo_mode = cli.demo;
+        self.settings = settings;
+        self.settings_path = settings_path;
+        self.color_mode = cli.effective_color_mode();
+        self.hourly_view_mode = runtime_hourly_view;
+        self.forecast_url_override.clone_from(&cli.forecast_url);
+        self.air_quality_url_override
+            .clone_from(&cli.air_quality_url);
+    }
+
+    #[must_use]
+    pub fn render_signature(&self) -> RenderSignature {
+        RenderSignature {
+            location_name: self
+                .selected_location
+                .as_ref()
+                .map(crate::domain::weather::Location::display_name),
+            weather_code: self
+                .weather
+                .as_ref()
+                .map(|bundle| bundle.current.weather_code),
+            is_day: self
+                .weather
+                .as_ref()
+                .is_some_and(|bundle| bundle.current.is_day),
+            hero_visual: self.settings.hero_visual,
+            motion_mode: self.motion_mode,
+            freshness_state: self.refresh_meta.state,
+        }
+    }
+
+    pub(crate) fn begin_transition(&mut self, transition: Option<SceneTransitionState>) {
+        self.active_transition = transition;
+    }
+
+    pub(crate) fn sync_motion_profile(&mut self) {
+        self.weather_motion_profile = self.weather.as_ref().map(|bundle| {
+            WeatherMotionProfile::from_bundle(bundle, self.active_transition.is_some())
+        });
+    }
+
+    #[must_use]
+    pub fn transition_progress(&self) -> Option<f32> {
+        self.active_transition
+            .map(SceneTransitionState::eased_progress)
+    }
+
+    #[must_use]
+    pub fn motion_seed(&self, lane: &str) -> u64 {
+        crate::ui::animation::stable_hash(&(
+            self.selected_location
+                .as_ref()
+                .map(crate::domain::weather::Location::display_name),
+            self.weather
+                .as_ref()
+                .map(|bundle| bundle.current.weather_code),
+            self.weather
+                .as_ref()
+                .is_some_and(|bundle| bundle.current.is_day),
+            self.settings.hero_visual as u8,
+            self.motion_mode,
+            lane,
+        ))
     }
 }
 

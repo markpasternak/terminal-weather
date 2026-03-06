@@ -159,8 +159,19 @@ impl AppState {
     }
 
     pub(crate) fn switch_to_location(&mut self, tx: &mpsc::Sender<AppEvent>, location: Location) {
+        let previous_location = self
+            .selected_location
+            .as_ref()
+            .map(crate::domain::weather::Location::display_name);
+        let next_location = location.display_name();
         self.selected_location = Some(location.clone());
         self.pending_locations.clear();
+        if previous_location.as_deref() != Some(next_location.as_str()) {
+            self.begin_transition(crate::ui::animation::SceneTransitionState::city_switch(
+                self.motion_mode,
+            ));
+        }
+        self.last_render_signature = Some(self.render_signature());
 
         let key: LocationKey = (&location).into();
         if let Some(bundle) = self.forecast_cache.get(&key).cloned() {

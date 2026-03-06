@@ -1,16 +1,19 @@
 use super::super::AppState;
 use super::super::SettingsEntry;
 use super::options::{
-    HOURLY_VIEW_OPTIONS, REFRESH_OPTIONS, SettingsSelection, THEME_LABELS, THEME_OPTIONS,
+    HOURLY_VIEW_OPTIONS, REFRESH_OPTIONS, SETTINGS_ORDER, SettingsSelection, THEME_LABELS,
+    THEME_OPTIONS,
 };
 use crate::cli::{HeroVisualArg, IconMode, ThemeArg};
 use crate::domain::weather::{HourlyViewMode, Units};
+use crate::ui::animation::MotionMode;
 
 type SettingAdjuster = fn(&mut AppState, i8) -> bool;
 
-const SETTING_ADJUSTERS: [(SettingsSelection, SettingAdjuster); 8] = [
+const SETTING_ADJUSTERS: [(SettingsSelection, SettingAdjuster); 9] = [
     (SettingsSelection::Units, adjust_units_setting),
     (SettingsSelection::Theme, adjust_theme_setting),
+    (SettingsSelection::Motion, adjust_motion_setting),
     (SettingsSelection::Icons, adjust_icon_setting),
     (SettingsSelection::InlineHints, adjust_inline_hints_setting),
     (SettingsSelection::CommandBar, adjust_command_bar_setting),
@@ -59,6 +62,19 @@ fn adjust_units_setting(state: &mut AppState, direction: i8) -> bool {
 
 fn adjust_theme_setting(state: &mut AppState, direction: i8) -> bool {
     adjust_cycle_setting(&mut state.settings.theme, &THEME_OPTIONS, direction)
+}
+
+fn adjust_motion_setting(state: &mut AppState, direction: i8) -> bool {
+    adjust_cycle_setting(
+        &mut state.settings.motion_mode,
+        &[
+            MotionMode::Cinematic,
+            MotionMode::Standard,
+            MotionMode::Reduced,
+            MotionMode::Off,
+        ],
+        direction,
+    )
 }
 
 fn adjust_icon_setting(state: &mut AppState, direction: i8) -> bool {
@@ -180,6 +196,10 @@ fn hourly_view_name(mode: HourlyViewMode) -> &'static str {
     }
 }
 
+fn motion_mode_name(mode: MotionMode) -> &'static str {
+    mode.label()
+}
+
 fn hero_visual_name(mode: HeroVisualArg) -> &'static str {
     match mode {
         HeroVisualArg::AtmosCanvas => "Atmos Canvas",
@@ -203,69 +223,50 @@ fn hero_visual_hint(mode: HeroVisualArg) -> &'static str {
 }
 
 fn settings_hint_for_selection(selected: SettingsSelection) -> &'static str {
-    match selected {
-        SettingsSelection::Theme => {
-            "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status"
+    for (candidate, hint) in [
+        (
+            SettingsSelection::Theme,
+            "Theme applies to all panels: Current, Hourly, 7-Day, popups, and status",
+        ),
+        (
+            SettingsSelection::Motion,
+            "Motion controls cinematic animation density, transitions, and storm flash behavior",
+        ),
+        (
+            SettingsSelection::Icons,
+            "Icon mode affects weather symbols. Nerd Font requires a patched font.",
+        ),
+        (
+            SettingsSelection::InlineHints,
+            "Inline hints add local guidance in panels and overlays",
+        ),
+        (
+            SettingsSelection::CommandBar,
+            "Command Bar adds ':' shortcuts (city/theme/view/units/refresh/quit)",
+        ),
+        (
+            SettingsSelection::HourlyView,
+            "Hourly View controls the Hourly panel: Table, Hybrid cards+charts, or Chart",
+        ),
+        (
+            SettingsSelection::RefreshInterval,
+            "Auto-refresh cadence updates immediately",
+        ),
+    ] {
+        if selected == candidate {
+            return hint;
         }
-        SettingsSelection::Icons => {
-            "Icon mode affects weather symbols. Nerd Font requires a patched font."
-        }
-        SettingsSelection::InlineHints => "Inline hints add local guidance in panels and overlays",
-        SettingsSelection::CommandBar => {
-            "Command Bar adds ':' shortcuts (city/theme/view/units/refresh/quit)"
-        }
-        SettingsSelection::HourlyView => {
-            "Hourly View controls the Hourly panel: Table, Hybrid cards+charts, or Chart"
-        }
-        SettingsSelection::RefreshInterval => "Auto-refresh cadence updates immediately",
-        _ => "Use left/right or Enter to change the selected setting",
     }
+    "Use left/right or Enter to change the selected setting"
 }
 
 impl AppState {
     #[must_use]
     pub fn settings_entries(&self) -> Vec<SettingsEntry> {
-        vec![
-            settings_entry("Units", self.settings.units.name(), true),
-            settings_entry("Theme", theme_name(self.settings.theme), true),
-            settings_entry(
-                "Thunder Flash",
-                if self.settings.no_flash { "Off" } else { "On" },
-                true,
-            ),
-            settings_entry("Icons", icon_mode_name(self.settings.icon_mode), true),
-            settings_entry(
-                "Inline Hints",
-                if self.settings.inline_hints {
-                    "Enabled"
-                } else {
-                    "Disabled"
-                },
-                true,
-            ),
-            settings_entry(
-                "Command Bar",
-                if self.settings.command_bar_enabled {
-                    "Enabled"
-                } else {
-                    "Disabled"
-                },
-                true,
-            ),
-            settings_entry("Hourly View", hourly_view_name(self.hourly_view_mode), true),
-            settings_entry(
-                "Hero Visual",
-                hero_visual_name(self.settings.hero_visual),
-                true,
-            ),
-            SettingsEntry {
-                label: "Auto Refresh",
-                value: format!("{} min", self.settings.refresh_interval_secs / 60),
-                editable: true,
-            },
-            settings_entry("Action", "Refresh now", false),
-            settings_entry("Panel", "Close", false),
-        ]
+        SETTINGS_ORDER
+            .into_iter()
+            .map(|selection| self.settings_entry_for(selection))
+            .collect()
     }
 
     #[must_use]
@@ -275,4 +276,83 @@ impl AppState {
         }
         settings_hint_for_selection(self.settings_selected).to_string()
     }
+
+    fn settings_entry_for(&self, selection: SettingsSelection) -> SettingsEntry {
+        match selection {
+            SettingsSelection::Theme
+            | SettingsSelection::Motion
+            | SettingsSelection::Icons
+            | SettingsSelection::HeroVisual
+            | SettingsSelection::HourlyView
+            | SettingsSelection::Units => self.primary_settings_entry(selection),
+            SettingsSelection::Flash
+            | SettingsSelection::InlineHints
+            | SettingsSelection::CommandBar => self.toggle_settings_entry(selection),
+            SettingsSelection::RefreshInterval => SettingsEntry {
+                label: "Auto Refresh",
+                value: format!("{} min", self.settings.refresh_interval_secs / 60),
+                editable: true,
+            },
+            SettingsSelection::RefreshNow | SettingsSelection::Close => {
+                Self::action_settings_entry(selection)
+            }
+        }
+    }
+
+    fn primary_settings_entry(&self, selection: SettingsSelection) -> SettingsEntry {
+        match selection {
+            SettingsSelection::Theme => {
+                settings_entry("Theme", theme_name(self.settings.theme), true)
+            }
+            SettingsSelection::Motion => {
+                settings_entry("Motion", motion_mode_name(self.settings.motion_mode), true)
+            }
+            SettingsSelection::Icons => {
+                settings_entry("Icons", icon_mode_name(self.settings.icon_mode), true)
+            }
+            SettingsSelection::HeroVisual => settings_entry(
+                "Hero Visual",
+                hero_visual_name(self.settings.hero_visual),
+                true,
+            ),
+            SettingsSelection::HourlyView => {
+                settings_entry("Hourly View", hourly_view_name(self.hourly_view_mode), true)
+            }
+            SettingsSelection::Units => settings_entry("Units", self.settings.units.name(), true),
+            _ => settings_entry("Theme", theme_name(self.settings.theme), true),
+        }
+    }
+
+    fn toggle_settings_entry(&self, selection: SettingsSelection) -> SettingsEntry {
+        match selection {
+            SettingsSelection::Flash => settings_entry(
+                "Thunder Flash",
+                enabled_label(!self.settings.no_flash),
+                true,
+            ),
+            SettingsSelection::InlineHints => settings_entry(
+                "Inline Hints",
+                enabled_label(self.settings.inline_hints),
+                true,
+            ),
+            SettingsSelection::CommandBar => settings_entry(
+                "Command Bar",
+                enabled_label(self.settings.command_bar_enabled),
+                true,
+            ),
+            _ => unreachable!("toggle_settings_entry only supports toggle selections"),
+        }
+    }
+
+    fn action_settings_entry(selection: SettingsSelection) -> SettingsEntry {
+        match selection {
+            SettingsSelection::RefreshNow => settings_entry("Action", "Refresh now", false),
+            SettingsSelection::Close => settings_entry("Panel", "Close", false),
+            _ => unreachable!("action_settings_entry only supports action selections"),
+        }
+    }
+}
+
+fn enabled_label(enabled: bool) -> &'static str {
+    if enabled { "Enabled" } else { "Disabled" }
 }

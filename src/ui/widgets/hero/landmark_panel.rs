@@ -12,10 +12,10 @@ use crate::{
     app::state::AppState,
     cli::HeroVisualArg,
     domain::weather::derive_nowcast_insight,
-    ui::theme::Theme,
     ui::widgets::landmark::{
         LandmarkTint, scene_for_gauge_cluster, scene_for_sky_observatory, scene_for_weather,
     },
+    ui::{motion_context, theme::Theme},
 };
 
 pub fn render_landmark(
@@ -29,7 +29,8 @@ pub fn render_landmark(
         return;
     }
 
-    let mut scene = select_scene(state, area, is_day);
+    let motion = motion_context(state, "landmark");
+    let mut scene = select_scene(state, area, is_day, motion);
     if scene.context_line.is_none()
         && area.height >= 8
         && let Some(bundle) = &state.weather
@@ -145,35 +146,23 @@ fn select_scene(
     state: &AppState,
     area: Rect,
     is_day: bool,
+    motion: crate::ui::animation::UiMotionContext,
 ) -> crate::ui::widgets::landmark::LandmarkScene {
     let scene_area = (area.width.saturating_sub(2), area.height.saturating_sub(2));
     match state.settings.hero_visual {
         HeroVisualArg::AtmosCanvas => {
             scene_or_loading(state, area, is_day, "Atmos Canvas", |bundle| {
-                scene_for_weather(
-                    bundle,
-                    state.units,
-                    state.frame_tick,
-                    state.animate_ui,
-                    scene_area.0,
-                    scene_area.1,
-                )
+                scene_for_weather(bundle, state.units, motion, scene_area.0, scene_area.1)
             })
         }
         HeroVisualArg::GaugeCluster => {
             scene_or_loading(state, area, is_day, "Gauge Cluster", |bundle| {
-                scene_for_gauge_cluster(bundle, state.units, scene_area.0, scene_area.1)
+                scene_for_gauge_cluster(bundle, state.units, scene_area.0, scene_area.1, motion)
             })
         }
         HeroVisualArg::SkyObservatory => {
             scene_or_loading(state, area, is_day, "Sky Observatory", |bundle| {
-                scene_for_sky_observatory(
-                    bundle,
-                    state.frame_tick,
-                    state.animate_ui,
-                    scene_area.0,
-                    scene_area.1,
-                )
+                scene_for_sky_observatory(bundle, motion, scene_area.0, scene_area.1)
             })
         }
     }

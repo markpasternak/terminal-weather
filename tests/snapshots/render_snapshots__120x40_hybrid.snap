@@ -6,10 +6,10 @@ expression: "render_with_hourly_mode_to_string(120, 40, 61, HourlyViewMode::Hybr
 │ 7°C                                                     │                                                            │
 │ Slight rain                                             │  Atmos Canvas · Rain                             ‹V›       │
 │ H:9°  L:3°                                              │                         ░                        7°C 🌧     │
-│ Stockholm, Stockholm, Sweden                            │  ╱    ╱    ╱    ╱    ╱ ░░░╱    ╱    ╱    ╱    ╱    ╱  ░    │
-│ Now action: keep precipitation gear ready               │          ░▒▒▒▒░       ░░◉░░                         ░░▒    │
-│ Next change in 8h: Temperature rises to 9°C             │        ░░▒▓▓▓▒░        ░░░ ░▒▒▒▒▒░                         │
-│ Next 6h: P 3.9mm · Pmax 35% · Gust 6 m/s · ΔT +3°C      │  ░  ░  ░  ░  ░  ░  ░  ░ ░░░▒░▓▓░▒░░  ░  ░  ░ ▁▁▁▁▁▁▁▁▁▁    │
+│ Stockholm, Stockholm, Sweden                            │                        ░░░▒▒░                      ╱       │
+│ Now action: keep precipitation gear ready               │      ░▒▒▒▒░           ░░◉░░▒░╱               ░▒▒▒▒▒░       │
+│ Next change in 8h: Temperature rises to 9°C             │    ░░▒▓▓▓▒░            ░░░                 ╱░▒▓▓▓▒▒░       │
+│ Next 6h: P 3.9mm · Pmax 35% · Gust 6 m/s · ΔT +3°C      │  ░  ░ ╱░  ╱ ╱░  ░  ░  ░ ░╱  ░  ░  ░  ░  ░  ░ ▁▁▁▁▁▁▁▁▁▁    │
 │ ● Confidence high · Data fresh · age -- · retry --      │  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▃▃▃▃▃▃▃▃    │
 │ Wind 3/6 m/s SW  Visibility 11.2km                      │  ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃██████████    │
 │ Pressure 1008↗                                          │  ██████████████████████████████████████████████████████    │
@@ -17,7 +17,7 @@ expression: "render_with_hourly_mode_to_string(120, 40, 61, HourlyViewMode::Hybr
 │ Precip chance 35%  AQI N/A                              │                                                            │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌▶ Hourly · Hybrid · Thu 12 Feb────────────────────────────────────────────────────────────────────────────────────────┐
-│Now action: keep precipitation gear ready  |  Next change in 8h: Temperature rises to 9°C  |  ● Data fresh · age --...│
+│· Now action: keep precipitation gear ready  |  Next change in 8h: Temperature rises to 9°C  |  ● Data fresh · age ...│
 │Temp  ▁▁▁▁▁▁▁▁▁▁▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▃▃▃▃▃▃▃▃▃▃▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▆▆▆▆▆▆▆▆▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇█  5..11C │
 │Precip▁▁▁▁▁▁▁▁▁▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅  0.4..1.5mm/h │
 │Time                     12                             ·                            18                             · │

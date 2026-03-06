@@ -25,6 +25,7 @@ pub fn stockholm_cli() -> Cli {
         fps: 30,
         no_animation: true,
         reduced_motion: false,
+        motion: None,
         no_flash: true,
         ascii_icons: false,
         emoji_icons: false,

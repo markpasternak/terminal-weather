@@ -2,12 +2,12 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::{Modifier, Style},
-    text::Line,
+    text::{Line, Span},
     widgets::{Clear, List, ListItem, ListState, Paragraph},
 };
 
 use crate::{
-    app::state::{AppState, SettingsSelection},
+    app::state::{AppState, SETTINGS_ORDER, SettingsSelection},
     ui::theme::{Theme, resolved_theme},
 };
 
@@ -58,23 +58,69 @@ struct SettingsRow {
 fn settings_rows(state: &AppState, theme: Theme) -> Vec<SettingsRow> {
     let entries = state.settings_entries();
     let mut rows = Vec::new();
-    push_section_header(&mut rows, "Visual", theme);
-    push_setting_row(&mut rows, &entries, SettingsSelection::Theme);
-    push_setting_row(&mut rows, &entries, SettingsSelection::Flash);
-    push_setting_row(&mut rows, &entries, SettingsSelection::Icons);
-    push_setting_row(&mut rows, &entries, SettingsSelection::HeroVisual);
-
-    push_section_header(&mut rows, "Interaction", theme);
-    push_setting_row(&mut rows, &entries, SettingsSelection::InlineHints);
-    push_setting_row(&mut rows, &entries, SettingsSelection::CommandBar);
-    push_setting_row(&mut rows, &entries, SettingsSelection::HourlyView);
-
-    push_section_header(&mut rows, "System", theme);
-    push_setting_row(&mut rows, &entries, SettingsSelection::Units);
-    push_setting_row(&mut rows, &entries, SettingsSelection::RefreshInterval);
-    push_setting_row(&mut rows, &entries, SettingsSelection::RefreshNow);
-    push_setting_row(&mut rows, &entries, SettingsSelection::Close);
+    let label_width = label_width(&entries);
+    push_settings_section(
+        &mut rows,
+        &entries,
+        "Visual",
+        &[
+            SettingsSelection::Theme,
+            SettingsSelection::Motion,
+            SettingsSelection::Flash,
+            SettingsSelection::Icons,
+            SettingsSelection::HeroVisual,
+        ],
+        label_width,
+        theme,
+    );
+    push_settings_section(
+        &mut rows,
+        &entries,
+        "Interaction",
+        &[
+            SettingsSelection::InlineHints,
+            SettingsSelection::CommandBar,
+            SettingsSelection::HourlyView,
+        ],
+        label_width,
+        theme,
+    );
+    push_settings_section(
+        &mut rows,
+        &entries,
+        "System",
+        &[
+            SettingsSelection::Units,
+            SettingsSelection::RefreshInterval,
+            SettingsSelection::RefreshNow,
+            SettingsSelection::Close,
+        ],
+        label_width,
+        theme,
+    );
     rows
+}
+
+fn label_width(entries: &[crate::app::state::SettingsEntry]) -> usize {
+    entries
+        .iter()
+        .map(|entry| entry.label.chars().count())
+        .max()
+        .unwrap_or(0)
+}
+
+fn push_settings_section(
+    rows: &mut Vec<SettingsRow>,
+    entries: &[crate::app::state::SettingsEntry],
+    title: &str,
+    selections: &[SettingsSelection],
+    label_width: usize,
+    theme: Theme,
+) {
+    push_section_header(rows, title, theme);
+    for selection in selections {
+        push_setting_row(rows, entries, *selection, label_width);
+    }
 }
 
 #[cfg(test)]
@@ -100,43 +146,38 @@ fn push_setting_row(
     rows: &mut Vec<SettingsRow>,
     entries: &[crate::app::state::SettingsEntry],
     selection: SettingsSelection,
+    label_width: usize,
 ) {
     let idx = selection_entry_index(selection);
     let Some(entry) = entries.get(idx) else {
         return;
     };
-    let label = if entry.editable {
-        format!("{:<16} {}", entry.label, entry.value)
+    let padded_label = format!("{:<width$}", entry.label, width = label_width);
+    let line = if entry.editable {
+        Line::from(vec![
+            Span::raw(padded_label),
+            Span::raw("  "),
+            Span::raw(entry.value.clone()),
+        ])
     } else {
-        format!("{:<16} [{}]", entry.label, entry.value)
+        Line::from(vec![
+            Span::raw(padded_label),
+            Span::raw("  ["),
+            Span::raw(entry.value.clone()),
+            Span::raw("]"),
+        ])
     };
     rows.push(SettingsRow {
         selection: Some(selection),
-        item: ListItem::new(Line::from(label)),
+        item: ListItem::new(line),
     });
 }
 
 fn selection_entry_index(selection: SettingsSelection) -> usize {
-    selection_order()
+    SETTINGS_ORDER
         .iter()
         .position(|candidate| *candidate == selection)
         .unwrap_or(0)
-}
-
-const fn selection_order() -> [SettingsSelection; 11] {
-    [
-        SettingsSelection::Units,
-        SettingsSelection::Theme,
-        SettingsSelection::Flash,
-        SettingsSelection::Icons,
-        SettingsSelection::InlineHints,
-        SettingsSelection::CommandBar,
-        SettingsSelection::HourlyView,
-        SettingsSelection::HeroVisual,
-        SettingsSelection::RefreshInterval,
-        SettingsSelection::RefreshNow,
-        SettingsSelection::Close,
-    ]
 }
 
 fn settings_list(items: Vec<ListItem<'static>>, panel_style: Style, theme: Theme) -> List<'static> {

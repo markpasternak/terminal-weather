@@ -22,6 +22,7 @@ use crate::{
         round_wind_speed, weather_code_to_category, weather_label_for_time,
     },
     ui::{
+        motion_context,
         narrative::build_narrative,
         theme::{Theme, condition_color},
     },
@@ -90,13 +91,17 @@ pub fn render_weather_info(
     theme: Theme,
     code: u8,
 ) {
+    let motion = motion_context(state, "hero-weather");
     let scale = HeroScale::for_area(area);
     if let Some(weather) = &state.weather {
         if area.height >= 13 && area.width >= 48 {
             render_weather_info_expanded(frame, area, state, theme, weather, code);
             return;
         }
-        let lines = build_weather_lines(state, weather, theme, code, scale);
+        let lines = apply_transition_reveal(
+            build_weather_lines(state, weather, theme, code, scale),
+            motion.transition_progress,
+        );
         frame.render_widget(Paragraph::new(lines), area);
         return;
     }
@@ -104,7 +109,7 @@ pub fn render_weather_info(
     if state.mode == AppMode::Error {
         frame.render_widget(Paragraph::new(build_error_lines(state, theme)), area);
     } else {
-        render_loading_choreography(frame, area, state, theme, scale);
+        render_loading_choreography(frame, area, state, theme, scale, motion);
     }
 }
 
@@ -287,6 +292,25 @@ fn collect_weather_metrics(state: &AppState, weather: &ForecastBundle) -> Weathe
         aqi_category,
         aqi_available,
     }
+}
+
+fn apply_transition_reveal(
+    lines: Vec<Line<'static>>,
+    transition_progress: Option<f32>,
+) -> Vec<Line<'static>> {
+    let progress = transition_progress.unwrap_or(1.0).clamp(0.0, 1.0);
+    if progress >= 0.999 {
+        return lines;
+    }
+
+    let visible = ((lines.len() as f32) * progress.max(0.22)).ceil() as usize;
+    let vertical_offset = ((1.0 - progress) * 2.5).round() as usize;
+    let mut revealed = Vec::with_capacity(vertical_offset + visible);
+    for _ in 0..vertical_offset {
+        revealed.push(Line::from(""));
+    }
+    revealed.extend(lines.into_iter().take(visible.max(1)));
+    revealed
 }
 
 fn freshness_flag(state: &AppState, theme: Theme) -> Option<(&'static str, Color)> {

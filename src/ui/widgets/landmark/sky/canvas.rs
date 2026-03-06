@@ -1,3 +1,4 @@
+use crate::ui::animation::UiMotionContext;
 use crate::ui::widgets::landmark::shared::paint_char;
 
 use super::glyphs::{arc_glyph, center_symbol};
@@ -74,19 +75,29 @@ pub(super) fn paint_night_stars(
     width: usize,
     arc_bottom: usize,
     is_day: bool,
-    animate: bool,
-    frame_tick: u64,
+    motion: UiMotionContext,
 ) {
     if is_day {
         return;
     }
     let star_count = (width / 5).max(6);
-    let phase = if animate { frame_tick as usize } else { 0 };
     for i in 0..star_count {
-        let x = ((i * 7 + phase) % width).min(width - 1);
-        let y = 1 + ((i * 5 + phase) % arc_bottom.max(2));
+        let seed = motion.lane("night-stars");
+        let x = (((i as f32 + 1.0) / (star_count as f32 + 1.0)) * width as f32)
+            .round()
+            .clamp(0.0, width.saturating_sub(1) as f32) as usize;
+        let y = 1
+            + (((seed.unit(i as u64 + 7) * 0.75) * arc_bottom.max(2) as f32) as usize)
+                .min(arc_bottom.saturating_sub(1).max(1));
+        let twinkle = seed.pulse(motion.elapsed_seconds, 0.6, i as u64);
         if canvas[y][x] == ' ' {
-            canvas[y][x] = if i % 2 == 0 { '*' } else { '·' };
+            canvas[y][x] = if twinkle > 0.82 {
+                '✦'
+            } else if twinkle > 0.60 {
+                '*'
+            } else {
+                '·'
+            };
         }
     }
 }
