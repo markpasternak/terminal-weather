@@ -100,28 +100,13 @@ fn render_hourly_with_bundle(
         &slice,
         state.panel_focus == crate::app::state::PanelFocus::Hourly,
     );
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(title)
-        .style(panel_style)
-        .border_style(Style::default().fg(theme.border).bg(theme.surface));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
-    if slice.is_empty() {
-        render_loading_placeholder(
-            frame,
-            inner,
-            motion_context(state, "hourly-empty"),
-            panel_style,
-            theme.accent,
-            theme.muted_text,
-        );
+    let inner = render_hourly_block(frame, area, title, panel_style, theme);
+    if render_empty_hourly_slice(frame, inner, state, &slice, panel_style, theme) {
         return;
     }
 
-    let content_area = render_hourly_context_strip(frame, inner, state, bundle, theme);
+    let content_area =
+        render_hourly_context_strip(frame, inner, state, bundle, theme, effective_mode);
     render_hourly_mode(
         frame,
         content_area,
@@ -133,12 +118,52 @@ fn render_hourly_with_bundle(
     );
 }
 
+fn render_hourly_block(
+    frame: &mut Frame,
+    area: Rect,
+    title: String,
+    panel_style: Style,
+    theme: Theme,
+) -> Rect {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .style(panel_style)
+        .border_style(Style::default().fg(theme.border).bg(theme.surface));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    inner
+}
+
+fn render_empty_hourly_slice(
+    frame: &mut Frame,
+    inner: Rect,
+    state: &AppState,
+    slice: &[&HourlyForecast],
+    panel_style: Style,
+    theme: Theme,
+) -> bool {
+    if !slice.is_empty() {
+        return false;
+    }
+    render_loading_placeholder(
+        frame,
+        inner,
+        motion_context(state, "hourly-empty"),
+        panel_style,
+        theme.accent,
+        theme.muted_text,
+    );
+    true
+}
+
 fn render_hourly_context_strip(
     frame: &mut Frame,
     inner: Rect,
     state: &AppState,
     bundle: &ForecastBundle,
     theme: Theme,
+    mode: HourlyViewMode,
 ) -> Rect {
     if !state.settings.inline_hints || state.panel_focus != PanelFocus::Hourly || inner.height < 8 {
         return inner;
@@ -153,13 +178,91 @@ fn render_hourly_context_strip(
         } else {
             "· "
         };
-    let line = format!(
-        "{pulse}{}",
-        narrative.compact_triage_line(rows[0].width.saturating_sub(2))
-    );
+    let line = match mode {
+        HourlyViewMode::Chart => compact_chart_context_line(state, &narrative, rows[0].width),
+        _ => format!(
+            "{pulse}{}",
+            narrative.compact_triage_line(rows[0].width.saturating_sub(2))
+        ),
+    };
     let hint = Paragraph::new(line).style(Style::default().fg(theme.muted_text));
     frame.render_widget(hint, rows[0]);
     rows[1]
+}
+
+fn compact_chart_context_line(
+    state: &AppState,
+    narrative: &crate::ui::narrative::UiNarrativeState,
+    width: u16,
+) -> String {
+    let action = narrative
+        .now_action
+        .strip_prefix("Now action: ")
+        .unwrap_or(&narrative.now_action);
+    let next_change = shorten_next_change(&narrative.next_change);
+    let freshness = chart_freshness_summary(state);
+    let raw = format!("{action}  |  {next_change}  |  {freshness}");
+    truncate_with_ellipsis(&raw, width as usize)
+}
+
+fn shorten_next_change(next_change: &str) -> String {
+    next_change
+        .strip_prefix("Next change in ")
+        .map_or_else(|| next_change.to_string(), |value| format!("+{value}"))
+}
+
+fn chart_freshness_summary(state: &AppState) -> String {
+    freshness_summary_for_state(
+        state,
+        state
+            .refresh_meta
+            .age_minutes()
+            .map(|minutes| format!("{minutes}m")),
+    )
+}
+
+fn freshness_summary_for_state(state: &AppState, age: Option<String>) -> String {
+    use crate::resilience::freshness::FreshnessState;
+
+    match state.refresh_meta.state {
+        FreshnessState::Fresh => freshness_age_label("Fresh", age),
+        FreshnessState::Stale => freshness_age_label("Stale", age),
+        FreshnessState::Offline => offline_freshness_label(state),
+    }
+}
+
+fn freshness_age_label(label: &str, age: Option<String>) -> String {
+    age.map_or_else(|| label.to_string(), |value| format!("{label} {value}"))
+}
+
+fn offline_freshness_label(state: &AppState) -> String {
+    state.refresh_meta.retry_in_seconds().map_or_else(
+        || "Offline".to_string(),
+        |retry| format!("Offline retry {retry}s"),
+    )
+}
+
+fn truncate_with_ellipsis(input: &str, max_chars: usize) -> String {
+    if max_chars == 0 {
+        return String::new();
+    }
+    let count = input.chars().count();
+    if count <= max_chars {
+        return input.to_string();
+    }
+    if max_chars <= 3 {
+        return ".".repeat(max_chars);
+    }
+
+    input.char_indices().nth(max_chars - 3).map_or_else(
+        || input.to_string(),
+        |(byte_idx, _)| {
+            let mut out = String::with_capacity(byte_idx + 3);
+            out.push_str(&input[..byte_idx]);
+            out.push_str("...");
+            out
+        },
+    )
 }
 
 fn hourly_slice(bundle: &ForecastBundle, offset: usize, area_width: u16) -> Vec<&HourlyForecast> {
@@ -270,7 +373,7 @@ fn render_chart_mode(
         return false;
     }
 
-    let chunks = Layout::vertical([Constraint::Min(6), Constraint::Length(2)]).split(area);
+    let chunks = Layout::vertical([Constraint::Min(6), Constraint::Length(1)]).split(area);
     let timeline_stats = render_temp_precip_timeline(frame, chunks[0], slice, theme, state.units);
     render_chart_metrics(frame, chunks[1], timeline_stats, theme);
     true

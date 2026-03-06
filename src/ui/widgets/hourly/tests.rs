@@ -279,6 +279,19 @@ fn hourly_panel_title_empty_slice_includes_focus_prefix() {
 }
 
 #[test]
+fn compact_chart_context_line_is_shorter_and_removes_now_action_prefix() {
+    let mut state = AppState::new(&crate::test_support::state_test_cli());
+    state.refresh_meta.mark_success();
+    let bundle = crate::test_support::sample_bundle();
+    let narrative = crate::ui::narrative::build_narrative(&state, &bundle);
+
+    let line = compact_chart_context_line(&state, &narrative, 120);
+
+    assert!(!line.contains("Now action:"));
+    assert!(line.contains("Fresh"));
+}
+
+#[test]
 fn hourly_slice_clamps_offset_and_matches_visible_count() {
     let bundle = bundle_with_hour_count(24);
     let slice = hourly_slice(&bundle, 100, 80);
