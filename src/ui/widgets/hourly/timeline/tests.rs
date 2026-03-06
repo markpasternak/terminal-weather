@@ -8,7 +8,7 @@ use chrono::{NaiveDate, NaiveDateTime};
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
 #[test]
-fn timeline_lines_use_single_time_axis_with_anchors() {
+fn expanded_timeline_uses_vertical_space_and_right_scales() {
     let theme = theme_for(
         WeatherCategory::Cloudy,
         true,
@@ -23,15 +23,15 @@ fn timeline_lines_use_single_time_axis_with_anchors() {
     };
 
     let lines = timeline_lines(&series, 56, 6, theme);
-    assert_eq!(lines.len(), 3);
+    assert_eq!(lines.len(), 6);
 
     let text = lines.iter().map(line_text).collect::<Vec<_>>();
     assert!(text[0].starts_with("Temp  "));
-    assert!(text[1].starts_with("Precip"));
-    assert!(text[2].starts_with("Time  "));
-    assert!(text[0].contains('C'));
-    assert!(text[0].contains(".."));
-    assert!(text[1].contains("mm/h"));
+    assert!(text[4].starts_with("Rain  "));
+    assert!(text[5].starts_with("Time  "));
+    assert!(text[0].contains("4C"));
+    assert!(text[3].contains("-2C"));
+    assert!(text[4].contains("1.6mm/h"));
     assert!(!text.iter().any(|line| line.starts_with("Tick  ")));
     assert!(!text.iter().any(|line| line.starts_with("Hour  ")));
     assert!(!text.iter().any(|line| line.starts_with("Shift ")));
