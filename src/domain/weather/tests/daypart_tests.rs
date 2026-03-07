@@ -204,6 +204,22 @@ fn weather_icon_all_modes() {
 }
 
 #[test]
+fn unicode_icons_use_text_style_glyphs_for_precipitation() {
+    assert_eq!(weather_icon(3, IconMode::Unicode, true), "☁");
+    assert_eq!(weather_icon(61, IconMode::Unicode, true), "☂");
+    assert_eq!(weather_icon(71, IconMode::Unicode, true), "❄");
+}
+
+#[test]
+fn emoji_icons_use_consistent_weather_glyph_family() {
+    assert_eq!(weather_icon(3, IconMode::Emoji, true), "🌥");
+    assert_eq!(weather_icon(61, IconMode::Emoji, true), "🌧");
+    assert_eq!(weather_icon(71, IconMode::Emoji, true), "🌨");
+    assert_eq!(weather_icon(45, IconMode::Emoji, true), "🌫");
+    assert_eq!(weather_icon(95, IconMode::Emoji, true), "🌩");
+}
+
+#[test]
 fn forecast_bundle_current_helpers_return_correct_values() {
     let bundle = minimal_bundle(Some(8.0), Some(1.0));
     assert_eq!(bundle.current_weather_code(), 0);

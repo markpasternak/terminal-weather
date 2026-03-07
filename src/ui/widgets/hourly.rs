@@ -22,7 +22,7 @@ use crate::{
         weather_label_for_time,
     },
     ui::layout::visible_hour_count,
-    ui::theme::{Theme, detect_color_capability, icon_color, temp_color, theme_for},
+    ui::theme::{Theme, icon_color, resolved_theme, temp_color},
     ui::{motion_context, narrative::build_narrative},
 };
 
@@ -35,26 +35,15 @@ use table::render_table_mode;
 use timeline::{render_chart_metrics, render_temp_precip_timeline};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
-    let capability = detect_color_capability(state.color_mode);
     if let Some(bundle) = &state.weather {
-        render_hourly_with_bundle(frame, area, state, bundle, capability);
+        render_hourly_with_bundle(frame, area, state, bundle);
     } else {
-        render_hourly_loading(frame, area, state, capability);
+        render_hourly_loading(frame, area, state);
     }
 }
 
-fn render_hourly_loading(
-    frame: &mut Frame,
-    area: Rect,
-    state: &AppState,
-    capability: crate::ui::theme::ColorCapability,
-) {
-    let theme = theme_for(
-        crate::domain::weather::WeatherCategory::Unknown,
-        true,
-        capability,
-        state.settings.theme,
-    );
+fn render_hourly_loading(frame: &mut Frame, area: Rect, state: &AppState) {
+    let theme = resolved_theme(state);
     let panel_style = Style::default().fg(theme.text).bg(theme.surface);
     let block = Block::default()
         .borders(Borders::ALL)
@@ -84,14 +73,8 @@ fn render_hourly_with_bundle(
     area: Rect,
     state: &AppState,
     bundle: &ForecastBundle,
-    capability: crate::ui::theme::ColorCapability,
 ) {
-    let theme = theme_for(
-        weather_code_to_category(bundle.current.weather_code),
-        bundle.current.is_day,
-        capability,
-        state.settings.theme,
-    );
+    let theme = resolved_theme(state);
     let panel_style = Style::default().fg(theme.text).bg(theme.surface);
     let effective_mode = effective_hourly_mode(state.hourly_view_mode, area);
     let slice = hourly_slice(bundle, state.hourly_offset, area.width);

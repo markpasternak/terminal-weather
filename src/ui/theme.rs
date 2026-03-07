@@ -17,6 +17,7 @@ use crate::{
     domain::weather::WeatherCategory,
 };
 
+mod auto;
 mod basic16;
 mod capability;
 mod contrast;
@@ -83,6 +84,10 @@ pub fn resolved_theme(state: &AppState) -> Theme {
     resolve::resolved_theme(state)
 }
 
+pub fn theme_preview(state: &AppState) -> String {
+    resolve::theme_preview(state)
+}
+
 pub fn theme_for(
     category: WeatherCategory,
     is_day: bool,
@@ -93,18 +98,14 @@ pub fn theme_for(
 }
 
 pub fn condition_color(theme: &Theme, category: WeatherCategory) -> Color {
-    match category {
-        WeatherCategory::Clear => theme.warning,
-        WeatherCategory::Cloudy => theme.muted_text,
-        WeatherCategory::Rain => theme.info,
-        WeatherCategory::Snow => theme.text,
-        WeatherCategory::Fog => theme.landmark_neutral,
-        WeatherCategory::Thunder => theme.danger,
-        WeatherCategory::Unknown => theme.accent,
-    }
+    weather_category_color(theme, category)
 }
 
 pub fn icon_color(theme: &Theme, category: WeatherCategory) -> Color {
+    weather_category_color(theme, category)
+}
+
+fn weather_category_color(theme: &Theme, category: WeatherCategory) -> Color {
     match category {
         WeatherCategory::Clear => theme.warning,
         WeatherCategory::Cloudy => theme.muted_text,

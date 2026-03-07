@@ -203,6 +203,9 @@ fn append_demo_theme_steps(steps: &mut Vec<(Duration, DemoAction)>) {
         ThemeArg::PoimandresStorm,
         ThemeArg::SelenizedDark,
         ThemeArg::NoClownFiesta,
+        ThemeArg::TokyoNightStorm,
+        ThemeArg::RosePineMoon,
+        ThemeArg::EverforestDark,
     ];
     steps.extend(
         themes
