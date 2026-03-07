@@ -56,6 +56,9 @@ pub enum ThemeArg {
     PoimandresStorm,
     SelenizedDark,
     NoClownFiesta,
+    TokyoNightStorm,
+    RosePineMoon,
+    EverforestDark,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -305,5 +308,17 @@ mod tests {
             ..Cli::parse_from(["terminal-weather"])
         };
         assert!(cli.validate().is_ok());
+    }
+
+    #[test]
+    fn parses_new_theme_variants() {
+        let cli = Cli::parse_from(["terminal-weather", "--theme", "tokyo-night-storm"]);
+        assert_eq!(cli.theme, super::ThemeArg::TokyoNightStorm);
+
+        let cli = Cli::parse_from(["terminal-weather", "--theme", "rose-pine-moon"]);
+        assert_eq!(cli.theme, super::ThemeArg::RosePineMoon);
+
+        let cli = Cli::parse_from(["terminal-weather", "--theme", "everforest-dark"]);
+        assert_eq!(cli.theme, super::ThemeArg::EverforestDark);
     }
 }

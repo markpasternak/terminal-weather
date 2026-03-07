@@ -404,7 +404,7 @@ mod tests {
         assert_eq!(scene_char_color_gauge('↑', theme, base), theme.warning);
         assert_eq!(scene_char_color_gauge('5', theme, base), theme.text);
         assert_eq!(scene_char_color_gauge('A', theme, base), theme.muted_text);
-        assert_eq!(scene_char_color_gauge('X', theme, base), base);
+        assert_eq!(scene_char_color_gauge('?', theme, base), base);
     }
 
     #[test]
@@ -423,7 +423,7 @@ mod tests {
     fn colorize_scene_line_single_color_no_transition() {
         let theme = make_theme();
         let base = theme.landmark_neutral;
-        let line = "samecolor";
+        let line = "zzzzzzzz";
         let result = colorize_scene_line(line, theme, base, HeroVisualArg::AtmosCanvas);
         assert_eq!(result.spans.len(), 1);
     }

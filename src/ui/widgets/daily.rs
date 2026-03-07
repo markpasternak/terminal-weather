@@ -16,13 +16,13 @@ use crate::{
     app::state::{AppState, PanelFocus},
     cli::{Cli, IconMode},
     domain::weather::{
-        DailyForecast, ForecastBundle, Units, WeatherCategory, convert_temp, round_temp,
-        weather_code_to_category, weather_icon,
+        DailyForecast, ForecastBundle, Units, convert_temp, round_temp, weather_code_to_category,
+        weather_icon,
     },
     ui::{
         motion_context,
         narrative::build_narrative,
-        theme::{detect_color_capability, icon_color, temp_color, theme_for},
+        theme::{icon_color, resolved_theme, temp_color},
     },
 };
 
@@ -36,25 +36,14 @@ use loading::render_loading_daily;
 use table::{build_daily_table, render_daily_table_and_summary};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
-    let capability = detect_color_capability(state.color_mode);
     match state.weather.as_ref() {
-        Some(bundle) => render_daily_with_bundle(frame, area, state, bundle, capability),
-        None => render_daily_loading(frame, area, state, capability),
+        Some(bundle) => render_daily_with_bundle(frame, area, state, bundle),
+        None => render_daily_loading(frame, area, state),
     }
 }
 
-fn render_daily_loading(
-    frame: &mut Frame,
-    area: Rect,
-    state: &AppState,
-    capability: crate::ui::theme::ColorCapability,
-) {
-    let theme = theme_for(
-        WeatherCategory::Unknown,
-        true,
-        capability,
-        state.settings.theme,
-    );
+fn render_daily_loading(frame: &mut Frame, area: Rect, state: &AppState) {
+    let theme = resolved_theme(state);
     let panel_style = Style::default().fg(theme.text).bg(theme.surface_alt);
     let block = Block::default()
         .borders(Borders::ALL)
@@ -84,10 +73,8 @@ fn render_daily_with_bundle(
     area: Rect,
     state: &AppState,
     bundle: &ForecastBundle,
-    capability: crate::ui::theme::ColorCapability,
 ) {
-    let (layout, theme, panel_style, inner) =
-        prepare_daily_bundle_panel(frame, area, state, bundle, capability);
+    let (layout, theme, panel_style, inner) = prepare_daily_bundle_panel(frame, area, state);
     let content_area = render_daily_context_strip(frame, inner, state, bundle, theme);
     let max_rows = layout.max_rows(content_area.height);
     if max_rows == 0 {
@@ -129,16 +116,9 @@ fn prepare_daily_bundle_panel(
     frame: &mut Frame,
     area: Rect,
     state: &AppState,
-    bundle: &ForecastBundle,
-    capability: crate::ui::theme::ColorCapability,
 ) -> (DailyLayout, crate::ui::theme::Theme, Style, Rect) {
     let layout = DailyLayout::for_area(area);
-    let theme = theme_for(
-        weather_code_to_category(bundle.current.weather_code),
-        bundle.current.is_day,
-        capability,
-        state.settings.theme,
-    );
+    let theme = resolved_theme(state);
     let panel_style = Style::default().fg(theme.text).bg(theme.surface_alt);
     let block = Block::default()
         .borders(Borders::ALL)

@@ -1,5 +1,6 @@
 use super::{render, settings_hint_style, settings_hint_text, settings_items};
-use crate::app::state::AppState;
+use crate::app::state::{AppState, SettingsSelection};
+use crate::cli::ThemeArg;
 use crate::ui::theme::resolved_theme;
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
@@ -51,7 +52,7 @@ fn hint_text_shows_error_when_contains_save_settings() {
 fn hint_text_shows_settings_hint_when_no_error() {
     let state = make_state();
     let hint_text = state.settings_hint();
-    assert!(!hint_text.is_empty());
+    assert!(hint_text.contains("Auto:"));
 }
 
 #[test]
@@ -76,6 +77,15 @@ fn hint_style_is_muted_when_no_save_settings() {
     let hint_text = "Normal hint text".to_string();
     let hint_style = settings_hint_style(&hint_text, theme);
     assert_eq!(hint_style.fg, Some(theme.popup_muted_text));
+}
+
+#[test]
+fn theme_hint_text_uses_selected_theme_preview() {
+    let mut state = make_state();
+    state.settings_selected = SettingsSelection::Theme;
+    state.settings.theme = ThemeArg::TokyoNightStorm;
+    let hint_text = settings_hint_text(&state);
+    assert!(hint_text.contains("Tokyo Night Storm"));
 }
 
 #[test]

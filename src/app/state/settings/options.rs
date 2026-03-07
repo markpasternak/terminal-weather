@@ -8,7 +8,7 @@ pub(crate) const HOURLY_VIEW_OPTIONS: [HourlyViewMode; 3] = [
     HourlyViewMode::Chart,
 ];
 
-const THEME_LABEL_TABLE: [(ThemeArg, &str); 18] = [
+const THEME_LABEL_TABLE: [(ThemeArg, &str); 21] = [
     (ThemeArg::Auto, "Auto"),
     (ThemeArg::Aurora, "Aurora"),
     (ThemeArg::MidnightCyan, "Midnight Cyan"),
@@ -27,6 +27,9 @@ const THEME_LABEL_TABLE: [(ThemeArg, &str); 18] = [
     (ThemeArg::PoimandresStorm, "Poimandres Storm"),
     (ThemeArg::SelenizedDark, "Selenized Dark"),
     (ThemeArg::NoClownFiesta, "No Clown Fiesta"),
+    (ThemeArg::TokyoNightStorm, "Tokyo Night Storm"),
+    (ThemeArg::RosePineMoon, "Rose Pine Moon"),
+    (ThemeArg::EverforestDark, "Everforest Dark"),
 ];
 
 const fn theme_options() -> [ThemeArg; THEME_LABEL_TABLE.len()] {

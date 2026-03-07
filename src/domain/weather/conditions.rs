@@ -144,11 +144,13 @@ fn non_clear_icon_tokens(
         WEATHER_CLOUDY, WEATHER_FOG, WEATHER_RAIN, WEATHER_SNOW, WEATHER_THUNDERSTORM,
     };
     match category {
-        WeatherCategory::Cloudy => ("CLD", "⛅", "☁", WEATHER_CLOUDY),
-        WeatherCategory::Rain => ("RAN", "☔", "🌧", WEATHER_RAIN),
-        WeatherCategory::Snow => ("SNW", "⛄", "❄", WEATHER_SNOW),
-        WeatherCategory::Fog => ("FOG", "🌁", "≡", WEATHER_FOG),
-        WeatherCategory::Thunder => ("THN", "⚡", "⚡", WEATHER_THUNDERSTORM),
-        WeatherCategory::Unknown | WeatherCategory::Clear => ("---", "⛅", "☁", WEATHER_CLOUDY),
+        // Keep Emoji mode on a single modern weather-emoji family for more even sizing.
+        WeatherCategory::Cloudy => ("CLD", "🌥", "☁", WEATHER_CLOUDY),
+        // Keep Unicode mode on text-style glyphs so table cells stay visually consistent.
+        WeatherCategory::Rain => ("RAN", "🌧", "☂", WEATHER_RAIN),
+        WeatherCategory::Snow => ("SNW", "🌨", "❄", WEATHER_SNOW),
+        WeatherCategory::Fog => ("FOG", "🌫", "≡", WEATHER_FOG),
+        WeatherCategory::Thunder => ("THN", "🌩", "⚡", WEATHER_THUNDERSTORM),
+        WeatherCategory::Unknown | WeatherCategory::Clear => ("---", "🌥", "☁", WEATHER_CLOUDY),
     }
 }
