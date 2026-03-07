@@ -241,14 +241,14 @@ if [[ "$BRANCH_COVERAGE" -eq 1 ]]; then
   echo "info: ensuring llvm-tools-preview for nightly toolchain"
   rustup component add llvm-tools-preview --toolchain nightly
 
-  cargo +nightly llvm-cov --workspace --all-features --lcov --branch --output-path "$REPORT_PATH"
+  cargo +nightly llvm-cov --workspace --all-features --lcov --branch --output-path "$REPORT_PATH" -- --test-threads=1
 else
   if ! rustup component list --installed | grep -q '^llvm-tools-preview'; then
     echo "info: installing llvm-tools-preview"
     rustup component add llvm-tools-preview
   fi
 
-  cargo llvm-cov --workspace --all-features --lcov --output-path "$REPORT_PATH"
+  cargo llvm-cov --workspace --all-features --lcov --output-path "$REPORT_PATH" -- --test-threads=1
 fi
 
 collect_coverage_metrics "$REPORT_PATH"

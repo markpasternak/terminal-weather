@@ -53,7 +53,7 @@ mod tests {
     fn settings_hint_changes_for_hero_visual_selection() {
         let mut state = state();
         state.settings_selected = SettingsSelection::Theme;
-        assert!(state.settings_hint().contains("Theme applies"));
+        assert!(state.settings_hint().contains("Auto:"));
 
         state.settings_selected = SettingsSelection::HeroVisual;
         assert!(state.settings_hint().contains("Current panel right side"));

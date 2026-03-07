@@ -7,6 +7,7 @@ use super::options::{
 use crate::cli::{HeroVisualArg, IconMode, ThemeArg};
 use crate::domain::weather::{HourlyViewMode, Units};
 use crate::ui::animation::MotionMode;
+use crate::ui::theme::theme_preview;
 
 type SettingAdjuster = fn(&mut AppState, i8) -> bool;
 
@@ -271,6 +272,9 @@ impl AppState {
 
     #[must_use]
     pub fn settings_hint(&self) -> String {
+        if self.settings_selected == SettingsSelection::Theme {
+            return theme_preview(self);
+        }
         if self.settings_selected == SettingsSelection::HeroVisual {
             return hero_visual_hint(self.settings.hero_visual).to_string();
         }

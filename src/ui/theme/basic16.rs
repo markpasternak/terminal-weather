@@ -2,23 +2,21 @@ use ratatui::style::Color;
 
 use crate::{cli::ThemeArg, domain::weather::WeatherCategory};
 
-use super::data::BASIC16_MODE_PALETTES;
+use super::data::ThemeAppearance;
 use super::extended::quantize_rgb;
-use super::resolve::{auto_theme_seed, lookup_theme_entry};
-use super::{ColorCapability, Rgb, Theme};
+use super::resolve::{auto_theme_seed, theme_spec};
+use super::{ColorCapability, Theme};
 
 pub(super) fn theme_for_basic16(
     mode: ThemeArg,
     category: WeatherCategory,
     is_day: bool,
-    top: (u8, u8, u8),
-    bottom: (u8, u8, u8),
     capability: ColorCapability,
 ) -> Theme {
     if mode == ThemeArg::Auto {
         return auto_basic16_theme(category, is_day, capability);
     }
-    explicit_basic16_theme(mode, top, bottom, capability)
+    explicit_basic16_theme(mode, capability)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -45,10 +43,6 @@ pub(super) fn auto_basic16_gradient(
 ) -> ((u8, u8, u8), (u8, u8, u8)) {
     let (top, bottom, _) = auto_theme_seed(category, is_day);
     (top, bottom)
-}
-
-fn basic16_mode_palette(mode: ThemeArg) -> (Color, Color, Color, Color, Color, Color) {
-    lookup_theme_entry(BASIC16_MODE_PALETTES, mode)
 }
 
 const BASIC16_DARK_SEMANTICS: Basic16Semantics = Basic16Semantics {
@@ -85,8 +79,8 @@ const BASIC16_LIGHT_SEMANTICS: Basic16Semantics = Basic16Semantics {
     landmark_cool: Color::Blue,
 };
 
-fn basic16_semantics(is_light_theme: bool) -> Basic16Semantics {
-    if is_light_theme {
+fn basic16_semantics(appearance: ThemeAppearance) -> Basic16Semantics {
+    if appearance.is_light() {
         BASIC16_LIGHT_SEMANTICS
     } else {
         BASIC16_DARK_SEMANTICS
@@ -133,18 +127,14 @@ fn auto_basic16_theme(
     }
 }
 
-fn explicit_basic16_theme(
-    mode: ThemeArg,
-    top: Rgb,
-    bottom: Rgb,
-    capability: ColorCapability,
-) -> Theme {
-    let (surface, surface_alt, popup_surface, accent, border, popup_border) =
-        basic16_mode_palette(mode);
-    let semantics = basic16_semantics(matches!(mode, ThemeArg::AyuLight | ThemeArg::Hoth));
+fn explicit_basic16_theme(mode: ThemeArg, capability: ColorCapability) -> Theme {
+    let spec = theme_spec(mode);
+    let semantics = basic16_semantics(spec.appearance);
+    let (surface, surface_alt, popup_surface, accent, border, popup_border) = spec.basic16;
+
     Theme {
-        top: quantize_rgb(top, capability),
-        bottom: quantize_rgb(bottom, capability),
+        top: quantize_rgb(spec.top, capability),
+        bottom: quantize_rgb(spec.bottom, capability),
         surface,
         surface_alt,
         popup_surface,

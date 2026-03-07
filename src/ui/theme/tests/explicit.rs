@@ -1,12 +1,13 @@
-use super::data::{ALL_NON_AUTO_THEMES, AUTO_THEME_SEEDS};
-use super::*;
-
-fn as_rgb(color: Color) -> (u8, u8, u8) {
-    match color {
-        Color::Rgb(r, g, b) => (r, g, b),
-        other => panic!("expected Color::Rgb, got {other:?}"),
-    }
-}
+use super::super::auto_basic16_gradient;
+use super::super::data::{ALL_NON_AUTO_THEMES, AUTO_THEME_SEEDS, theme_specs};
+use super::super::{
+    ColorCapability, contrast_ratio, detect_color_capability_from, min_contrast_ratio, quantize,
+    temp_color, theme_for,
+};
+use super::{as_rgb, warning_accent_distance};
+use crate::cli::{ColorArg, ThemeArg};
+use crate::domain::weather::WeatherCategory;
+use ratatui::style::Color;
 
 #[test]
 fn basic16_explicit_themes_are_distinct() {
@@ -92,6 +93,19 @@ fn auto_theme_seed_matrix_is_complete_and_unique() {
 }
 
 #[test]
+fn every_non_auto_theme_has_exactly_one_spec_and_basic16_palette() {
+    for mode in ALL_NON_AUTO_THEMES {
+        let matches = theme_specs()
+            .filter(|spec| spec.mode == *mode)
+            .collect::<Vec<_>>();
+        assert_eq!(matches.len(), 1, "expected one ThemeSpec for {mode:?}");
+        let spec = matches[0];
+        assert!(!spec.label.is_empty());
+        assert!(!spec.mood_note.is_empty());
+    }
+}
+
+#[test]
 fn basic16_light_themes_keep_expected_semantic_polarity() {
     for mode in [ThemeArg::AyuLight, ThemeArg::Hoth] {
         let theme = theme_for(
@@ -160,21 +174,6 @@ fn assert_mode_readable_contrast(mode: ThemeArg) {
             "mode={mode:?} warning≈accent dist={distance:.1}"
         );
     }
-}
-
-fn warning_accent_distance(theme: Theme) -> Option<f32> {
-    let warning = as_rgb(theme.warning);
-    let accent = as_rgb(theme.accent);
-    let both_washed = relative_luminance(warning) > 0.75 && relative_luminance(accent) > 0.75;
-    if both_washed {
-        return None;
-    }
-    Some(
-        ((warning.0 as f32 - accent.0 as f32).powi(2)
-            + (warning.1 as f32 - accent.1 as f32).powi(2)
-            + (warning.2 as f32 - accent.2 as f32).powi(2))
-        .sqrt(),
-    )
 }
 
 #[test]
