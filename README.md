@@ -8,7 +8,7 @@
 
 Weather, in your terminal. Animated by default, scriptable when you need text, and packaged for a quick Homebrew install.
 
-![terminal weather demo](assets/screenshots/demo.gif)
+![terminal weather demo](assets/screenshots/demo.webp)
 
 - **Weather-native motion**: cinematic, standard, reduced, and off presets with condition-aware hero, loading, and landmark scenes
 - **Three forecast panels**: current conditions, hourly detail in table or chart form, and a seven-day outlook
