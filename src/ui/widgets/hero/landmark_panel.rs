@@ -278,16 +278,23 @@ fn scene_char_color_sky(ch: char, theme: Theme, base_tint: Color) -> Color {
     if char_in(
         ch,
         &[
-            '◉', '☀', '○', '◑', '◐', '◔', '◕', '◖', '◗', '●', '✶', '↑', '↓',
+            '◉', '☀', '○', '◑', '◐', '◔', '◕', '◖', '◗', '●', '↑', '↓', '┬',
         ],
     ) {
         theme.warning
     } else if char_in(ch, &['█', '▓', '▒', '░']) {
         theme.info
-    } else if char_in(ch, &['*', '·', '─', '~', '/', '╭', '╮']) {
+    } else if char_in(
+        ch,
+        &[
+            '*', '·', '─', '~', '/', '╭', '╮', '│', '✦', '✶', 'o', '=', '!',
+        ],
+    ) {
         theme.landmark_cool
     } else if ch.is_ascii_digit() || ch == ':' {
         theme.text
+    } else if ch.is_ascii_alphabetic() {
+        theme.muted_text
     } else {
         base_tint
     }
@@ -416,7 +423,8 @@ mod tests {
         assert_eq!(scene_char_color_sky('█', theme, base), theme.info);
         assert_eq!(scene_char_color_sky('*', theme, base), theme.landmark_cool);
         assert_eq!(scene_char_color_sky('5', theme, base), theme.text);
-        assert_eq!(scene_char_color_sky('X', theme, base), base);
+        assert_eq!(scene_char_color_sky('R', theme, base), theme.muted_text);
+        assert_eq!(scene_char_color_sky('?', theme, base), base);
     }
 
     #[test]

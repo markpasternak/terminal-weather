@@ -218,7 +218,7 @@ fn hero_visual_hint(mode: HeroVisualArg) -> &'static str {
             "Current panel right side: live instrument panel (temp, humidity, wind, pressure, UV)"
         }
         HeroVisualArg::SkyObservatory => {
-            "Current panel right side: sun/moon arc with weather strip and precipitation lane"
+            "Current panel right side: sun/moon arc with observatory timeline and astronomy metrics"
         }
     }
 }

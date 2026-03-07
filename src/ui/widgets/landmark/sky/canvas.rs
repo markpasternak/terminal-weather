@@ -3,10 +3,13 @@ use crate::ui::widgets::landmark::shared::paint_char;
 
 use super::glyphs::{arc_glyph, center_symbol};
 
-pub(super) fn arc_bounds(height: usize) -> (usize, usize) {
+pub(super) fn arc_bounds(height: usize, horizon_y: usize) -> (usize, usize) {
+    let max_bottom = horizon_y
+        .saturating_sub(2)
+        .clamp(4, height.saturating_sub(4).max(4));
     (
         1usize,
-        (height.saturating_mul(55) / 100).clamp(4, height.saturating_sub(4)),
+        (height.saturating_mul(63) / 100).clamp(4, max_bottom),
     )
 }
 
@@ -25,8 +28,6 @@ pub(super) fn paint_sun_event_markers(
     width: usize,
     arc_top: usize,
     arc_bottom: usize,
-    _sunrise_h: f32,
-    _sunset_h: f32,
 ) {
     let sunrise_x = 0usize;
     let sunset_x = width.saturating_sub(1);
@@ -53,20 +54,26 @@ pub(super) fn paint_sun_event_markers(
     }
 }
 
-pub(super) fn paint_cardinal_markers(
-    canvas: &mut [Vec<char>],
-    width: usize,
-    top: usize,
-    bottom: usize,
-    marker_x: usize,
-) {
-    if marker_x > 0 {
-        let y = locate_arc_y(0, width, top, bottom);
-        canvas[y][0] = 'E';
+pub(super) fn paint_solar_noon_marker(canvas: &mut [Vec<char>], width: usize, arc_top: usize) {
+    if width == 0 {
+        return;
     }
-    if width > 1 {
-        let y = locate_arc_y(width - 1, width, top, bottom);
-        canvas[y][width - 1] = 'W';
+    let noon_x = width / 2;
+    let noon_y = arc_top.saturating_sub(1);
+    paint_char(canvas, noon_x as isize, noon_y as isize, '┬', true);
+}
+
+pub(super) fn paint_celestial_guide(
+    canvas: &mut [Vec<char>],
+    x: usize,
+    body_y: usize,
+    horizon_y: usize,
+) {
+    if body_y >= horizon_y {
+        return;
+    }
+    for y in body_y.saturating_add(1)..horizon_y {
+        paint_char(canvas, x as isize, y as isize, '│', false);
     }
 }
 
@@ -74,12 +81,21 @@ pub(super) fn paint_night_stars(
     canvas: &mut [Vec<char>],
     width: usize,
     arc_bottom: usize,
+    horizon_y: usize,
     is_day: bool,
     motion: UiMotionContext,
 ) {
     if is_day {
         return;
     }
+    let max_star_y = arc_bottom
+        .saturating_sub(2)
+        .min(horizon_y.saturating_sub(3))
+        .max(2);
+    if max_star_y <= 1 {
+        return;
+    }
+
     let star_count = (width / 5).max(6);
     for i in 0..star_count {
         let seed = motion.lane("night-stars");
@@ -87,8 +103,8 @@ pub(super) fn paint_night_stars(
             .round()
             .clamp(0.0, width.saturating_sub(1) as f32) as usize;
         let y = 1
-            + (((seed.unit(i as u64 + 7) * 0.75) * arc_bottom.max(2) as f32) as usize)
-                .min(arc_bottom.saturating_sub(1).max(1));
+            + (((seed.unit(i as u64 + 7) * 0.70) * max_star_y as f32) as usize)
+                .min(max_star_y.saturating_sub(1));
         let twinkle = seed.pulse(motion.elapsed_seconds, 0.6, i as u64);
         if canvas[y][x] == ' ' {
             canvas[y][x] = if twinkle > 0.82 {
