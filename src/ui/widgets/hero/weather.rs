@@ -336,10 +336,29 @@ fn build_error_lines(state: &AppState, theme: Theme) -> Vec<Line<'static>> {
             Style::default().fg(theme.muted_text),
         )));
     }
-    lines.push(Line::from(Span::styled(
-        "Tip: press L for cities, S for settings, R to retry, Q to quit",
-        Style::default().fg(theme.muted_text),
-    )));
+    lines.push(Line::from(vec![
+        Span::styled("Tip: press ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "L",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" for cities, ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "S",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" for settings, ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "R",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" to retry, ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "Q",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" to quit", Style::default().fg(theme.muted_text)),
+    ]));
     lines
 }
 
