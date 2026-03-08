@@ -29,8 +29,10 @@ impl AppState {
                 {
                     return Ok(());
                 }
-                self.command_bar.buffer.push(ch);
-                self.command_bar.parse_error = None;
+                if self.command_bar.buffer.chars().count() < 100 {
+                    self.command_bar.buffer.push(ch);
+                    self.command_bar.parse_error = None;
+                }
             }
             _ => {}
         }
