@@ -26,10 +26,29 @@ pub(super) fn render_loading_choreography(
         )),
     ];
     append_loading_skeleton_lines(&mut lines, area, theme, motion);
-    lines.push(Line::from(Span::styled(
-        "Tip: press L for cities, S for settings, R to retry, Q to quit",
-        Style::default().fg(theme.muted_text),
-    )));
+    lines.push(Line::from(vec![
+        Span::styled("Tip: press ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "L",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" for cities, ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "S",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" for settings, ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "R",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" to retry, ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "Q",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" to quit", Style::default().fg(theme.muted_text)),
+    ]));
     frame.render_widget(Paragraph::new(lines), area);
 }
 

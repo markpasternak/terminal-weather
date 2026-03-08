@@ -112,10 +112,14 @@ fn render_small_terminal_hint(
         "Need {MIN_RENDER_WIDTH}x{MIN_RENDER_HEIGHT}+"
     )));
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "Tip: press Q to quit",
-        Style::default().fg(theme.muted_text),
-    )));
+    lines.push(Line::from(vec![
+        Span::styled("Tip: press ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "Q",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" to quit", Style::default().fg(theme.muted_text)),
+    ]));
 
     let warning = Paragraph::new(lines)
         .style(Style::default().fg(theme.text).bg(theme.surface))
