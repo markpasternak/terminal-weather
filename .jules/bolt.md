@@ -1,3 +1,7 @@
 ## 2023-10-25 - [Optimize Date/Time Parsing for Open-Meteo Payloads]
 **Learning:** `chrono::NaiveDateTime::parse_from_str` with format strings like `"%Y-%m-%dT%H:%M"` is very slow because it handles generic formatting dynamically. In systems where APIs return massive arrays of timestamps in exact formats, this quickly becomes a bottleneck. Replacing it with manual byte indexing and parsing integer substrings yields a ~300x performance increase.
 **Action:** When repeatedly parsing known, fixed-length datetime formats from high-frequency APIs, prefer manual byte-slicing and integer calculation over generic `chrono` string parsing logic (with `parse_from_str` as a fallback).
+
+## 2025-03-09 - [Optimize Background Fill Performance in Ratatui]
+**Learning:** In this codebase (using ratatui 0.30+), filling background areas by iterating over `Buffer::cell_mut` and assigning a cloned pre-configured dummy `ratatui::buffer::Cell` is significantly faster (approx 4x) than using `Buffer::set_string` with a pre-filled space string. `set_string` incurs significant CPU overhead parsing strings into graphemes via `unicode-segmentation`, whereas directly cloning `Cell`s bypasses this entirely and is heavily optimized.
+**Action:** When rapidly painting backgrounds or filling large blocks of blank space in UI widgets, prefer iterating over the target area and assigning `.clone()` of a prototype `ratatui::buffer::Cell` instead of passing `&str` primitives to `Buffer::set_string()`.
