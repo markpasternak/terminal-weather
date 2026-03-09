@@ -22,8 +22,9 @@ fn footer_text_includes_update_hint_for_wide_layout() {
     state.update_status = UpdateStatus::UpdateAvailable {
         latest: "0.7.0".to_string(),
     };
-    let text = footer_text_for_width(120, &state);
-    assert!(text.contains("Update available: v0.7.0"));
+    let text = footer_text_for_width(120, &state, crate::ui::theme::resolved_theme(&state));
+    let combined_text = text.iter().map(|s| s.content.as_ref()).collect::<String>();
+    assert!(combined_text.contains("Update available: v0.7.0"));
 }
 
 #[test]
@@ -32,8 +33,9 @@ fn footer_text_omits_update_hint_for_narrow_layout() {
     state.update_status = UpdateStatus::UpdateAvailable {
         latest: "0.7.0".to_string(),
     };
-    let text = footer_text_for_width(60, &state);
-    assert!(!text.contains("Update available"));
+    let text = footer_text_for_width(60, &state, crate::ui::theme::resolved_theme(&state));
+    let combined_text = text.iter().map(|s| s.content.as_ref()).collect::<String>();
+    assert!(!combined_text.contains("Update available"));
 }
 
 #[test]
