@@ -297,6 +297,7 @@ fn footer_text_for_width(
     append_update_hint(width, base, &state.update_status, theme)
 }
 
+#[allow(clippy::too_many_lines)]
 fn base_footer_text_for_width(
     width: u16,
     state: &AppState,
