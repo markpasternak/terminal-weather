@@ -22,17 +22,17 @@ pub async fn detect_location() -> Option<Location> {
 }
 
 async fn detect_location_with_url(url: &str) -> Option<Location> {
-    let client = build_client()?;
+    let client = build_client();
     let response = fetch_response(&client, url).await?;
     response_to_location(response)
 }
 
-fn build_client() -> Option<Client> {
+fn build_client() -> Client {
     Client::builder()
         .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(5))
         .build()
-        .ok()
+        .expect("failed to build geoip client")
 }
 
 async fn fetch_response(client: &Client, url: &str) -> Option<IpApiResponse> {
