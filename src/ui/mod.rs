@@ -253,8 +253,7 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
     let mut text_spans = footer_text_for_width(area.width, state, theme);
     text_spans.push(Span::raw("  "));
     text_spans.push(Span::styled("F1/? Help", Style::default().fg(theme.accent)));
-    let footer = Paragraph::new(Line::from(text_spans))
-        .style(Style::default().bg(theme.surface));
+    let footer = Paragraph::new(Line::from(text_spans)).style(Style::default().bg(theme.surface));
 
     frame.render_widget(footer, area);
 }
@@ -289,12 +288,20 @@ fn render_command_bar(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.set_cursor_position((cursor_x, area.y));
 }
 
-fn footer_text_for_width(width: u16, state: &AppState, theme: crate::ui::theme::Theme) -> Vec<Span<'static>> {
+fn footer_text_for_width(
+    width: u16,
+    state: &AppState,
+    theme: crate::ui::theme::Theme,
+) -> Vec<Span<'static>> {
     let base = base_footer_text_for_width(width, state, theme);
     append_update_hint(width, base, &state.update_status, theme)
 }
 
-fn base_footer_text_for_width(width: u16, state: &AppState, theme: crate::ui::theme::Theme) -> Vec<Span<'static>> {
+fn base_footer_text_for_width(
+    width: u16,
+    state: &AppState,
+    theme: crate::ui::theme::Theme,
+) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     let command_hint = if state.settings.command_bar_enabled {
         "  : Command".to_string()
@@ -305,52 +312,118 @@ fn base_footer_text_for_width(width: u16, state: &AppState, theme: crate::ui::th
 
     if width >= 92 {
         spans.extend(vec![
-            Span::styled("R", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "R",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Refresh  ", Style::default().fg(theme.muted_text)),
-            Span::styled("V", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "V",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Hourly View  ", Style::default().fg(theme.muted_text)),
-            Span::styled("L", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "L",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Cities  ", Style::default().fg(theme.muted_text)),
-            Span::styled("S", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "S",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Settings  ", Style::default().fg(theme.muted_text)),
-            Span::styled("<-/->", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "<-/->",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Scroll  ", Style::default().fg(theme.muted_text)),
-            Span::styled("Q", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
-            Span::styled(format!(" Quit{focus_hint}{command_hint}"), Style::default().fg(theme.muted_text)),
+            Span::styled(
+                "Q",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!(" Quit{focus_hint}{command_hint}"),
+                Style::default().fg(theme.muted_text),
+            ),
         ]);
     } else if width >= 72 {
         spans.extend(vec![
-            Span::styled("R", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "R",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Refresh  ", Style::default().fg(theme.muted_text)),
-            Span::styled("V", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "V",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" View  ", Style::default().fg(theme.muted_text)),
-            Span::styled("L", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "L",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Cities  ", Style::default().fg(theme.muted_text)),
-            Span::styled("S", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "S",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Settings  ", Style::default().fg(theme.muted_text)),
-            Span::styled("<-/->", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "<-/->",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Scroll  ", Style::default().fg(theme.muted_text)),
-            Span::styled("Q", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
-            Span::styled(format!(" Quit{command_hint}"), Style::default().fg(theme.muted_text)),
+            Span::styled(
+                "Q",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!(" Quit{command_hint}"),
+                Style::default().fg(theme.muted_text),
+            ),
         ]);
     } else if width >= 52 {
         spans.extend(vec![
-            Span::styled("R", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "R",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Refresh  ", Style::default().fg(theme.muted_text)),
-            Span::styled("V", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "V",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" View  ", Style::default().fg(theme.muted_text)),
-            Span::styled("L", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "L",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Cities  ", Style::default().fg(theme.muted_text)),
-            Span::styled("S", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "S",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Settings  ", Style::default().fg(theme.muted_text)),
-            Span::styled("Q", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
-            Span::styled(format!(" Quit{command_hint}"), Style::default().fg(theme.muted_text)),
+            Span::styled(
+                "Q",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!(" Quit{command_hint}"),
+                Style::default().fg(theme.muted_text),
+            ),
         ]);
     } else {
         spans.extend(vec![
-            Span::styled("R", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "R",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Refresh  ", Style::default().fg(theme.muted_text)),
-            Span::styled("Q", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Q",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" Quit", Style::default().fg(theme.muted_text)),
         ]);
     }
@@ -358,7 +431,12 @@ fn base_footer_text_for_width(width: u16, state: &AppState, theme: crate::ui::th
     spans
 }
 
-fn append_update_hint(width: u16, mut base: Vec<Span<'static>>, status: &UpdateStatus, theme: crate::ui::theme::Theme) -> Vec<Span<'static>> {
+fn append_update_hint(
+    width: u16,
+    mut base: Vec<Span<'static>>,
+    status: &UpdateStatus,
+    theme: crate::ui::theme::Theme,
+) -> Vec<Span<'static>> {
     let Some(hint) = update_hint_for_width(width, status) else {
         return base;
     };
@@ -366,7 +444,10 @@ fn append_update_hint(width: u16, mut base: Vec<Span<'static>>, status: &UpdateS
         base.push(Span::styled(hint, Style::default().fg(theme.muted_text)));
         return base;
     }
-    base.push(Span::styled(format!("  {hint}"), Style::default().fg(theme.muted_text)));
+    base.push(Span::styled(
+        format!("  {hint}"),
+        Style::default().fg(theme.muted_text),
+    ));
     base
 }
 
