@@ -131,9 +131,18 @@ fn recent_city_list(
     theme: Theme,
 ) -> List<'static> {
     let body = if items.is_empty() {
-        List::new(vec![ListItem::new(
-            "No recent cities. Search above to add one!",
-        )])
+        let text = Line::from(vec![
+            Span::styled(
+                "No recent cities. Type to search · ",
+                Style::default().fg(theme.popup_muted_text),
+            ),
+            Span::styled(
+                "Esc",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" close", Style::default().fg(theme.popup_muted_text)),
+        ]);
+        List::new(vec![ListItem::new(text)])
     } else {
         List::new(items)
     };
