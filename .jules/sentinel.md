@@ -14,3 +14,9 @@
 **Vulnerability:** A previous entry noted that falling back to an unprotected `reqwest::Client` without a `.timeout()` or `.user_agent()` is dangerous. However, `GeoIpClient` used an `ok()` fallback, meaning if the underlying TLS implementation failed to initialize, the client would silently refuse to build instead of properly failing securely and halting the program.
 **Learning:** `reqwest::ClientBuilder::build()` can fail due to critical system-level issues (like missing TLS certificates). Failing silently masks these critical infrastructure issues.
 **Prevention:** Fail securely in all locations where HTTP clients are constructed. Enforced this by ensuring `geoip.rs` now explicitly expects successful creation (just like `forecast.rs` and `geocode.rs`).
+
+## 2025-03-03 - Unbounded Local Config File Read DoS
+
+**Vulnerability:** The settings loader used `fs::read_to_string` to load `settings.json`. If a malicious user on a shared system replaced the file with an enormous payload or a symlink to `/dev/zero`, the application would attempt to read it entirely into memory, resulting in an Out-Of-Memory (OOM) crash (Denial of Service).
+**Learning:** Even when reading local configuration files from user-controlled paths (like `~/.config`), defensive programming requires bounding read sizes to prevent resource exhaustion attacks via the filesystem.
+**Prevention:** Replace unbounded `fs::read_to_string` with an explicitly bounded read using `std::fs::File`, `std::io::Read::read_to_string`, and `.take(max_bytes)` to enforce a strict memory limit.
