@@ -171,10 +171,14 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
         return (settings, None);
     };
 
-    if let Ok(content) = fs::read_to_string(&path)
-        && let Ok(saved) = serde_json::from_str::<RuntimeSettings>(&content)
-    {
-        settings = saved;
+    if let Ok(file) = std::fs::File::open(&path) {
+        use std::io::Read;
+        let mut content = String::new();
+        if file.take(2 * 1024 * 1024).read_to_string(&mut content).is_ok() {
+            if let Ok(saved) = serde_json::from_str::<RuntimeSettings>(&content) {
+                settings = saved;
+            }
+        }
     }
     apply_cli_overrides(&mut settings, cli);
 
