@@ -1,4 +1,5 @@
 use super::*;
+use chrono::NaiveDate;
 
 #[test]
 fn average_duration_returns_placeholder_for_zero_count() {
@@ -27,7 +28,7 @@ fn format_day_value_mm_none_returns_placeholder() {
 
 #[test]
 fn format_day_value_mm_some_formats_correctly() {
-    let result = format_day_value_mm(Some(("Mon".to_string(), 3.2)));
+    let result = format_day_value_mm(Some((NaiveDate::from_ymd_opt(2023, 1, 2).unwrap(), 3.2)));
     assert!(result.contains("Mon"), "got: {result}");
     assert!(result.contains("3.2mm"), "got: {result}");
 }
@@ -39,7 +40,7 @@ fn format_day_value_mps_none_returns_placeholder() {
 
 #[test]
 fn format_day_value_mps_some_formats_in_mps() {
-    let result = format_day_value_mps(Some(("Tue".to_string(), 36.0)));
+    let result = format_day_value_mps(Some((NaiveDate::from_ymd_opt(2023, 1, 3).unwrap(), 36.0)));
     assert!(result.contains("Tue"), "got: {result}");
     assert!(result.contains("m/s"), "got: {result}");
 }
