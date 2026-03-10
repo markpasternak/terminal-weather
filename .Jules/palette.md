@@ -1,3 +1,3 @@
-## 2024-03-08 - Added Bold Keyboard Shortcuts
-**Learning:** UX Discoverability: Splitting keyboard shortcut hint strings into multiple Spans allows highlighting the specific letter/shortcut with a bold modifier and contrasting color, making shortcuts much more obvious and readable.
-**Action:** Always wrap shortcut keys in a Span styled with `theme.text` and `Modifier::BOLD` when displaying shortcut hints, instead of leaving the entire line as `theme.muted_text`.
+## 2024-03-10 - Discovering missing keyboard shortcuts
+**Learning:** Found multiple UI components without proper keyboard navigation or hints. Empty states and popups lack sufficient hints for the user to understand what they can do next.
+**Action:** Enhance UI widgets (e.g., settings, city_picker, selector) with clear keyboard shortcut hints to improve TUI accessibility and discoverability.
