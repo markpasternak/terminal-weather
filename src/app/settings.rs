@@ -178,10 +178,9 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
             .take(2 * 1024 * 1024)
             .read_to_string(&mut content)
             .is_ok()
+            && let Ok(saved) = serde_json::from_str::<RuntimeSettings>(&content)
         {
-            if let Ok(saved) = serde_json::from_str::<RuntimeSettings>(&content) {
-                settings = saved;
-            }
+            settings = saved;
         }
     }
     apply_cli_overrides(&mut settings, cli);
