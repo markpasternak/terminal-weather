@@ -14,10 +14,10 @@ pub(super) struct WeekAccumulator {
     sunshine_count: usize,
     precipitation_hours_total: f32,
     precipitation_hours_count: usize,
-    breeziest: Option<(String, f32)>,
-    wettest: Option<(String, f32)>,
-    strongest_uv: Option<(String, f32)>,
-    comfort_best: Option<(String, f32)>,
+    breeziest: Option<(chrono::NaiveDate, f32)>,
+    wettest: Option<(chrono::NaiveDate, f32)>,
+    strongest_uv: Option<(chrono::NaiveDate, f32)>,
+    comfort_best: Option<(chrono::NaiveDate, f32)>,
     week_min_temp_c: Option<f32>,
     week_max_temp_c: Option<f32>,
 }
@@ -69,15 +69,17 @@ impl WeekAccumulator {
         }
     }
 
+    // OPTIMIZATION: Store `chrono::NaiveDate` instead of formatted `String` allocations to avoid repeated heap allocations
+    // and dynamic formatting overhead during the accumulator's inner loop.
     fn update_tagged_max(
-        slot: &mut Option<(String, f32)>,
+        slot: &mut Option<(chrono::NaiveDate, f32)>,
         day: &DailyForecast,
         value: Option<f32>,
     ) {
         if let Some(v) = value
             && slot.as_ref().is_none_or(|(_, best)| v > *best)
         {
-            *slot = Some((day.date.format("%a").to_string(), v));
+            *slot = Some((day.date, v));
         }
     }
 
@@ -93,7 +95,7 @@ impl WeekAccumulator {
         }
     }
 
-    fn update_comfort_best(slot: &mut Option<(String, f32)>, day: &DailyForecast) {
+    fn update_comfort_best(slot: &mut Option<(chrono::NaiveDate, f32)>, day: &DailyForecast) {
         let avg_temp = match (day.temperature_min_c, day.temperature_max_c) {
             (Some(min), Some(max)) => Some(f32::midpoint(min, max)),
             (Some(temp), None) | (None, Some(temp)) => Some(temp),
@@ -107,7 +109,7 @@ impl WeekAccumulator {
         let wind_penalty = day.wind_gusts_10m_max.unwrap_or(0.0).max(0.0) * 0.2;
         let comfort_penalty = (avg_temp - 20.0).abs();
         let score = comfort_penalty + precip_penalty + wind_penalty;
-        let day_label = day.date.format("%a").to_string();
+        let day_label = day.date;
 
         if slot.as_ref().is_none_or(|(_, best)| score < *best) {
             *slot = Some((day_label, score));
@@ -149,16 +151,20 @@ impl WeekAccumulator {
     }
 }
 
-pub(super) fn format_day_value_mm(value: Option<(String, f32)>) -> String {
-    value.map_or_else(|| "--".to_string(), |(day, mm)| format!("{day} {mm:.1}mm"))
+pub(super) fn format_day_value_mm(value: Option<(chrono::NaiveDate, f32)>) -> String {
+    value.map_or_else(
+        || "--".to_string(),
+        |(day, mm)| format!("{} {mm:.1}mm", day.format("%a")),
+    )
 }
 
-pub(super) fn format_day_value_mps(value: Option<(String, f32)>) -> String {
+pub(super) fn format_day_value_mps(value: Option<(chrono::NaiveDate, f32)>) -> String {
     value.map_or_else(
         || "--".to_string(),
         |(day, speed)| {
             format!(
-                "{day} {}m/s",
+                "{} {}m/s",
+                day.format("%a"),
                 crate::domain::weather::round_wind_speed(speed)
             )
         },
@@ -181,12 +187,15 @@ pub(super) fn average_precip_hours(total_hours: f32, count: usize) -> String {
     }
 }
 
-pub(super) fn format_uv_peak(value: Option<(String, f32)>) -> String {
-    value.map_or_else(|| "--".to_string(), |(day, uv)| format!("{day} {uv:.1}"))
+pub(super) fn format_uv_peak(value: Option<(chrono::NaiveDate, f32)>) -> String {
+    value.map_or_else(
+        || "--".to_string(),
+        |(day, uv)| format!("{} {uv:.1}", day.format("%a")),
+    )
 }
 
-pub(super) fn format_best_day(value: Option<(String, f32)>) -> String {
-    value.map_or_else(|| "--".to_string(), |(day, _)| day)
+pub(super) fn format_best_day(value: Option<(chrono::NaiveDate, f32)>) -> String {
+    value.map_or_else(|| "--".to_string(), |(day, _)| day.format("%a").to_string())
 }
 
 pub(super) fn week_thermal_span(min_c: Option<f32>, max_c: Option<f32>, units: Units) -> String {
