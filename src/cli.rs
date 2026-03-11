@@ -160,7 +160,7 @@ pub struct Cli {
     pub air_quality_url: Option<String>,
 
     /// Refresh interval in seconds
-    #[arg(long, default_value_t = 600)]
+    #[arg(long, default_value_t = 600, value_parser = clap::value_parser!(u64).range(10..=86400))]
     pub refresh_interval: u64,
 
     /// Run automated demo script and exit
