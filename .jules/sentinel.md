@@ -20,3 +20,9 @@
 **Vulnerability:** The settings loader used `fs::read_to_string` to load `settings.json`. If a malicious user on a shared system replaced the file with an enormous payload or a symlink to `/dev/zero`, the application would attempt to read it entirely into memory, resulting in an Out-Of-Memory (OOM) crash (Denial of Service).
 **Learning:** Even when reading local configuration files from user-controlled paths (like `~/.config`), defensive programming requires bounding read sizes to prevent resource exhaustion attacks via the filesystem.
 **Prevention:** Replace unbounded `fs::read_to_string` with an explicitly bounded read using `std::fs::File`, `std::io::Read::read_to_string`, and `.take(max_bytes)` to enforce a strict memory limit.
+
+## 2026-03-10 - Panic DoS via Unbounded refresh_interval_secs
+
+**Vulnerability:** The application accepted unbounded `u64` values for `refresh_interval_secs` via CLI arguments and `settings.json`. If a maliciously large value (e.g. `u64::MAX`) was provided, it would trigger an out-of-bounds panic inside `tokio::time::sleep` or `Duration::from_secs_f32`, immediately crashing the process (Denial of Service).
+**Learning:** All configurations that interact with underlying runtime components (like Tokio timers) must be securely clamped to reasonable bounds, even if the data originates from seemingly trusted local config files or user input.
+**Prevention:** Clamped `refresh_interval_secs` to a safe maximum bound (24 hours) during CLI parsing and settings deserialization to prevent application panics.
