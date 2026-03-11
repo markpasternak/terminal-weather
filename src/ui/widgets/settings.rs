@@ -192,8 +192,21 @@ fn settings_list(items: Vec<ListItem<'static>>, panel_style: Style, theme: Theme
 }
 
 fn render_controls(frame: &mut Frame, area: Rect, theme: Theme) {
-    let controls = Paragraph::new("↑/↓ select  ←/→ or Enter change  Enter on actions  S close")
-        .style(Style::default().fg(theme.popup_muted_text));
+    let key_style = Style::default().fg(theme.text).add_modifier(Modifier::BOLD);
+    let desc_style = Style::default().fg(theme.popup_muted_text);
+
+    let controls = Paragraph::new(Line::from(vec![
+        Span::styled("↑/↓", key_style),
+        Span::styled(" select  ", desc_style),
+        Span::styled("←/→", key_style),
+        Span::styled(" or ", desc_style),
+        Span::styled("Enter", key_style),
+        Span::styled(" change  ", desc_style),
+        Span::styled("Enter", key_style),
+        Span::styled(" on actions  ", desc_style),
+        Span::styled("S", key_style),
+        Span::styled(" close", desc_style),
+    ]));
     frame.render_widget(controls, area);
 }
 
