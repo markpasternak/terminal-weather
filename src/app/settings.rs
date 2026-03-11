@@ -185,6 +185,9 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
     }
     apply_cli_overrides(&mut settings, cli);
 
+    // Prevent DoS panics from maliciously large refresh intervals (e.g. u64::MAX)
+    settings.refresh_interval_secs = settings.refresh_interval_secs.clamp(10, 86400);
+
     (settings, Some(path))
 }
 
