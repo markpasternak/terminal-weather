@@ -5,3 +5,7 @@
 ## 2025-03-10 - [Avoid string formatting in accumulation loops]
 **Learning:** `chrono::NaiveDate::format("%a").to_string()` creates dynamic formatting overhead and a new heap allocation every time it's called. Calling this repeatedly inside an aggregation loop (e.g. tracking max weather values) is unnecessarily expensive.
 **Action:** When tracking time-based items inside a loop for UI representation, store lightweight structures like `chrono::NaiveDate` directly. Only perform the `.format().to_string()` allocation at the very end when generating the final UI text.
+
+## 2025-03-10 - [Optimize Weekday Formatting in Rendering Loops]
+**Learning:** `chrono::NaiveDate::format("%a").to_string()` requires string parsing and heap allocation on every call. In a TUI rendering loop (e.g., drawing `Cell`s for a daily forecast table every tick), this creates unnecessary allocator pressure.
+**Action:** Replace `date.format("%a").to_string()` with a fast helper function that matches on `chrono::Datelike::weekday()` and returns a static `&'static str` (e.g., `"Mon"`, `"Tue"`). This guarantees zero-allocation weekday extraction.

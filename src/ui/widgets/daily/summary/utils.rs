@@ -328,3 +328,16 @@ mod tests {
         assert_eq!(cue, "mostly dry");
     }
 }
+
+pub(crate) fn short_weekday(date: chrono::NaiveDate) -> &'static str {
+    use chrono::Datelike;
+    match date.weekday() {
+        chrono::Weekday::Mon => "Mon",
+        chrono::Weekday::Tue => "Tue",
+        chrono::Weekday::Wed => "Wed",
+        chrono::Weekday::Thu => "Thu",
+        chrono::Weekday::Fri => "Fri",
+        chrono::Weekday::Sat => "Sat",
+        chrono::Weekday::Sun => "Sun",
+    }
+}
