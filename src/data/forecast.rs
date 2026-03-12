@@ -22,46 +22,33 @@ pub struct ForecastClient {
     air_quality_url: String,
 }
 
-impl Default for ForecastClient {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ForecastClient {
-    #[must_use]
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         let (base_url, air_quality_url) = resolve_api_urls(|key| std::env::var(key).ok());
         Self::with_urls(base_url, air_quality_url)
     }
 
-    #[must_use]
-    pub fn with_base_url(base_url: impl Into<String>) -> Self {
+    pub fn with_base_url(base_url: impl Into<String>) -> Result<Self> {
         let (_, air_quality_url) = resolve_api_urls(|key| std::env::var(key).ok());
         Self::with_urls(base_url, air_quality_url)
     }
 
-    #[must_use]
-    /// # Panics
-    ///
-    /// Panics if the `reqwest::Client` fails to build with the required security configurations (e.g., timeout).
-    pub fn with_urls(base_url: impl Into<String>, air_quality_url: impl Into<String>) -> Self {
+    pub fn with_urls(base_url: impl Into<String>, air_quality_url: impl Into<String>) -> Result<Self> {
         let client = Client::builder()
             .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(10))
             .build()
-            .expect("failed to build forecast client");
-        Self {
+            .context("failed to build forecast client")?;
+        Ok(Self {
             client,
             base_url: base_url.into(),
             air_quality_url: air_quality_url.into(),
-        }
+        })
     }
 
-    #[must_use]
-    pub fn with_air_quality_url(mut self, url: impl Into<String>) -> Self {
+    pub fn with_air_quality_url(mut self, url: impl Into<String>) -> Result<Self> {
         self.air_quality_url = url.into();
-        self
+        Ok(self)
     }
 
     pub async fn fetch(&self, location: Location) -> Result<ForecastBundle> {
@@ -443,7 +430,8 @@ mod tests {
     #[test]
     fn with_urls_sets_both_endpoints() {
         let client =
-            ForecastClient::with_urls("https://example.com/forecast", "https://example.com/aq");
+            ForecastClient::with_urls("https://example.com/forecast", "https://example.com/aq")
+                .expect("failed to build forecast client for test");
         assert_eq!(client.base_url, "https://example.com/forecast");
         assert_eq!(client.air_quality_url, "https://example.com/aq");
     }

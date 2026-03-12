@@ -26,3 +26,9 @@
 **Vulnerability:** The application accepted unbounded `u64` values for `refresh_interval_secs` via CLI arguments and `settings.json`. If a maliciously large value (e.g. `u64::MAX`) was provided, it would trigger an out-of-bounds panic inside `tokio::time::sleep` or `Duration::from_secs_f32`, immediately crashing the process (Denial of Service).
 **Learning:** All configurations that interact with underlying runtime components (like Tokio timers) must be securely clamped to reasonable bounds, even if the data originates from seemingly trusted local config files or user input.
 **Prevention:** Clamped `refresh_interval_secs` to a safe maximum bound (24 hours) during CLI parsing and settings deserialization to prevent application panics.
+
+## 2025-03-03 - Enforced Security Configuration across all HTTP Clients
+
+**Vulnerability:** A previous entry noted that falling back to an unprotected `reqwest::Client` without a `.timeout()` or `.user_agent()` is dangerous. However, `ForecastClient`, `GeocodeClient`, and `GeoIpClient` used `.expect()` on builder creation, meaning if the underlying TLS implementation failed to initialize, the application would encounter a hard panic (Denial of Service) instead of properly failing securely and halting the component/program via predictable channels.
+**Learning:** `reqwest::ClientBuilder::build()` can fail due to critical system-level issues (like missing TLS certificates). While `.expect()` is better than `.ok()`, failing via a hard panic inside UI-triggered async operations drops the application.
+**Prevention:** Fail securely in all locations where HTTP clients are constructed. Enforced this by updating all client builders to return `Result<Self>` (or `Option<Self>`) and allowing the failure to bubble up into the event loop (e.g., `AppEvent::FetchFailed`) to cleanly alert the user without crashing the TUI.

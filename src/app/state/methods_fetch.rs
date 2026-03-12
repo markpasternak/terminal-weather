@@ -1,4 +1,5 @@
 use super::*;
+use anyhow::Context;
 
 impl AppState {
     pub(crate) async fn start_fetch(
@@ -33,7 +34,9 @@ impl AppState {
     }
 
     pub(crate) async fn try_fetch_existing_location(&self, tx: &mpsc::Sender<AppEvent>) -> bool {
-        let geocoder = GeocodeClient::new();
+        let Ok(geocoder) = GeocodeClient::new() else {
+            return false;
+        };
         self.try_fetch_existing_location_with_geocoder(tx, &geocoder)
             .await
     }
@@ -52,7 +55,7 @@ impl AppState {
     }
 
     pub(crate) async fn try_fetch_coords(tx: &mpsc::Sender<AppEvent>, cli: &Cli) -> Result<bool> {
-        let geocoder = GeocodeClient::new();
+        let geocoder = GeocodeClient::new().context("failed to build geocode client")?;
         Self::try_fetch_coords_with_geocoder(tx, cli, &geocoder).await
     }
 
@@ -104,9 +107,16 @@ impl AppState {
     }
 
     pub(crate) fn fetch_forecast(&self, tx: &mpsc::Sender<AppEvent>, location: Location) {
-        let client = self.build_forecast_client();
+        let client_result = self.build_forecast_client();
         let tx2 = tx.clone();
         tokio::spawn(async move {
+            let client = match client_result {
+                Ok(c) => c,
+                Err(err) => {
+                    let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
+                    return;
+                }
+            };
             match client.fetch(location).await {
                 Ok(data) => {
                     let _ = tx2.send(AppEvent::FetchSucceeded(data)).await;
@@ -118,14 +128,14 @@ impl AppState {
         });
     }
 
-    fn build_forecast_client(&self) -> ForecastClient {
+    fn build_forecast_client(&self) -> Result<ForecastClient> {
         match (&self.forecast_url_override, &self.air_quality_url_override) {
             (Some(forecast_url), Some(air_quality_url)) => {
                 ForecastClient::with_urls(forecast_url.clone(), air_quality_url.clone())
             }
             (Some(forecast_url), None) => ForecastClient::with_base_url(forecast_url.clone()),
             (None, Some(air_quality_url)) => {
-                ForecastClient::new().with_air_quality_url(air_quality_url.clone())
+                ForecastClient::new()?.with_air_quality_url(air_quality_url.clone())
             }
             (None, None) => ForecastClient::new(),
         }
@@ -237,7 +247,13 @@ async fn resolve_city_with_geocoder(
     city: String,
     country_code: Option<String>,
 ) {
-    let geocoder = GeocodeClient::new();
+    let geocoder = match GeocodeClient::new() {
+        Ok(c) => c,
+        Err(err) => {
+            let _ = tx.send(AppEvent::FetchFailed(err.to_string())).await;
+            return;
+        }
+    };
     match geocoder.resolve(city, country_code).await {
         Ok(resolution) => {
             let _ = tx.send(AppEvent::GeocodeResolved(resolution)).await;

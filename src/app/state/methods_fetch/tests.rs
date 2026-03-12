@@ -45,7 +45,7 @@ async fn reverse_geocoder_client(
         .respond_with(template)
         .mount(&server)
         .await;
-    let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+    let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri())).expect("test");
     (server, geocoder)
 }
 
@@ -130,7 +130,7 @@ async fn resolve_saved_location_updates_coordinate_label_when_reverse_available(
 
 #[tokio::test]
 async fn resolve_saved_location_keeps_named_location_without_reverse_lookup() {
-    let geocoder = GeocodeClient::with_base_url("http://127.0.0.1:9");
+    let geocoder = GeocodeClient::with_base_url("http://127.0.0.1:9").expect("test");
     let named = crate::test_support::stockholm_location();
 
     let location = resolve_saved_location_with_reverse_geocoder(&geocoder, named.clone()).await;
@@ -156,17 +156,17 @@ fn build_forecast_client_honors_override_combinations() {
     let mut state = test_state();
     state.forecast_url_override = Some("https://example.test/forecast".to_string());
     state.air_quality_url_override = Some("https://example.test/aq".to_string());
-    let both = format!("{:?}", state.build_forecast_client());
+    let both = format!("{:?}", state.build_forecast_client().expect("test"));
     assert!(both.contains("https://example.test/forecast"));
     assert!(both.contains("https://example.test/aq"));
 
     state.air_quality_url_override = None;
-    let forecast_only = format!("{:?}", state.build_forecast_client());
+    let forecast_only = format!("{:?}", state.build_forecast_client().expect("test"));
     assert!(forecast_only.contains("https://example.test/forecast"));
 
     state.forecast_url_override = None;
     state.air_quality_url_override = Some("https://example.test/aq2".to_string());
-    let aq_only = format!("{:?}", state.build_forecast_client());
+    let aq_only = format!("{:?}", state.build_forecast_client().expect("test"));
     assert!(aq_only.contains("https://example.test/aq2"));
 }
 
