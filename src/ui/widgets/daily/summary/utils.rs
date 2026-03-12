@@ -107,6 +107,19 @@ fn threshold_cue(
     }
 }
 
+pub(crate) fn short_weekday(date: chrono::NaiveDate) -> &'static str {
+    use chrono::Datelike;
+    match date.weekday() {
+        chrono::Weekday::Mon => "Mon",
+        chrono::Weekday::Tue => "Tue",
+        chrono::Weekday::Wed => "Wed",
+        chrono::Weekday::Thu => "Thu",
+        chrono::Weekday::Fri => "Fri",
+        chrono::Weekday::Sat => "Sat",
+        chrono::Weekday::Sun => "Sun",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,18 +339,5 @@ mod tests {
         let day = sample_day(0.0, 0.0, 10.0, 30_000.0, 70_000.0);
         let cue = day_cue(&day);
         assert_eq!(cue, "mostly dry");
-    }
-}
-
-pub(crate) fn short_weekday(date: chrono::NaiveDate) -> &'static str {
-    use chrono::Datelike;
-    match date.weekday() {
-        chrono::Weekday::Mon => "Mon",
-        chrono::Weekday::Tue => "Tue",
-        chrono::Weekday::Wed => "Wed",
-        chrono::Weekday::Thu => "Thu",
-        chrono::Weekday::Fri => "Fri",
-        chrono::Weekday::Sat => "Sat",
-        chrono::Weekday::Sun => "Sun",
     }
 }
