@@ -45,7 +45,8 @@ async fn reverse_geocoder_client(
         .respond_with(template)
         .mount(&server)
         .await;
-    let geocoder = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri())).expect("test");
+    let geocoder =
+        GeocodeClient::with_base_url(format!("{}/v1/search", server.uri())).expect("test");
     (server, geocoder)
 }
 

@@ -135,7 +135,7 @@ impl AppState {
             }
             (Some(forecast_url), None) => ForecastClient::with_base_url(forecast_url.clone()),
             (None, Some(air_quality_url)) => {
-                ForecastClient::new()?.with_air_quality_url(air_quality_url.clone())
+                Ok(ForecastClient::new()?.with_air_quality_url(air_quality_url.clone()))
             }
             (None, None) => ForecastClient::new(),
         }

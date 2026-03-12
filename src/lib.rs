@@ -311,7 +311,8 @@ mod tests {
         let geocoder = crate::data::geocode::GeocodeClient::with_base_url(format!(
             "{}/v1/search",
             server.uri()
-        )).expect("test");
+        ))
+        .expect("test");
         let location = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect("coords resolve");
@@ -332,7 +333,8 @@ mod tests {
         let geocoder = crate::data::geocode::GeocodeClient::with_base_url(format!(
             "{}/v1/search",
             server.uri()
-        )).expect("test");
+        ))
+        .expect("test");
         let location = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect("coords fallback resolve");
@@ -362,7 +364,8 @@ mod tests {
 
         let mut cli = one_shot_cli();
         cli.city = Some("Stockholm".to_string());
-        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(server.uri()).expect("test");
+        let geocoder =
+            crate::data::geocode::GeocodeClient::with_base_url(server.uri()).expect("test");
         let location = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect("selection resolve");
@@ -381,7 +384,8 @@ mod tests {
 
         let mut cli = one_shot_cli();
         cli.city = Some("Missing".to_string());
-        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(server.uri()).expect("test");
+        let geocoder =
+            crate::data::geocode::GeocodeClient::with_base_url(server.uri()).expect("test");
         let err = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect_err("not found should error");
@@ -423,7 +427,8 @@ mod tests {
 
         let mut cli = one_shot_cli();
         cli.city = Some("Springfield".to_string());
-        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(server.uri()).expect("test");
+        let geocoder =
+            crate::data::geocode::GeocodeClient::with_base_url(server.uri()).expect("test");
         let location = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect("disambiguation should pick first");

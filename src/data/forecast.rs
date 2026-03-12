@@ -33,7 +33,10 @@ impl ForecastClient {
         Self::with_urls(base_url, air_quality_url)
     }
 
-    pub fn with_urls(base_url: impl Into<String>, air_quality_url: impl Into<String>) -> Result<Self> {
+    pub fn with_urls(
+        base_url: impl Into<String>,
+        air_quality_url: impl Into<String>,
+    ) -> Result<Self> {
         let client = Client::builder()
             .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(10))
@@ -46,9 +49,10 @@ impl ForecastClient {
         })
     }
 
-    pub fn with_air_quality_url(mut self, url: impl Into<String>) -> Result<Self> {
+    #[must_use]
+    pub fn with_air_quality_url(mut self, url: impl Into<String>) -> Self {
         self.air_quality_url = url.into();
-        Ok(self)
+        self
     }
 
     pub async fn fetch(&self, location: Location) -> Result<ForecastBundle> {
