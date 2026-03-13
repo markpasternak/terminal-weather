@@ -161,8 +161,7 @@ fn recent_city_list(
 }
 
 fn render_status_line(frame: &mut Frame, area: Rect, state: &AppState, theme: Theme) {
-    let status = Paragraph::new(city_picker_state_line(state))
-        .style(Style::default().fg(theme.popup_muted_text));
+    let status = Paragraph::new(city_picker_state_line(state, theme));
     frame.render_widget(status, area);
 }
 
@@ -191,12 +190,35 @@ fn format_recent_location(index: usize, saved: &RecentLocation, state: &AppState
     )
 }
 
-fn city_picker_state_line(state: &AppState) -> String {
+fn city_picker_state_line(state: &AppState, theme: Theme) -> Line<'static> {
+    let muted = Style::default().fg(theme.popup_muted_text);
+    let key = Style::default().fg(theme.text).add_modifier(Modifier::BOLD);
+
     let detail = state.city_status.as_deref().unwrap_or(
         "Enter search/switch · ↑/↓ history · Del clear all · Backspace edit · Esc close",
     );
     let kind = city_status_kind(detail);
-    format!("State: {kind} · {detail}")
+
+    let mut spans = vec![Span::styled(format!("State: {kind} · "), muted)];
+
+    if detail.contains("Enter search/switch") {
+        spans.extend(vec![
+            Span::styled("Enter", key),
+            Span::styled(" search/switch · ", muted),
+            Span::styled("↑/↓", key),
+            Span::styled(" history · ", muted),
+            Span::styled("Del", key),
+            Span::styled(" clear all · ", muted),
+            Span::styled("Backspace", key),
+            Span::styled(" edit · ", muted),
+            Span::styled("Esc", key),
+            Span::styled(" close", muted),
+        ]);
+    } else {
+        spans.push(Span::styled(detail.to_string(), muted));
+    }
+
+    Line::from(spans)
 }
 
 fn city_status_kind(status: &str) -> &'static str {
@@ -369,7 +391,13 @@ mod tests {
     fn render_status_line_uses_custom_status_when_present() {
         let mut state = make_state();
         state.city_status = Some("Searching...".to_string());
-        let status_text = city_picker_state_line(&state);
+        let theme = resolved_theme(&state);
+        let status_line = city_picker_state_line(&state, theme);
+        let status_text: String = status_line
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(status_text.contains("State: Searching"));
     }
 
