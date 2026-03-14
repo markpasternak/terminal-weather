@@ -161,20 +161,22 @@ fn classify_resolution(
     let mut ranked = rank_locations(payload.results.unwrap_or_default(), &city, country_code);
     let top = ranked.remove(0);
 
-    ambiguous_options(&top, &ranked).map_or_else(
-        || GeocodeResolution::Selected(top.location),
-        GeocodeResolution::NeedsDisambiguation,
-    )
+    ambiguous_options(top, ranked)
 }
 
-fn ambiguous_options(top: &ScoredLocation, ranked: &[ScoredLocation]) -> Option<Vec<Location>> {
-    let second = ranked.first()?;
-    if !is_ambiguous(top, second) {
-        return None;
+// OPTIMIZATION: Take ownership of `top` and `ranked` to avoid cloning `Location` structs (which contain heap-allocated Strings).
+// Moving the owned data directly into the GeocodeResolution enum eliminates redundant allocations and improves resolution speed.
+fn ambiguous_options(top: ScoredLocation, mut ranked: Vec<ScoredLocation>) -> GeocodeResolution {
+    let Some(second) = ranked.first() else {
+        return GeocodeResolution::Selected(top.location);
+    };
+    if !is_ambiguous(&top, second) {
+        return GeocodeResolution::Selected(top.location);
     }
-    let mut options = vec![top.location.clone()];
-    options.extend(ranked.iter().map(|s| s.location.clone()).take(4));
-    Some(options)
+    let mut options = vec![top.location];
+    ranked.truncate(4);
+    options.extend(ranked.into_iter().map(|s| s.location));
+    GeocodeResolution::NeedsDisambiguation(options)
 }
 
 #[derive(Debug, Deserialize)]
