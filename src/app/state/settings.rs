@@ -18,9 +18,9 @@ mod tests {
     }
 
     #[test]
-    fn settings_selection_navigation_is_bounded() {
-        assert_eq!(SettingsSelection::Theme.prev(), SettingsSelection::Theme);
-        assert_eq!(SettingsSelection::Close.next(), SettingsSelection::Close);
+    fn settings_selection_navigation_wraps() {
+        assert_eq!(SettingsSelection::Theme.prev(), SettingsSelection::Close);
+        assert_eq!(SettingsSelection::Close.next(), SettingsSelection::Theme);
         assert_eq!(SettingsSelection::default(), SettingsSelection::Theme);
     }
 
