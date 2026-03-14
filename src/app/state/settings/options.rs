@@ -82,13 +82,17 @@ impl SettingsSelection {
     #[must_use]
     pub fn next(&self) -> Self {
         let idx = selection_index(*self);
-        SETTINGS_ORDER[(idx + 1).min(SETTINGS_ORDER.len() - 1)]
+        SETTINGS_ORDER[(idx + 1) % SETTINGS_ORDER.len()]
     }
 
     #[must_use]
     pub fn prev(&self) -> Self {
         let idx = selection_index(*self);
-        SETTINGS_ORDER[idx.saturating_sub(1)]
+        if idx == 0 {
+            SETTINGS_ORDER[SETTINGS_ORDER.len() - 1]
+        } else {
+            SETTINGS_ORDER[idx - 1]
+        }
     }
 
     #[must_use]
@@ -116,5 +120,26 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(theme_options().to_vec(), options_from_labels);
         assert_eq!(THEME_OPTIONS.to_vec(), options_from_labels);
+    }
+
+    #[test]
+    fn settings_selection_navigation_transitions() {
+        for (idx, selection) in SETTINGS_ORDER.iter().enumerate() {
+            if idx < SETTINGS_ORDER.len() - 1 {
+                assert_eq!(selection.next(), SETTINGS_ORDER[idx + 1]);
+            }
+            if idx > 0 {
+                assert_eq!(selection.prev(), SETTINGS_ORDER[idx - 1]);
+            }
+        }
+    }
+
+    #[test]
+    fn settings_selection_navigation_wrap_around() {
+        let first = SETTINGS_ORDER[0];
+        let last = SETTINGS_ORDER[SETTINGS_ORDER.len() - 1];
+
+        assert_eq!(first.prev(), last);
+        assert_eq!(last.next(), first);
     }
 }
