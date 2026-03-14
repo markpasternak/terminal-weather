@@ -1,4 +1,5 @@
 use super::*;
+use crate::update::UpdateStatus;
 
 #[test]
 fn update_hint_for_width_shows_only_when_update_available() {
