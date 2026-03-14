@@ -42,7 +42,7 @@ async fn ambiguous_candidates_trigger_selector_resolution() {
         .mount(&server)
         .await;
 
-    let client = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+    let client = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri())).expect("test");
     let result = client
         .resolve("Springfield".to_string(), Some("US".to_string()))
         .await

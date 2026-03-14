@@ -87,7 +87,7 @@ async fn reverse_resolve_returns_first_location_when_present() {
         .mount(&server)
         .await;
 
-    let client = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+    let client = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri())).expect("test");
     let location = client
         .reverse_resolve(59.3293, 18.0686)
         .await
@@ -101,7 +101,7 @@ async fn reverse_resolve_returns_first_location_when_present() {
 
 #[tokio::test]
 async fn resolve_rejects_huge_city_name() {
-    let client = GeocodeClient::new();
+    let client = GeocodeClient::new().expect("test");
     let huge_city = "a".repeat(101);
     let result = client.resolve(huge_city, None).await;
 
@@ -112,7 +112,7 @@ async fn resolve_rejects_huge_city_name() {
 
 #[tokio::test]
 async fn resolve_rejects_huge_country_code() {
-    let client = GeocodeClient::new();
+    let client = GeocodeClient::new().expect("test");
     let city = "Stockholm".to_string();
     let huge_code = Some("A".repeat(11));
     let result = client.resolve(city, huge_code).await;
@@ -146,7 +146,7 @@ async fn resolve_sanitizes_inputs() {
         .mount(&server)
         .await;
 
-    let client = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri()));
+    let client = GeocodeClient::with_base_url(format!("{}/v1/search", server.uri())).expect("test");
     let result = client
         .resolve("Tokyo".to_string(), None)
         .await

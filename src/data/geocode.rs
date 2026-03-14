@@ -16,38 +16,28 @@ pub struct GeocodeClient {
     reverse_url: String,
 }
 
-impl Default for GeocodeClient {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl GeocodeClient {
-    #[must_use]
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         Self::with_urls(GEOCODE_URL, REVERSE_GEOCODE_URL)
     }
 
-    pub fn with_base_url(base_url: impl Into<String>) -> Self {
+    pub fn with_base_url(base_url: impl Into<String>) -> Result<Self> {
         let base_url = base_url.into();
         let reverse_url = infer_reverse_geocode_url(&base_url);
         Self::with_urls(base_url, reverse_url)
     }
 
-    /// # Panics
-    ///
-    /// Panics if the `reqwest::Client` fails to build with the required security configurations (e.g., timeout).
-    pub fn with_urls(base_url: impl Into<String>, reverse_url: impl Into<String>) -> Self {
+    pub fn with_urls(base_url: impl Into<String>, reverse_url: impl Into<String>) -> Result<Self> {
         let client = Client::builder()
             .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(8))
             .build()
-            .expect("failed to build geocode client");
-        Self {
+            .context("failed to build geocode client")?;
+        Ok(Self {
             client,
             base_url: base_url.into(),
             reverse_url: reverse_url.into(),
-        }
+        })
     }
 
     pub async fn resolve(
