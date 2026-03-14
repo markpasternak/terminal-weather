@@ -21,7 +21,8 @@ use landmark_panel::render_landmark;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::Style,
+    style::{Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Borders},
 };
 use weather::render_weather_info;
@@ -46,11 +47,31 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     } else {
         ""
     };
+    let title = Line::from(vec![
+        Span::styled(
+            format!("{title_prefix}Current · "),
+            Style::default().fg(theme.text),
+        ),
+        Span::styled(
+            "L",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" cities · ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "S",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" settings · ", Style::default().fg(theme.muted_text)),
+        Span::styled(
+            "?",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" help", Style::default().fg(theme.muted_text)),
+    ]);
+
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(format!(
-            "{title_prefix}Current · L cities · S settings · ? help"
-        ))
+        .title(title)
         .border_style(Style::default().fg(theme.border));
     let inner = block.inner(area);
     frame.render_widget(block, area);
