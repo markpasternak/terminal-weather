@@ -66,6 +66,14 @@ fn parse_datetime_parts(bytes: &[u8]) -> Option<(i32, u32, u32, u32, u32)> {
 #[must_use]
 #[allow(clippy::collapsible_if)]
 pub fn parse_date(value: &str) -> Option<NaiveDate> {
+    if let Some(date) = fast_parse_date(value) {
+        return Some(date);
+    }
+    // Fallback for unexpected formats
+    NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()
+}
+
+fn fast_parse_date(value: &str) -> Option<NaiveDate> {
     if value.len() == 10 {
         let b = value.as_bytes();
         if b[4] == b'-' && b[7] == b'-' {
@@ -75,14 +83,11 @@ pub fn parse_date(value: &str) -> Option<NaiveDate> {
                 parse_two(&b[8..10]),
             );
             if let (Some(y), Some(m), Some(d)) = parts {
-                if let Some(date) = NaiveDate::from_ymd_opt(y, m, d) {
-                    return Some(date);
-                }
+                return NaiveDate::from_ymd_opt(y, m, d);
             }
         }
     }
-    // Fallback for unexpected formats
-    NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()
+    None
 }
 
 #[inline]

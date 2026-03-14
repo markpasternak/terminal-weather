@@ -203,9 +203,16 @@ impl AppState {
         self.loading_message = format!("Searching {city}...");
         self.refresh_meta.last_attempt = Some(chrono::Utc::now());
 
-        let geocoder = GeocodeClient::new();
+        let geocoder_result = GeocodeClient::new();
         let tx2 = tx.clone();
         tokio::spawn(async move {
+            let geocoder = match geocoder_result {
+                Ok(c) => c,
+                Err(err) => {
+                    let _ = tx2.send(AppEvent::FetchFailed(err.to_string())).await;
+                    return;
+                }
+            };
             match geocoder.resolve(city, country_code).await {
                 Ok(resolution) => {
                     let _ = tx2.send(AppEvent::GeocodeResolved(resolution)).await;

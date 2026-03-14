@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.0] - 2026-03-07
+
+`terminal-weather` 0.9.0 is a release about atmosphere and clarity. It makes the app's palette more responsive to live weather, adds a few stronger manual theme choices, and gives the sky observatory a denser, more readable dashboard of its own.
+
+### Highlights
+
+- Auto theme is now weather-aware in a more literal way: it reacts to time of day, cloud cover, rain and snow pressure, fog, and short-horizon forecast signals instead of relying on the older coarse mapping.
+- Three new preset themes have been added: Tokyo Night Storm, Rose Pine Moon, and Everforest Dark.
+- The sky-observatory hero has been rebuilt with clearer celestial positioning, a structured observatory band, richer sunrise and daylight summaries, and stronger weather and precipitation lanes.
+
+### UX and quality improvements
+
+- Hourly and daily panels now resolve their theme through the live forecast path more consistently, so auto theming behaves the same way across the dashboard.
+- Theme metadata has been reorganized so labels, mood notes, and palette specs stay aligned as the preset catalog grows.
+- The CLI help and docs now reflect the expanded theme list, while `--one-shot` and the rest of the command surface remain unchanged.
+
+### Maintenance
+
+- Release tooling and local analysis scripts have been cleaned up so the quality gate runs without the recent warning noise.
+- Internal `.jules` path casing has been normalized for consistency in local tooling and workspace references.
+
 ## [0.8.0] - 2026-03-06
 
 `terminal-weather` 0.8.0 is a release about feel and trust. It makes the dashboard more alive on screen, more readable in the hourly pane, easier to recover when a fetch or search goes sideways, and stricter about the network data it accepts.

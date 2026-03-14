@@ -8,14 +8,14 @@
 
 Weather, in your terminal. Animated by default, scriptable when you need text, and packaged for a quick Homebrew install.
 
-![terminal weather demo](assets/screenshots/demo.gif)
+![terminal weather demo](assets/screenshots/demo.webp)
 
 - **Weather-native motion**: cinematic, standard, reduced, and off presets with condition-aware hero, loading, and landmark scenes
 - **Three forecast panels**: current conditions, hourly detail in table or chart form, and a seven-day outlook
 - **Multiple hero visuals**: `atmos-canvas`, `gauge-cluster`, and `sky-observatory`
 - **Script-friendly mode**: `--one-shot` prints a clean forecast snapshot to stdout and exits
 - **Location UX that fits the terminal**: auto-detect on interactive launch, city picker, recent locations, and command bar support
-- **Terminal-aware themes**: 18 themes with TrueColor, 256-color, and 16-color fallback
+- **Terminal-aware themes**: 21 themes with TrueColor, 256-color, and 16-color fallback, including a forecast-driven `auto` palette
 - **Quiet update awareness**: subtle in-app Homebrew upgrade hint when a newer release is available
 
 ---
@@ -114,7 +114,7 @@ Options:
   --version
 ```
 
-Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` `nord` `catppuccin-mocha` `mono` `high-contrast` `dracula` `gruvbox-material-dark` `kanagawa-wave` `ayu-mirage` `ayu-light` `poimandres-storm` `selenized-dark` `no-clown-fiesta`
+Available themes: `auto` `aurora` `midnight-cyan` `aubergine` `hoth` `monument` `nord` `catppuccin-mocha` `mono` `high-contrast` `dracula` `gruvbox-material-dark` `kanagawa-wave` `ayu-mirage` `ayu-light` `poimandres-storm` `selenized-dark` `no-clown-fiesta` `tokyo-night-storm` `rose-pine-moon` `everforest-dark`
 
 ### Keybindings
 
@@ -183,13 +183,13 @@ Remote text from GeoIP and geocoding responses is sanitized before it reaches th
 
 ---
 
-## What's New in v0.8.0
+## What's New in v0.9.0
 
-- **Cinematic motion across the app**: hero visuals, loading states, landmark scenes, and panel transitions now move with weather-aware choreography.
-- **A stronger hourly chart**: chart mode uses space better, reads more clearly, and carries temperature and precipitation detail more cleanly.
-- **Faster recovery and navigation**: the city picker is more forgiving, recent-location shortcuts are easier to use, and error states show actionable keys.
-- **Safer network behavior**: update checks and API calls now fail quietly, time out aggressively, and reject oversized or unsafe remote payloads.
-- **Better Homebrew release awareness**: the app can quietly detect a newer tap release and surface a subtle upgrade hint in the UI.
+- **A smarter auto theme**: `--theme auto` now responds to time-of-day, forecast signals, and incoming weather pressure instead of using a simpler condition/day split.
+- **Three new manual palettes**: Tokyo Night Storm, Rose Pine Moon, and Everforest Dark expand the preset catalog without changing the CLI surface.
+- **A refreshed sky observatory**: the landmark scene now shows clearer celestial guides, a structured horizon band, richer sunrise and daylight summaries, and denser weather lanes.
+- **More consistent live theming**: hourly and daily panels now resolve from the same forecast-aware theme path as the rest of the dashboard.
+- **Small release-engineering cleanup**: docs and local tooling were tightened up so the release path stays quieter and easier to verify.
 
 For the full release narrative, see [CHANGELOG.md](CHANGELOG.md).
 

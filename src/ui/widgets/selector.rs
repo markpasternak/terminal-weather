@@ -2,7 +2,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::{Modifier, Style},
-    text::Line,
+    text::{Line, Span},
     widgets::Paragraph,
     widgets::{Block, Borders, Clear, List, ListItem},
 };
@@ -10,7 +10,7 @@ use ratatui::{
 use crate::{
     app::state::AppState,
     domain::weather::{Location, WeatherCategory},
-    ui::theme::{detect_color_capability, theme_for},
+    ui::theme::{Theme, detect_color_capability, theme_for},
 };
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -20,11 +20,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     let chunks = Layout::vertical([Constraint::Min(4), Constraint::Length(2)]).split(area);
     let list = selector_list(selector_items(state), panel_style, theme);
     frame.render_widget(list, chunks[0]);
-    let state_line = selector_state_line(state);
-    frame.render_widget(
-        Paragraph::new(Line::from(state_line)).style(Style::default().fg(theme.popup_muted_text)),
-        chunks[1],
-    );
+    let state_line = selector_state_line(state, theme);
+    frame.render_widget(Paragraph::new(state_line), chunks[1]);
 }
 
 fn selector_theme(state: &AppState) -> (crate::ui::theme::Theme, Style) {
@@ -112,21 +109,42 @@ fn format_selector_location(index: usize, location: &Location) -> String {
     )
 }
 
-fn selector_state_line(state: &AppState) -> String {
+fn selector_state_line(state: &AppState, theme: Theme) -> Line<'static> {
+    let muted = Style::default().fg(theme.popup_muted_text);
+    let key = Style::default().fg(theme.text).add_modifier(Modifier::BOLD);
+
     if !state.pending_locations.is_empty() {
-        return "State: Ambiguous · choose 1-5, or Esc to refine search".to_string();
+        return Line::from(vec![
+            Span::styled("State: Ambiguous · choose ", muted),
+            Span::styled("1-5", key),
+            Span::styled(", or ", muted),
+            Span::styled("Esc", key),
+            Span::styled(" to refine search", muted),
+        ]);
     }
     if state
         .city_status
         .as_deref()
         .is_some_and(|status| status.contains("No results"))
     {
-        return "State: No results · Esc and try a broader city query".to_string();
+        return Line::from(vec![
+            Span::styled("State: No results · ", muted),
+            Span::styled("Esc", key),
+            Span::styled(" and try a broader city query", muted),
+        ]);
     }
     if state.last_error.is_some() {
-        return "State: Failed · Esc and retry search".to_string();
+        return Line::from(vec![
+            Span::styled("State: Failed · ", muted),
+            Span::styled("Esc", key),
+            Span::styled(" and retry search", muted),
+        ]);
     }
-    "State: Ready · Enter number to continue".to_string()
+    Line::from(vec![
+        Span::styled("State: Ready · ", muted),
+        Span::styled("Enter", key),
+        Span::styled(" number to continue", muted),
+    ])
 }
 
 #[cfg(test)]
@@ -158,6 +176,9 @@ mod tests {
         state
             .pending_locations
             .push(Location::from_coords(1.0, 2.0));
-        assert!(selector_state_line(&state).contains("Ambiguous"));
+        let theme = crate::ui::theme::resolved_theme(&state);
+        let line = selector_state_line(&state, theme);
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(text.contains("Ambiguous"));
     }
 }

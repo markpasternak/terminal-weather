@@ -40,9 +40,11 @@ async fn run_one_shot(cli: &Cli) -> Result<()> {
     use crate::data::geocode::GeocodeClient;
 
     let (units, unit_symbol) = one_shot_units(cli.units);
-    let location = resolve_one_shot_location(cli, &GeocodeClient::new()).await?;
+    let geocoder = GeocodeClient::new()?;
+    let location = resolve_one_shot_location(cli, &geocoder).await?;
     let display_name = location.display_name();
-    let bundle = ForecastClient::new().fetch(location).await?;
+    let client = ForecastClient::new()?;
+    let bundle = client.fetch(location).await?;
 
     print_one_shot_current(&bundle, &display_name, units, unit_symbol);
     print_one_shot_daily(&bundle, units, one_shot_icon_mode(cli));
@@ -309,7 +311,8 @@ mod tests {
         let geocoder = crate::data::geocode::GeocodeClient::with_base_url(format!(
             "{}/v1/search",
             server.uri()
-        ));
+        ))
+        .expect("test");
         let location = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect("coords resolve");
@@ -330,7 +333,8 @@ mod tests {
         let geocoder = crate::data::geocode::GeocodeClient::with_base_url(format!(
             "{}/v1/search",
             server.uri()
-        ));
+        ))
+        .expect("test");
         let location = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect("coords fallback resolve");
@@ -360,7 +364,8 @@ mod tests {
 
         let mut cli = one_shot_cli();
         cli.city = Some("Stockholm".to_string());
-        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(server.uri());
+        let geocoder =
+            crate::data::geocode::GeocodeClient::with_base_url(server.uri()).expect("test");
         let location = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect("selection resolve");
@@ -379,7 +384,8 @@ mod tests {
 
         let mut cli = one_shot_cli();
         cli.city = Some("Missing".to_string());
-        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(server.uri());
+        let geocoder =
+            crate::data::geocode::GeocodeClient::with_base_url(server.uri()).expect("test");
         let err = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect_err("not found should error");
@@ -421,7 +427,8 @@ mod tests {
 
         let mut cli = one_shot_cli();
         cli.city = Some("Springfield".to_string());
-        let geocoder = crate::data::geocode::GeocodeClient::with_base_url(server.uri());
+        let geocoder =
+            crate::data::geocode::GeocodeClient::with_base_url(server.uri()).expect("test");
         let location = resolve_one_shot_location(&cli, &geocoder)
             .await
             .expect("disambiguation should pick first");
