@@ -1,0 +1,25 @@
+<<<<<<< SEARCH
+fn ambiguous_options(top: ScoredLocation, ranked: Vec<ScoredLocation>) -> Result<Vec<Location>, Location> {
+    let Some(second) = ranked.first() else {
+        return Err(top.location);
+    };
+    if !is_ambiguous(&top, second) {
+        return Err(top.location);
+    }
+    let mut options = vec![top.location];
+    options.extend(ranked.into_iter().map(|s| s.location).take(4));
+    Ok(options)
+}
+=======
+fn ambiguous_options(top: ScoredLocation, ranked: Vec<ScoredLocation>) -> Result<Vec<Location>, Box<Location>> {
+    let Some(second) = ranked.first() else {
+        return Err(Box::new(top.location));
+    };
+    if !is_ambiguous(&top, second) {
+        return Err(Box::new(top.location));
+    }
+    let mut options = vec![top.location];
+    options.extend(ranked.into_iter().map(|s| s.location).take(4));
+    Ok(options)
+}
+>>>>>>> REPLACE

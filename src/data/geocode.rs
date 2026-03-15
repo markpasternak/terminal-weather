@@ -161,20 +161,26 @@ fn classify_resolution(
     let mut ranked = rank_locations(payload.results.unwrap_or_default(), &city, country_code);
     let top = ranked.remove(0);
 
-    ambiguous_options(&top, &ranked).map_or_else(
-        || GeocodeResolution::Selected(top.location),
-        GeocodeResolution::NeedsDisambiguation,
-    )
+    // OPTIMIZATION: Take ownership of `top` and `ranked` to avoid cloning `Location` strings.
+    match ambiguous_options(top, ranked) {
+        Ok(options) => GeocodeResolution::NeedsDisambiguation(options),
+        Err(top_location) => GeocodeResolution::Selected(*top_location),
+    }
 }
 
-fn ambiguous_options(top: &ScoredLocation, ranked: &[ScoredLocation]) -> Option<Vec<Location>> {
-    let second = ranked.first()?;
-    if !is_ambiguous(top, second) {
-        return None;
+fn ambiguous_options(
+    top: ScoredLocation,
+    ranked: Vec<ScoredLocation>,
+) -> Result<Vec<Location>, Box<Location>> {
+    let Some(second) = ranked.first() else {
+        return Err(Box::new(top.location));
+    };
+    if !is_ambiguous(&top, second) {
+        return Err(Box::new(top.location));
     }
-    let mut options = vec![top.location.clone()];
-    options.extend(ranked.iter().map(|s| s.location.clone()).take(4));
-    Some(options)
+    let mut options = vec![top.location];
+    options.extend(ranked.into_iter().map(|s| s.location).take(4));
+    Ok(options)
 }
 
 #[derive(Debug, Deserialize)]
