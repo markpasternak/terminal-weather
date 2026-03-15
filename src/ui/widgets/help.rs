@@ -119,12 +119,17 @@ fn append_color_policy_help(lines: &mut Vec<Line<'static>>, theme: Theme, color_
 }
 
 fn append_help_footer(lines: &mut Vec<Line<'static>>, theme: Theme) {
-    lines.push(Line::from(Span::styled(
-        "Esc / ? / F1 closes this help",
-        Style::default()
-            .fg(theme.popup_muted_text)
-            .add_modifier(Modifier::BOLD),
-    )));
+    let key = Style::default().fg(theme.text).add_modifier(Modifier::BOLD);
+    let muted = Style::default().fg(theme.popup_muted_text);
+
+    lines.push(Line::from(vec![
+        Span::styled("Esc", key),
+        Span::styled(" / ", muted),
+        Span::styled("?", key),
+        Span::styled(" / ", muted),
+        Span::styled("F1", key),
+        Span::styled(" closes this help", muted),
+    ]));
 }
 
 fn push_section(
