@@ -164,16 +164,19 @@ fn classify_resolution(
     // OPTIMIZATION: Take ownership of `top` and `ranked` to avoid cloning `Location` strings.
     match ambiguous_options(top, ranked) {
         Ok(options) => GeocodeResolution::NeedsDisambiguation(options),
-        Err(top_location) => GeocodeResolution::Selected(top_location),
+        Err(top_location) => GeocodeResolution::Selected(*top_location),
     }
 }
 
-fn ambiguous_options(top: ScoredLocation, ranked: Vec<ScoredLocation>) -> Result<Vec<Location>, Location> {
+fn ambiguous_options(
+    top: ScoredLocation,
+    ranked: Vec<ScoredLocation>,
+) -> Result<Vec<Location>, Box<Location>> {
     let Some(second) = ranked.first() else {
-        return Err(top.location);
+        return Err(Box::new(top.location));
     };
     if !is_ambiguous(&top, second) {
-        return Err(top.location);
+        return Err(Box::new(top.location));
     }
     let mut options = vec![top.location];
     options.extend(ranked.into_iter().map(|s| s.location).take(4));
