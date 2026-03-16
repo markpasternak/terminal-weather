@@ -3,6 +3,7 @@ use crate::domain::weather::{CurrentConditions, ForecastBundle, Location};
 use chrono::{NaiveDate, Utc};
 
 use super::layout::DailyLayout;
+use super::summary::utils::short_weekday;
 use super::summary::{WeekSummaryData, summarize_week};
 
 #[test]
@@ -107,15 +108,15 @@ fn assert_three_day_summary(summary: &WeekSummaryData, daily: &[DailyForecast]) 
     assert_eq!(summary.precip_hours_avg, "2.3h/day");
     assert_eq!(
         summary.wettest_txt,
-        format!("{} 5.0mm", daily[1].date.format("%a"))
+        format!("{} 5.0mm", short_weekday(daily[1].date))
     );
     assert_eq!(
         summary.breeziest_txt,
-        format!("{} 14m/s", daily[1].date.format("%a"))
+        format!("{} 14m/s", short_weekday(daily[1].date))
     );
     assert_eq!(
         summary.uv_peak,
-        format!("{} 7.0", daily[1].date.format("%a"))
+        format!("{} 7.0", short_weekday(daily[1].date))
     );
     assert_eq!(summary.week_thermal, "-4°..9°");
     assert_eq!(summary.highs, vec![6.0, 9.0, 4.0]);

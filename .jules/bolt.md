@@ -12,3 +12,6 @@
 ## 2025-03-10 - [Optimize Ratatui background filling loops]
 **Learning:** `ratatui::buffer::Cell::set_symbol` and related builder functions can be surprisingly slow in tight background rendering loops (e.g., iterating over thousands of cells). Passing string slices requires the inner struct to drop existing strings, parse graphemes, and potentially reallocate. Constructing a single "blank" `Cell` entirely beforehand and using `*cell = blank_cell.clone()` is about ~3x faster.
 **Action:** When filling or repainting large background areas with identical properties, configure a dummy `Cell` once and assign clones of it via `buf.cell_mut` instead of using `cell.set_symbol(" ")` over and over.
+## 2026-03-16 - [Optimize Weekday Formatting in Rendering Loops]
+**Learning:** `chrono::NaiveDate::format("%a").to_string()` requires string parsing and heap allocation on every call. In a TUI rendering loop (e.g., drawing `Cell`s for a daily forecast table every tick), this creates unnecessary allocator pressure.
+**Action:** Replace `date.format("%a").to_string()` with a fast helper function that matches on `chrono::Datelike::weekday()` and returns a static `&'static str` (e.g., `"Mon"`, `"Tue"`). This guarantees zero-allocation weekday extraction.
