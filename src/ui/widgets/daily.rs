@@ -35,6 +35,8 @@ use layout::DailyLayout;
 use loading::render_loading_daily;
 use table::{build_daily_table, render_daily_table_and_summary};
 
+use summary::utils::short_weekday;
+
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState, _cli: &Cli) {
     match state.weather.as_ref() {
         Some(bundle) => render_daily_with_bundle(frame, area, state, bundle),
@@ -245,7 +247,7 @@ struct DailyRowContext {
 }
 
 fn daily_base_cells(day: &DailyForecast, theme: crate::ui::theme::Theme) -> Vec<Cell<'static>> {
-    vec![Cell::from(day.date.format("%a").to_string()).style(Style::default().fg(theme.text))]
+    vec![Cell::from(short_weekday(day.date)).style(Style::default().fg(theme.text))]
 }
 
 fn append_daily_optional_cells(
