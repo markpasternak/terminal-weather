@@ -11,10 +11,10 @@ pub(super) fn collect_trend_series(
         .saturating_sub(scale.chart_left_padding())
         .clamp(12, scale.chart_max_width()) as usize;
     let temp_values = collect_hourly_series(&weather.hourly, |hour| temp_series_value(hour, units));
-    let pressure_values = collect_hourly_series(&weather.hourly, pressure_series_value);
-    let gust_values = collect_hourly_series(&weather.hourly, gust_series_value);
-    let precip_values = collect_hourly_series(&weather.hourly, precip_series_value);
-    let cloud_values = collect_hourly_series(&weather.hourly, cloud_series_value);
+    let pressure_values = collect_hourly_series(&weather.hourly, |hour| hour.pressure_msl_hpa);
+    let gust_values = collect_hourly_series(&weather.hourly, |hour| hour.wind_gusts_10m);
+    let precip_values = collect_hourly_series(&weather.hourly, |hour| hour.precipitation_mm);
+    let cloud_values = collect_hourly_series(&weather.hourly, |hour| hour.cloud_cover);
     let visibility_values = collect_hourly_series(&weather.hourly, visibility_series_value);
 
     ExpandedTrendsData {
@@ -42,22 +42,6 @@ fn collect_hourly_series(
 fn temp_series_value(hour: &HourlyForecast, units: crate::domain::weather::Units) -> Option<f32> {
     hour.temperature_2m_c
         .map(|value| convert_temp(value, units))
-}
-
-fn pressure_series_value(hour: &HourlyForecast) -> Option<f32> {
-    hour.pressure_msl_hpa
-}
-
-fn gust_series_value(hour: &HourlyForecast) -> Option<f32> {
-    hour.wind_gusts_10m
-}
-
-fn precip_series_value(hour: &HourlyForecast) -> Option<f32> {
-    hour.precipitation_mm
-}
-
-fn cloud_series_value(hour: &HourlyForecast) -> Option<f32> {
-    hour.cloud_cover
 }
 
 fn visibility_series_value(hour: &HourlyForecast) -> Option<f32> {

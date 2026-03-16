@@ -23,16 +23,7 @@ impl AppState {
                 self.execute_command_bar(tx, cli).await;
             }
             KeyCode::Char(ch) => {
-                if key
-                    .modifiers
-                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER)
-                {
-                    return Ok(());
-                }
-                if self.command_bar.buffer.chars().count() < 100 {
-                    self.command_bar.buffer.push(ch);
-                    self.command_bar.parse_error = None;
-                }
+                self.push_command_bar_char(ch, key.modifiers);
             }
             _ => {}
         }
@@ -144,5 +135,16 @@ impl AppState {
         self.settings.theme = theme;
         self.apply_runtime_settings();
         self.persist_settings();
+    }
+
+    fn push_command_bar_char(&mut self, ch: char, modifiers: KeyModifiers) {
+        if modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER) {
+            return;
+        }
+        if self.command_bar.buffer.chars().count() >= 100 {
+            return;
+        }
+        self.command_bar.buffer.push(ch);
+        self.command_bar.parse_error = None;
     }
 }
