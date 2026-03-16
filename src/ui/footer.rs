@@ -1,5 +1,3 @@
-use std::{borrow::Cow, fmt::Write};
-
 use ratatui::{
     Frame,
     layout::Rect,
@@ -17,14 +15,14 @@ const WIDE_ACTIONS: [(&str, &str); 5] = [
     ("V", "Hourly View"),
     ("L", "Cities"),
     ("S", "Settings"),
-    ("<-/->", "Scroll"),
+    ("←/→", "Scroll"),
 ];
 const MEDIUM_ACTIONS: [(&str, &str); 5] = [
     ("R", "Refresh"),
     ("V", "View"),
     ("L", "Cities"),
     ("S", "Settings"),
-    ("<-/->", "Scroll"),
+    ("←/→", "Scroll"),
 ];
 const COMPACT_ACTIONS: [(&str, &str); 4] = [
     ("R", "Refresh"),
@@ -107,8 +105,18 @@ fn base_footer_text_for_width(width: u16, state: &AppState, theme: Theme) -> Vec
     for (key, label) in fixed_footer_actions(width) {
         push_footer_action(&mut spans, key, label, theme.text, theme);
     }
-    let quit_label = quit_label(width, state);
-    push_footer_action(&mut spans, "Q", quit_label.as_ref(), theme.text, theme);
+
+    push_footer_action(&mut spans, "Q", "Quit", theme.text, theme);
+
+    if width >= 92 {
+        let focus_label = format!("Focus({})", state.panel_focus.label());
+        push_footer_action(&mut spans, "Tab", &focus_label, theme.text, theme);
+    }
+
+    if width >= 52 && state.settings.command_bar_enabled {
+        push_footer_action(&mut spans, ":", "Command", theme.text, theme);
+    }
+
     spans
 }
 
@@ -122,17 +130,6 @@ fn fixed_footer_actions(width: u16) -> &'static [(&'static str, &'static str)] {
     } else {
         &TINY_ACTIONS
     }
-}
-
-fn quit_label(width: u16, state: &AppState) -> Cow<'static, str> {
-    let mut label = String::from("Quit");
-    if width >= 92 {
-        let _ = write!(label, "  Tab Focus({})", state.panel_focus.label());
-    }
-    if width >= 52 && state.settings.command_bar_enabled {
-        label.push_str("  : Command");
-    }
-    Cow::Owned(label)
 }
 
 fn push_footer_action(

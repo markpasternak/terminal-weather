@@ -1,7 +1,7 @@
 use crate::domain::weather::{DailyForecast, Units, convert_temp, round_temp};
 
 use super::WeekSummaryData;
-use super::utils::format_duration_hm;
+use super::utils::{format_duration_hm, short_weekday};
 
 #[derive(Debug, Default)]
 pub(super) struct WeekAccumulator {
@@ -154,7 +154,7 @@ impl WeekAccumulator {
 pub(super) fn format_day_value_mm(value: Option<(chrono::NaiveDate, f32)>) -> String {
     value.map_or_else(
         || "--".to_string(),
-        |(day, mm)| format!("{} {mm:.1}mm", day.format("%a")),
+        |(day, mm)| format!("{} {mm:.1}mm", short_weekday(day)),
     )
 }
 
@@ -164,7 +164,7 @@ pub(super) fn format_day_value_mps(value: Option<(chrono::NaiveDate, f32)>) -> S
         |(day, speed)| {
             format!(
                 "{} {}m/s",
-                day.format("%a"),
+                short_weekday(day),
                 crate::domain::weather::round_wind_speed(speed)
             )
         },
@@ -190,12 +190,15 @@ pub(super) fn average_precip_hours(total_hours: f32, count: usize) -> String {
 pub(super) fn format_uv_peak(value: Option<(chrono::NaiveDate, f32)>) -> String {
     value.map_or_else(
         || "--".to_string(),
-        |(day, uv)| format!("{} {uv:.1}", day.format("%a")),
+        |(day, uv)| format!("{} {uv:.1}", short_weekday(day)),
     )
 }
 
 pub(super) fn format_best_day(value: Option<(chrono::NaiveDate, f32)>) -> String {
-    value.map_or_else(|| "--".to_string(), |(day, _)| day.format("%a").to_string())
+    value.map_or_else(
+        || "--".to_string(),
+        |(day, _)| short_weekday(day).to_string(),
+    )
 }
 
 pub(super) fn week_thermal_span(min_c: Option<f32>, max_c: Option<f32>, units: Units) -> String {

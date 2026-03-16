@@ -25,4 +25,4 @@ expression: "render_with_hourly_mode_to_string(80, 24, 61, HourlyViewMode::Hybri
 │Sat  ☂   2°    ·█████████████████······ 10°                                   │
 │Sun  ☂   2°    ··█████████████████····· 11°                                   │
 └──────────────────────────────────────────────────────────────────────────────┘
-R Refresh  V View  L Cities  S Settings  <-/-> Scroll  Q Quit  : Command  F1/? H
+R Refresh  V View  L Cities  S Settings  ←/→ Scroll  Q Quit  : Command  F1/? Hel
