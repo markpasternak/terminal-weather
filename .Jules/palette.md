@@ -9,3 +9,6 @@
 ## 2026-03-16 - Highlight Keyboard Shortcuts
 **Learning:** In TUI interfaces, inline keyboard shortcuts (e.g. `Tab` for panel focus or `:` for command bar) can become invisible or hard to discover if they are merged into the muted hint text strings. Furthermore, using standardized unicode arrows (`←/→`) instead of ascii text (`<-/->`) makes the UI feel more polished and consistent.
 **Action:** When displaying keyboard shortcut hints (like in the footer), separate the shortcut key itself into its own distinct span and apply bold styling and a primary text color (like `theme.text`) to make it immediately stand out. Always use unicode arrows for navigation hints instead of ascii equivalents.
+## 2026-03-17 - Add Esc Key Hint to Settings Popup
+**Learning:** Modal overlays (such as the settings popup) often support multiple ways to close (e.g., toggling the 'S' key or pressing 'Esc'), but if only one is explicitly documented in the UI, users may fail to discover standard navigation flows like 'Esc'.
+**Action:** When implementing modal overlays or popup panels, ensure that all closing or canceling actions (especially standard ones like 'Esc') are explicitly documented and styled distinctly within the widget's keyboard shortcut hint controls.
