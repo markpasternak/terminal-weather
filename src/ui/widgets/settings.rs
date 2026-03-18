@@ -205,6 +205,8 @@ fn render_controls(frame: &mut Frame, area: Rect, theme: Theme) {
         Span::styled("Enter", key_style),
         Span::styled(" on actions  ", desc_style),
         Span::styled("S", key_style),
+        Span::styled(" or ", desc_style),
+        Span::styled("Esc", key_style),
         Span::styled(" close", desc_style),
     ]));
     frame.render_widget(controls, area);
