@@ -143,7 +143,9 @@ fn selector_state_line(state: &AppState, theme: Theme) -> Line<'static> {
     Line::from(vec![
         Span::styled("State: Ready · ", muted),
         Span::styled("Enter", key),
-        Span::styled(" number to continue", muted),
+        Span::styled(" number to continue · ", muted),
+        Span::styled("Esc", key),
+        Span::styled(" close", muted),
     ])
 }
 
