@@ -71,14 +71,12 @@ fn render_daypart_section(
     }
 
     let day_rows = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(section);
-    // OPTIMIZATION: Avoid chrono formatting overhead in rendering loop.
-    let formatted_date = format!(
-        "{} {:02} {}",
-        crate::ui::widgets::daily::summary::utils::short_weekday(date),
-        date.day(),
-        crate::ui::widgets::daily::summary::utils::short_month(date)
+    render_date_chip(
+        frame,
+        day_rows[0],
+        &date.format("%a %d %b").to_string(),
+        theme,
     );
-    render_date_chip(frame, day_rows[0], &formatted_date, theme);
 
     let card_area = day_rows[1];
     let (show_secondary, show_wind, show_vis) = daypart_visibility(card_area.height);

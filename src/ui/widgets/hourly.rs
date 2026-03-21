@@ -267,19 +267,8 @@ fn hourly_panel_title(mode: HourlyViewMode, slice: &[&HourlyForecast], focused: 
     };
     let focus_prefix = if focused { "▶ " } else { "" };
     if let (Some(first), Some(last)) = (slice.first(), slice.last()) {
-        // OPTIMIZATION: Avoid chrono formatting overhead in rendering loop.
-        let first_date = format!(
-            "{} {:02} {}",
-            crate::ui::widgets::daily::summary::utils::short_weekday(first.time.date()),
-            first.time.day(),
-            crate::ui::widgets::daily::summary::utils::short_month(first.time.date())
-        );
-        let last_date = format!(
-            "{} {:02} {}",
-            crate::ui::widgets::daily::summary::utils::short_weekday(last.time.date()),
-            last.time.day(),
-            crate::ui::widgets::daily::summary::utils::short_month(last.time.date())
-        );
+        let first_date = first.time.format("%a %d %b");
+        let last_date = last.time.format("%a %d %b");
         if first.time.date() == last.time.date() {
             format!("{focus_prefix}Hourly · {mode_label} · {first_date}")
         } else {

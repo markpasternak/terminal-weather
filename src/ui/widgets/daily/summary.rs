@@ -1,7 +1,7 @@
 use super::*;
 
 mod accumulator;
-pub(crate) mod utils;
+pub(super) mod utils;
 
 use accumulator::WeekAccumulator;
 use utils::{day_cue, first_day_shifted_time, first_day_time, profile_bar, short_weekday};

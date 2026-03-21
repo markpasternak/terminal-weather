@@ -17,7 +17,3 @@
 Learning: Nested O(M*N) searches where M is a fixed set of items (like enum variants) can be replaced with a single O(N) pass and a fixed-size array to maintain order and improve performance.
 
 Action: Replaced the .find() loop in `collect_parts_for_date` with a single pass over summaries using a `[Option<DaypartSummary>; 4]` array and an early exit.
-
-## 2026-03-22 - [Avoid chrono formatting overhead in rendering loops]
-**Learning:** Using `chrono::NaiveTime::format("%H:%M")` or similar generic formatters inside tight rendering loops incurs significant allocation and parsing overhead.
-**Action:** Replace `time.format("%H:%M")` with direct integer formatting like `format!("{:02}:{:02}", time.hour(), time.minute())` in loops to eliminate `chrono` parsing overhead.
