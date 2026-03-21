@@ -147,10 +147,13 @@ fn cursor_detail_text(
     let precip = cursor_precip_probability_text(hour);
     let mm = cursor_precip_mm_text(hour);
     let decision = strip_action_prefix(action_text);
+    // OPTIMIZATION: Avoid chrono formatting overhead in rendering loop.
     let why = format!(
-        "focus {} {} is {}",
+        "focus {} {} {:02}:{:02} is {}",
         offset + cursor_idx,
-        hour.time.format("%a %H:%M"),
+        crate::ui::widgets::daily::summary::utils::short_weekday(hour.time.date()),
+        hour.time.hour(),
+        hour.time.minute(),
         weather_label_for_time(
             hour.weather_code.unwrap_or(bundle.current.weather_code),
             hour.is_day.unwrap_or(bundle.current.is_day),
@@ -246,10 +249,11 @@ fn build_time_row(
     cells.extend(slice.iter().enumerate().map(|(idx, h)| {
         let is_now = idx + offset == 0;
         let is_cursor = cursor_in_view == Some(idx);
+        // OPTIMIZATION: Avoid chrono formatting overhead in rendering loop.
         let label = if is_now {
             "Now".to_string()
         } else {
-            h.time.format("%H:%M").to_string()
+            format!("{:02}:{:02}", h.time.hour(), h.time.minute())
         };
         let style = if is_cursor {
             Style::default()
@@ -325,7 +329,13 @@ pub(super) fn build_optional_date_row(
             Cell::from("│").style(Style::default().fg(theme.muted_text))
         } else {
             last_shown_date = Some(date);
-            Cell::from(format!("▌{}", date.format("%a %d"))).style(
+            // OPTIMIZATION: Avoid chrono formatting overhead in rendering loop.
+            Cell::from(format!(
+                "▌{} {:02}",
+                crate::ui::widgets::daily::summary::utils::short_weekday(date),
+                date.day()
+            ))
+            .style(
                 Style::default()
                     .fg(theme.accent)
                     .add_modifier(Modifier::BOLD),

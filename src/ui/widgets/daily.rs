@@ -28,7 +28,7 @@ use crate::{
 
 mod layout;
 mod loading;
-mod summary;
+pub(crate) mod summary;
 mod table;
 
 use layout::DailyLayout;
