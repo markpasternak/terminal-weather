@@ -95,6 +95,15 @@ pub(super) fn daypart_visibility(height: u16) -> (bool, bool, bool) {
     }
 }
 
+const fn daypart_index(daypart: Daypart) -> usize {
+    match daypart {
+        Daypart::Morning => 0,
+        Daypart::Noon => 1,
+        Daypart::Evening => 2,
+        Daypart::Night => 3,
+    }
+}
+
 fn collect_parts_for_date(
     summaries: &[DaypartSummary],
     date: chrono::NaiveDate,
@@ -107,12 +116,7 @@ fn collect_parts_for_date(
 
     for summary in summaries {
         if summary.date == date {
-            let idx = match summary.daypart {
-                Daypart::Morning => 0,
-                Daypart::Noon => 1,
-                Daypart::Evening => 2,
-                Daypart::Night => 3,
-            };
+            let idx = daypart_index(summary.daypart);
 
             if parts[idx].is_none() {
                 parts[idx] = Some(summary.clone());
@@ -124,7 +128,7 @@ fn collect_parts_for_date(
         }
     }
 
-    parts.iter().filter_map(|p| p.clone()).collect()
+    parts.iter().filter_map(std::clone::Clone::clone).collect()
 }
 
 fn build_daypart_rows(
