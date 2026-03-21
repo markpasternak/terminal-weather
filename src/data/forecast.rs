@@ -272,7 +272,6 @@ macro_rules! api_struct {
         }
 
         impl $name {
-            #[allow(dead_code)]
             fn field_names() -> &'static [&'static str] {
                 &[
                     $(stringify!($field)),*
