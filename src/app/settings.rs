@@ -175,7 +175,7 @@ pub fn load_runtime_settings(cli: &Cli, enable_disk: bool) -> (RuntimeSettings, 
         use std::io::Read;
         let mut content = String::new();
         if file
-            .take(2 * 1024 * 1024)
+            .take(64 * 1024)
             .read_to_string(&mut content)
             .is_ok()
             && let Ok(saved) = serde_json::from_str::<RuntimeSettings>(&content)
