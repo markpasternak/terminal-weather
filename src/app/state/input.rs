@@ -82,8 +82,10 @@ mod tests {
             timezone: None,
         });
         let loc = initial_selected_location(&cli, &settings);
-        assert!(loc.is_some());
-        assert_eq!(loc.unwrap().name, "Stockholm");
+        let Some(loc) = loc else {
+            panic!("Expected a location to be returned");
+        };
+        assert_eq!(loc.name, "Stockholm");
     }
 
     #[test]

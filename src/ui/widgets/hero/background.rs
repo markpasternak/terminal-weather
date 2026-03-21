@@ -235,8 +235,9 @@ mod tests {
             age: 0.0,
         };
         let pos = particle_position(area, &particle);
-        assert!(pos.is_some());
-        let (x, y) = pos.unwrap();
+        let Some((x, y)) = pos else {
+            panic!("Expected particle position to be in bounds");
+        };
         assert_eq!(x, 50);
         assert_eq!(y, 15);
     }
