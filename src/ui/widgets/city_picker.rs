@@ -155,7 +155,22 @@ fn recent_city_list(
         .highlight_symbol("› ")
         .block(
             Block::default()
-                .title("Recent (1-9 quick switch · Del clear all)")
+                .title(Line::from(vec![
+                    Span::styled("Recent (", Style::default().fg(theme.popup_muted_text)),
+                    Span::styled(
+                        "1-9",
+                        Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        " quick switch · ",
+                        Style::default().fg(theme.popup_muted_text),
+                    ),
+                    Span::styled(
+                        "Del",
+                        Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(" clear all)", Style::default().fg(theme.popup_muted_text)),
+                ]))
                 .borders(Borders::NONE),
         )
 }
@@ -215,7 +230,9 @@ fn city_picker_state_line(state: &AppState, theme: Theme) -> Line<'static> {
             Span::styled(" close", muted),
         ]);
     } else {
-        spans.push(Span::styled(detail.to_string(), muted));
+        spans.push(Span::styled(format!("{detail} · "), muted));
+        spans.push(Span::styled("Esc", key));
+        spans.push(Span::styled(" close", muted));
     }
 
     Line::from(spans)
