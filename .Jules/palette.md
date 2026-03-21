@@ -13,3 +13,7 @@
 ## 2026-03-24 - Explicit Closing Shortcuts for Modals
 **Learning:** UX Standard (Ratatui TUI): Modal overlays and popups (such as settings panels) must explicitly display all their closing/canceling keyboard shortcuts (e.g., 'Esc' alongside feature-specific toggle keys) within their UI hint controls to ensure users can clearly discover how to dismiss them. Users can get stuck if they don't know the shortcut and the standard expected shortcut (like `Esc`) isn't visibly indicated.
 **Action:** When creating or modifying modal dialogs and overlays, ensure that the footer/hint area lists standard closing keys (like `Esc`) alongside any widget-specific toggles (like `S`).
+
+## 2025-05-15 - Highlighting Shortcut Keys for Better Discoverability
+**Learning:** In terminal UI applications, displaying uniform muted text for keyboard shortcut instructions makes them hard to read and discover. By splitting the text into multiple `Span`s inside a `Line` to highlight specific shortcut keys using `Modifier::BOLD` and a primary text color (like `theme.text`), shortcut discoverability is significantly improved.
+**Action:** Always format keyboard shortcut hints in UI overlays using contrasting styles (e.g. bolding keys) instead of uniform text to help users identify actionable shortcuts faster.

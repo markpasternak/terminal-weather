@@ -92,17 +92,48 @@ const CORE_HELP_SECTIONS: [HelpSection; 5] = [
 ];
 
 fn append_key_reference_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
-    push_section(
-        lines,
-        theme,
-        "Key reference",
-        &[
-            "Q / Esc quit  |  Ctrl+C immediate quit",
-            "R refresh now  |  Ctrl+L force redraw",
-            "S settings  |  L city picker  |  F/C units  |  V hourly view",
-            "Tab / Shift+Tab panel focus  |  : command bar",
-        ],
-    );
+    lines.push(section_title_line(theme, "Key reference"));
+
+    let key = Style::default().fg(theme.text).add_modifier(Modifier::BOLD);
+    let muted = Style::default().fg(theme.popup_muted_text);
+
+    lines.push(Line::from(vec![
+        Span::styled("Q", key),
+        Span::styled(" / ", muted),
+        Span::styled("Esc", key),
+        Span::styled(" quit  |  ", muted),
+        Span::styled("Ctrl+C", key),
+        Span::styled(" immediate quit", muted),
+    ]));
+
+    lines.push(Line::from(vec![
+        Span::styled("R", key),
+        Span::styled(" refresh now  |  ", muted),
+        Span::styled("Ctrl+L", key),
+        Span::styled(" force redraw", muted),
+    ]));
+
+    lines.push(Line::from(vec![
+        Span::styled("S", key),
+        Span::styled(" settings  |  ", muted),
+        Span::styled("L", key),
+        Span::styled(" city picker  |  ", muted),
+        Span::styled("F/C", key),
+        Span::styled(" units  |  ", muted),
+        Span::styled("V", key),
+        Span::styled(" hourly view", muted),
+    ]));
+
+    lines.push(Line::from(vec![
+        Span::styled("Tab", key),
+        Span::styled(" / ", muted),
+        Span::styled("Shift+Tab", key),
+        Span::styled(" panel focus  |  ", muted),
+        Span::styled(":", key),
+        Span::styled(" command bar", muted),
+    ]));
+
+    lines.push(Line::from(""));
 }
 
 fn append_color_policy_help(lines: &mut Vec<Line<'static>>, theme: Theme, color_mode: ColorArg) {
