@@ -12,3 +12,8 @@
 ## 2025-03-10 - [Optimize Ratatui background filling loops]
 **Learning:** `ratatui::buffer::Cell::set_symbol` and related builder functions can be surprisingly slow in tight background rendering loops (e.g., iterating over thousands of cells). Passing string slices requires the inner struct to drop existing strings, parse graphemes, and potentially reallocate. Constructing a single "blank" `Cell` entirely beforehand and using `*cell = blank_cell.clone()` is about ~3x faster.
 **Action:** When filling or repainting large background areas with identical properties, configure a dummy `Cell` once and assign clones of it via `buf.cell_mut` instead of using `cell.set_symbol(" ")` over and over.
+## 2026-03-21 - Optimize collect_parts_for_date
+
+Learning: Nested O(M*N) searches where M is a fixed set of items (like enum variants) can be replaced with a single O(N) pass and a fixed-size array to maintain order and improve performance.
+
+Action: Replaced the .find() loop in `collect_parts_for_date` with a single pass over summaries using a `[Option<DaypartSummary>; 4]` array and an early exit.

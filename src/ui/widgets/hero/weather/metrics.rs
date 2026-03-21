@@ -189,8 +189,9 @@ mod tests {
     fn cloud_layers_with_data_returns_some() {
         let hourly = vec![hour_with_clouds(Some(20.0), Some(40.0), Some(60.0))];
         let result = cloud_layers_from_hourly(&hourly);
-        assert!(result.is_some());
-        let (low, mid, high) = result.unwrap();
+        let Some((low, mid, high)) = result else {
+            panic!("Expected cloud layers to be returned");
+        };
         assert!(low.is_some());
         assert!(mid.is_some());
         assert!(high.is_some());

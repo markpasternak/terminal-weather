@@ -99,15 +99,32 @@ fn collect_parts_for_date(
     summaries: &[DaypartSummary],
     date: chrono::NaiveDate,
 ) -> Vec<DaypartSummary> {
-    Daypart::all()
-        .iter()
-        .filter_map(|part| {
-            summaries
-                .iter()
-                .find(|s| s.date == date && s.daypart == *part)
-                .cloned()
-        })
-        .collect()
+    // OPTIMIZATION: Replace the O(M*N) search with a single O(N) pass over the summaries.
+    // By using a fixed-size array to store findings, we maintain the Daypart::all() order
+    // while avoiding redundant iterations.
+    let mut parts = [None, None, None, None];
+    let mut found_count = 0;
+
+    for summary in summaries {
+        if summary.date == date {
+            let idx = match summary.daypart {
+                Daypart::Morning => 0,
+                Daypart::Noon => 1,
+                Daypart::Evening => 2,
+                Daypart::Night => 3,
+            };
+
+            if parts[idx].is_none() {
+                parts[idx] = Some(summary.clone());
+                found_count += 1;
+                if found_count == 4 {
+                    break;
+                }
+            }
+        }
+    }
+
+    parts.iter().filter_map(|p| p.clone()).collect()
 }
 
 fn build_daypart_rows(
