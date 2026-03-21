@@ -25,3 +25,4 @@ fn warning_accent_distance(theme: super::Theme) -> Option<f32> {
 
 mod auto;
 mod explicit;
+mod resolve;
