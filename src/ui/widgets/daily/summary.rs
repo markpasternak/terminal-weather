@@ -1,10 +1,10 @@
 use super::*;
 
 mod accumulator;
-mod utils;
+pub(super) mod utils;
 
 use accumulator::WeekAccumulator;
-use utils::{day_cue, first_day_shifted_time, first_day_time, profile_bar};
+use utils::{day_cue, first_day_shifted_time, first_day_time, profile_bar, short_weekday};
 
 #[cfg(test)]
 use accumulator::{
@@ -326,7 +326,7 @@ fn append_day_cues(
     for day in bundle.daily.iter().take(cue_rows) {
         lines.push(Line::from(vec![
             Span::styled(
-                format!("{:>3} ", day.date.format("%a")),
+                format!("{:>3} ", short_weekday(day.date)),
                 Style::default().fg(theme.muted_text),
             ),
             Span::styled(day_cue(day), Style::default().fg(theme.text)),

@@ -41,4 +41,4 @@ expression: "render_to_string(120, 40, 0)"
 │Plan Precip-heavy week: prioritize dry windows                                                                        │
 │Totals P 30.1mm  Rain 24.5mm  Snow 0.0cm                                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-R Refresh  V Hourly View  L Cities  S Settings  <-/-> Scroll  Q Quit  Tab Focus(Hourly)  : Command  F1/? Help
+R Refresh  V Hourly View  L Cities  S Settings  ←/→ Scroll  Q Quit  Tab Focus(Hourly)  : Command  F1/? Help

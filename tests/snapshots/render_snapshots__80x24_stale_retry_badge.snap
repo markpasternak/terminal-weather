@@ -25,4 +25,4 @@ expression: "render_state_to_string(80, 24, &state, &cli)"
 │Sun  ☂   2°    ··█████████████████····· 11°                                   │
 │Mon  ☂   2°    ··███████████████████··· 12°                                   │
 └──────────────────────────────────────────────────────────────────────────────┘
-R Refresh  V View  L Cities  S Settings  <-/-> Scroll  Q Quit  : Command  F1/? H
+R Refresh  V View  L Cities  S Settings  ←/→ Scroll  Q Quit  : Command  F1/? Hel

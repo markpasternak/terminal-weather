@@ -1,6 +1,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 pub mod animation;
+mod footer;
 pub mod layout;
 pub mod narrative;
 pub mod particles;
@@ -26,8 +27,10 @@ use crate::{
         narrative::build_narrative,
         theme::resolved_theme,
     },
-    update::UpdateStatus,
 };
+use footer::render_bottom_bar;
+#[cfg(test)]
+pub(crate) use footer::{footer_text_for_width, update_hint_for_width};
 
 const MIN_RENDER_WIDTH: u16 = 20;
 const MIN_RENDER_HEIGHT: u16 = 10;
@@ -81,7 +84,28 @@ fn render_small_terminal_hint(
     theme: crate::ui::theme::Theme,
     state: &AppState,
 ) {
-    let mut lines: Vec<Line> = compact_logo_lines(area.width.saturating_sub(2))
+    let warning = Paragraph::new(small_terminal_hint_lines(
+        area.width.saturating_sub(2),
+        theme,
+        state,
+    ))
+    .style(Style::default().fg(theme.text).bg(theme.surface))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("terminal weather")
+            .style(Style::default().fg(theme.text).bg(theme.surface))
+            .border_style(Style::default().fg(theme.border).bg(theme.surface)),
+    );
+    frame.render_widget(warning, area);
+}
+
+fn small_terminal_hint_lines(
+    inner_width: u16,
+    theme: crate::ui::theme::Theme,
+    state: &AppState,
+) -> Vec<Line<'static>> {
+    let mut lines = compact_logo_lines(inner_width)
         .into_iter()
         .map(|line| {
             Line::from(line).style(
@@ -90,47 +114,46 @@ fn render_small_terminal_hint(
                     .add_modifier(Modifier::BOLD),
             )
         })
-        .collect();
+        .collect::<Vec<_>>();
     lines.push(Line::from(""));
-    if let Some(weather) = &state.weather {
-        lines.push(Line::from(format!(
-            "{}° {}",
-            weather.current_temp(state.units),
-            weather_label_for_time(weather.current.weather_code, weather.current.is_day)
-        )));
-        let narrative = build_narrative(state, weather);
-        lines.push(Line::from(narrative.now_action));
-        lines.push(Line::from(format!(
-            "{} Confidence {} · {}",
-            narrative.confidence_symbol,
-            narrative.confidence.label(),
-            narrative.reliability
-        )));
-    }
-    lines.push(Line::from("Too small for full render"));
+    append_small_terminal_weather(&mut lines, state);
+    lines.extend([
+        Line::from("Too small for full render"),
+        Line::from(format!("Need {MIN_RENDER_WIDTH}x{MIN_RENDER_HEIGHT}+")),
+        Line::from(""),
+        small_terminal_tip_line(theme),
+    ]);
+    lines
+}
+
+fn append_small_terminal_weather(lines: &mut Vec<Line<'static>>, state: &AppState) {
+    let Some(weather) = &state.weather else {
+        return;
+    };
     lines.push(Line::from(format!(
-        "Need {MIN_RENDER_WIDTH}x{MIN_RENDER_HEIGHT}+"
+        "{}° {}",
+        weather.current_temp(state.units),
+        weather_label_for_time(weather.current.weather_code, weather.current.is_day)
     )));
-    lines.push(Line::from(""));
-    lines.push(Line::from(vec![
+    let narrative = build_narrative(state, weather);
+    lines.push(Line::from(narrative.now_action));
+    lines.push(Line::from(format!(
+        "{} Confidence {} · {}",
+        narrative.confidence_symbol,
+        narrative.confidence.label(),
+        narrative.reliability
+    )));
+}
+
+fn small_terminal_tip_line(theme: crate::ui::theme::Theme) -> Line<'static> {
+    Line::from(vec![
         Span::styled("Tip: press ", Style::default().fg(theme.muted_text)),
         Span::styled(
             "Q",
             Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
         ),
         Span::styled(" to quit", Style::default().fg(theme.muted_text)),
-    ]));
-
-    let warning = Paragraph::new(lines)
-        .style(Style::default().fg(theme.text).bg(theme.surface))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("terminal weather")
-                .style(Style::default().fg(theme.text).bg(theme.surface))
-                .border_style(Style::default().fg(theme.border).bg(theme.surface)),
-        );
-    frame.render_widget(warning, area);
+    ])
 }
 
 fn content_area_with_footer(frame: &mut Frame, area: Rect, state: &AppState) -> Rect {
@@ -242,230 +265,6 @@ fn freshness_badge_text(label: &str, state: &AppState) -> String {
         || label.to_string(),
         |secs| format!("{label} · retry {secs}s"),
     )
-}
-
-fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
-    if area.width == 0 || area.height == 0 {
-        return;
-    }
-
-    let theme = resolved_theme(state);
-    let mut text_spans = footer_text_for_width(area.width, state, theme);
-    text_spans.push(Span::raw("  "));
-    text_spans.push(Span::styled("F1/? Help", Style::default().fg(theme.accent)));
-    let footer = Paragraph::new(Line::from(text_spans)).style(Style::default().bg(theme.surface));
-
-    frame.render_widget(footer, area);
-}
-
-fn render_bottom_bar(frame: &mut Frame, area: Rect, state: &AppState) {
-    if state.command_bar.open {
-        render_command_bar(frame, area, state);
-    } else {
-        render_footer(frame, area, state);
-    }
-}
-
-fn render_command_bar(frame: &mut Frame, area: Rect, state: &AppState) {
-    let theme = resolved_theme(state);
-    let error_suffix = state
-        .command_bar
-        .parse_error
-        .as_deref()
-        .map_or_else(String::new, |err| format!("  ! {err}"));
-    let buffer = state.command_bar.buffer.as_str();
-    let line = format!("{buffer}{error_suffix}");
-    let content = if line.is_empty() {
-        ":".to_string()
-    } else {
-        line
-    };
-    let widget =
-        Paragraph::new(content.clone()).style(Style::default().fg(theme.accent).bg(theme.surface));
-    frame.render_widget(widget, area);
-
-    let cursor_x = area.x + Line::from(buffer).width() as u16;
-    frame.set_cursor_position((cursor_x, area.y));
-}
-
-fn footer_text_for_width(
-    width: u16,
-    state: &AppState,
-    theme: crate::ui::theme::Theme,
-) -> Vec<Span<'static>> {
-    let base = base_footer_text_for_width(width, state, theme);
-    append_update_hint(width, base, &state.update_status, theme)
-}
-
-#[allow(clippy::too_many_lines)]
-fn base_footer_text_for_width(
-    width: u16,
-    state: &AppState,
-    theme: crate::ui::theme::Theme,
-) -> Vec<Span<'static>> {
-    let mut spans = Vec::new();
-    let command_hint = if state.settings.command_bar_enabled {
-        "  : Command".to_string()
-    } else {
-        String::new()
-    };
-    let focus_hint = format!("  Tab Focus({})", state.panel_focus.label());
-
-    if width >= 92 {
-        spans.extend(vec![
-            Span::styled(
-                "R",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Refresh  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "V",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Hourly View  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "L",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Cities  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "S",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Settings  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "<-/->",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Scroll  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "Q",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!(" Quit{focus_hint}{command_hint}"),
-                Style::default().fg(theme.muted_text),
-            ),
-        ]);
-    } else if width >= 72 {
-        spans.extend(vec![
-            Span::styled(
-                "R",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Refresh  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "V",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" View  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "L",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Cities  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "S",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Settings  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "<-/->",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Scroll  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "Q",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!(" Quit{command_hint}"),
-                Style::default().fg(theme.muted_text),
-            ),
-        ]);
-    } else if width >= 52 {
-        spans.extend(vec![
-            Span::styled(
-                "R",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Refresh  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "V",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" View  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "L",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Cities  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "S",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Settings  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "Q",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!(" Quit{command_hint}"),
-                Style::default().fg(theme.muted_text),
-            ),
-        ]);
-    } else {
-        spans.extend(vec![
-            Span::styled(
-                "R",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Refresh  ", Style::default().fg(theme.muted_text)),
-            Span::styled(
-                "Q",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Quit", Style::default().fg(theme.muted_text)),
-        ]);
-    }
-
-    spans
-}
-
-fn append_update_hint(
-    width: u16,
-    mut base: Vec<Span<'static>>,
-    status: &UpdateStatus,
-    theme: crate::ui::theme::Theme,
-) -> Vec<Span<'static>> {
-    let Some(hint) = update_hint_for_width(width, status) else {
-        return base;
-    };
-    if base.is_empty() {
-        base.push(Span::styled(hint, Style::default().fg(theme.muted_text)));
-        return base;
-    }
-    base.push(Span::styled(
-        format!("  {hint}"),
-        Style::default().fg(theme.muted_text),
-    ));
-    base
-}
-
-fn update_hint_for_width(width: u16, status: &UpdateStatus) -> Option<String> {
-    let latest = match status {
-        UpdateStatus::UpdateAvailable { latest } => latest,
-        UpdateStatus::Unknown | UpdateStatus::UpToDate => return None,
-    };
-    if width >= 110 {
-        Some(format!(
-            "Update available: v{latest} · brew upgrade markpasternak/tap/terminal-weather"
-        ))
-    } else if width >= 72 {
-        Some(format!("Update available: v{latest}"))
-    } else {
-        None
-    }
 }
 
 fn panel_constraints(content_area: Rect, requested_hourly_mode: HourlyViewMode) -> [Constraint; 3] {

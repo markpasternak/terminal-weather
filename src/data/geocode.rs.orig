@@ -140,10 +140,10 @@ fn no_geocode_results(results: Option<&Vec<GeocodeResult>>) -> bool {
 }
 
 fn validate_resolve_inputs(city: &str, country_code: Option<&str>) -> Result<()> {
-    if city.chars().count() > 100 {
+    if city.len() > 100 {
         anyhow::bail!("City name is too long (max 100 chars)");
     }
-    if country_code.is_some_and(|code| code.chars().count() > 10) {
+    if country_code.is_some_and(|code| code.len() > 10) {
         anyhow::bail!("Country code is too long (max 10 chars)");
     }
     Ok(())

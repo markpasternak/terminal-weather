@@ -20,29 +20,23 @@ pub(super) fn gauge_context_line(data: &GaugeData) -> String {
 }
 
 fn critical_uv_line(data: &GaugeData) -> Option<String> {
-    (data.uv > 7.0).then(|| format!("⚠ UV {:.1} very high — limit sun exposure", data.uv))
+    simple_context_line(data.uv > 7.0, || {
+        format!("⚠ UV {:.1} very high — limit sun exposure", data.uv)
+    })
 }
 
 fn severe_gust_line(data: &GaugeData) -> Option<String> {
-    (data.gust > 50.0).then(|| {
-        format!(
-            "⚠ Gusts {} m/s — secure loose objects",
-            crate::domain::weather::round_wind_speed(data.gust)
-        )
-    })
+    wind_line(data, 50.0, "⚠ Gusts", "— secure loose objects")
 }
 
 fn high_uv_line(data: &GaugeData) -> Option<String> {
-    (data.uv > 5.0).then(|| format!("UV {:.1} high · sunscreen advised", data.uv))
+    simple_context_line(data.uv > 5.0, || {
+        format!("UV {:.1} high · sunscreen advised", data.uv)
+    })
 }
 
 fn gusty_line(data: &GaugeData) -> Option<String> {
-    (data.gust > 30.0).then(|| {
-        format!(
-            "Gusty winds {} m/s · dress for wind",
-            crate::domain::weather::round_wind_speed(data.gust)
-        )
-    })
+    wind_line(data, 30.0, "Gusty winds", "· dress for wind")
 }
 
 fn low_visibility_line(data: &GaugeData) -> Option<String> {
@@ -50,14 +44,32 @@ fn low_visibility_line(data: &GaugeData) -> Option<String> {
 }
 
 fn active_precip_line(data: &GaugeData) -> Option<String> {
-    (data.precip_now > 0.5).then(|| format!("Active precipitation {:.1}mm", data.precip_now))
+    simple_context_line(data.precip_now > 0.5, || {
+        format!("Active precipitation {:.1}mm", data.precip_now)
+    })
 }
 
 fn muggy_line(data: &GaugeData) -> Option<String> {
-    (data.humidity > 85.0 && data.temp_c > 15)
-        .then(|| format!("Humidity {:.0}% · feels muggy", data.humidity))
+    simple_context_line(data.humidity > 85.0 && data.temp_c > 15, || {
+        format!("Humidity {:.0}% · feels muggy", data.humidity)
+    })
 }
 
 fn damp_line(data: &GaugeData) -> Option<String> {
-    (data.humidity > 85.0).then(|| format!("Humidity {:.0}% · feels damp", data.humidity))
+    simple_context_line(data.humidity > 85.0, || {
+        format!("Humidity {:.0}% · feels damp", data.humidity)
+    })
+}
+
+fn simple_context_line(condition: bool, message: impl FnOnce() -> String) -> Option<String> {
+    condition.then(message)
+}
+
+fn wind_line(data: &GaugeData, min_gust: f32, prefix: &str, suffix: &str) -> Option<String> {
+    simple_context_line(data.gust > min_gust, || {
+        format!(
+            "{prefix} {} m/s {suffix}",
+            crate::domain::weather::round_wind_speed(data.gust)
+        )
+    })
 }
