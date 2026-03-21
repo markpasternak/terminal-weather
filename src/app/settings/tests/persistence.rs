@@ -58,8 +58,7 @@ fn clear_runtime_settings_returns_error_on_failure() {
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg.contains("clearing settings file failed"),
-        "Error message did not contain expected context: {}",
-        err_msg
+        "Error message did not contain expected context: {err_msg}"
     );
 }
 
