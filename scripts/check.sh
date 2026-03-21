@@ -116,6 +116,18 @@ detail_release_build() {
   fi
 }
 
+detail_case_collisions() {
+  local output_file="$1" rc="$2"
+  _detail_warn=""
+  if [[ "$rc" -eq 0 ]]; then
+    echo "no case-colliding tracked paths"
+  else
+    local count
+    count=$(grep -c '^case-collision:' "$output_file" 2>/dev/null) || count=0
+    echo "${count} case-colliding path group(s)"
+  fi
+}
+
 detail_duplication() {
   local output_file="$1" rc="$2"
   _detail_warn=""
@@ -413,6 +425,11 @@ echo
 echo "══════════════════════════════════════════════════════════════════"
 echo " REQUIRED"
 echo "══════════════════════════════════════════════════════════════════"
+
+run_step REQUIRED "Path casing" \
+  "no case-colliding tracked paths" \
+  detail_case_collisions \
+  "$SCRIPT_DIR/case-collision-gate.sh"
 
 run_step REQUIRED "Formatting" \
   "cargo fmt --all -- --check" \
