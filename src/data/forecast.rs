@@ -56,34 +56,42 @@ impl ForecastClient {
     }
 
     pub async fn fetch(&self, location: Location) -> Result<ForecastBundle> {
-        let mut response = self
-            .client
-            .get(&self.base_url)
-            .query(&forecast_query(&location))
-            .send()
-            .await
-            .context("forecast request failed")?
-            .error_for_status()
-            .context("forecast request returned non-success status")?;
+        let forecast_fut = async {
+            let mut response = self
+                .client
+                .get(&self.base_url)
+                .query(&forecast_query(&location))
+                .send()
+                .await
+                .context("forecast request failed")?
+                .error_for_status()
+                .context("forecast request returned non-success status")?;
 
-        let mut body_bytes = Vec::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .context("reading forecast chunk failed")?
-        {
-            if body_bytes.len() + chunk.len() > 2 * 1024 * 1024 {
-                anyhow::bail!("forecast response too large");
+            let mut body_bytes = Vec::new();
+            while let Some(chunk) = response
+                .chunk()
+                .await
+                .context("reading forecast chunk failed")?
+            {
+                if body_bytes.len() + chunk.len() > 2 * 1024 * 1024 {
+                    anyhow::bail!("forecast response too large");
+                }
+                body_bytes.extend_from_slice(&chunk);
             }
-            body_bytes.extend_from_slice(&chunk);
-        }
 
-        let payload: ForecastResponse =
-            serde_json::from_slice(&body_bytes).context("failed to parse forecast payload")?;
+            let payload: ForecastResponse =
+                serde_json::from_slice(&body_bytes).context("failed to parse forecast payload")?;
+
+            Ok::<ForecastResponse, anyhow::Error>(payload)
+        };
+
+        let air_quality_fut = self.fetch_air_quality(&location);
+
+        let (forecast_result, air_quality) = tokio::join!(forecast_fut, air_quality_fut);
+        let payload = forecast_result?;
 
         let daily = parse_daily(&payload.daily);
         let current = current_from_payload(&payload, &daily);
-        let air_quality = self.fetch_air_quality(&location).await;
 
         Ok(ForecastBundle {
             location,
