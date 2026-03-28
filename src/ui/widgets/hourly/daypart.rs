@@ -128,7 +128,7 @@ fn collect_parts_for_date(
         }
     }
 
-    parts.iter().filter_map(std::clone::Clone::clone).collect()
+    parts.into_iter().flatten().collect()
 }
 
 fn build_daypart_rows(
