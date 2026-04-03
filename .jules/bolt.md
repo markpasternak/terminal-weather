@@ -17,3 +17,8 @@
 Learning: Nested O(M*N) searches where M is a fixed set of items (like enum variants) can be replaced with a single O(N) pass and a fixed-size array to maintain order and improve performance.
 
 Action: Replaced the .find() loop in `collect_parts_for_date` with a single pass over summaries using a `[Option<DaypartSummary>; 4]` array and an early exit.
+
+## 2026-03-22 - [Avoid redundant clones when flattening arrays]
+
+**Learning:** When collecting a fixed-size array of `Option<T>` into a `Vec<T>`, using `array.iter().filter_map(|x| x.clone()).collect()` forces redundant clones of each item. This is inefficient when the original values are no longer needed and can simply be moved.
+**Action:** Use `array.into_iter().flatten().collect()` to efficiently move the values out of the array and avoid unnecessary allocations/clones.
