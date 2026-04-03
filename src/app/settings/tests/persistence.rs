@@ -36,7 +36,13 @@ fn hourly_view_from_cli_maps_all_variants() {
 fn clear_runtime_settings_is_ok_for_existing_and_missing_file() {
     let file = NamedTempFile::new().expect("create temp settings file");
     let path = file.path().to_path_buf();
+
+    // File exists - test creation and deletion
+    assert!(path.exists(), "Tempfile should exist");
     clear_runtime_settings(&path).expect("clears existing file");
+    assert!(!path.exists(), "Tempfile should be deleted");
+
+    // File missing - should return Ok(()) without error
     clear_runtime_settings(&path).expect("missing file still ok");
 }
 
@@ -48,6 +54,11 @@ fn clear_runtime_settings_returns_error_on_failure() {
     assert!(
         result.is_err(),
         "Expected an error when clearing a directory"
+    );
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("clearing settings file failed"),
+        "Error message did not contain expected context: {err_msg}"
     );
 }
 
