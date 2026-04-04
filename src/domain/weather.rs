@@ -64,10 +64,12 @@ pub fn summarize_dayparts(
 }
 
 fn unique_dates(hourly: &[HourlyForecast], max_days: usize) -> Vec<NaiveDate> {
-    let mut dates = Vec::<NaiveDate>::new();
+    let mut dates = Vec::<NaiveDate>::with_capacity(max_days.min(hourly.len()));
     for hour in hourly {
         let date = hour.time.date();
-        if !dates.contains(&date) {
+        // OPTIMIZATION: Timeseries data is sequential, so we only need to check the last element
+        // instead of an O(N) contains() check.
+        if dates.last() != Some(&date) {
             dates.push(date);
             if dates.len() >= max_days {
                 break;
