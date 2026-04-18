@@ -151,18 +151,18 @@ fn new_initializes_with_correct_defaults() {
 fn new_applies_cli_overrides_to_state() {
     let mut cli = crate::test_support::state_test_cli();
     cli.demo = true;
-    cli.forecast_url = Some("https://localhost:8080".to_string());
-    cli.air_quality_url = Some("https://localhost:8081".to_string());
+    cli.forecast_url = Some("http://localhost:8080".to_string());
+    cli.air_quality_url = Some("http://localhost:8081".to_string());
 
     let state = AppState::new(&cli);
 
     assert!(state.demo_mode);
     assert_eq!(
         state.forecast_url_override.as_deref(),
-        Some("https://localhost:8080")
+        Some("http://localhost:8080")
     );
     assert_eq!(
         state.air_quality_url_override.as_deref(),
-        Some("https://localhost:8081")
+        Some("http://localhost:8081")
     );
 }
