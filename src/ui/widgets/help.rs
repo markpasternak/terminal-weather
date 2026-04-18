@@ -34,62 +34,94 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState, cli: &Cli) {
 
 fn help_lines(theme: Theme, color_mode: ColorArg) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
-    for section in CORE_HELP_SECTIONS {
-        push_section(&mut lines, theme, section.title, section.body);
-    }
+    append_core_help_sections(&mut lines, theme);
     append_key_reference_help(&mut lines, theme);
     append_color_policy_help(&mut lines, theme, color_mode);
     append_help_footer(&mut lines, theme);
     lines
 }
 
-struct HelpSection {
-    title: &'static str,
-    body: &'static [&'static str],
-}
+fn append_core_help_sections(lines: &mut Vec<Line<'static>>, theme: Theme) {
+    let key = Style::default().fg(theme.text).add_modifier(Modifier::BOLD);
 
-const CORE_HELP_SECTIONS: [HelpSection; 5] = [
-    HelpSection {
-        title: "Start here",
-        body: &[
-            "1) Read top-left triad: now action, next change, confidence/freshness",
-            "2) Press Tab to focus Hourly or 7-Day for deeper context",
-            "3) Use :city <name> or L to switch location quickly",
-        ],
-    },
-    HelpSection {
-        title: "Switch city",
-        body: &[
-            "Press L, type city, Enter search",
-            "Use 1..9 for recent locations",
-            "When ambiguous results appear, choose 1..5",
-        ],
-    },
-    HelpSection {
-        title: "Read risk fast",
-        body: &[
-            "Hero shows: now action + next change + confidence",
-            "Hourly table adds cursor detail and next 6h summary",
-            "Alerts include severity and ETA context",
-        ],
-    },
-    HelpSection {
-        title: "Fix stale/offline",
-        body: &[
-            "Watch status badge: fresh / stale / offline",
-            "Press R to retry immediately",
-            "Reliability lines show data age and retry timer",
-        ],
-    },
-    HelpSection {
-        title: "Customize visuals",
-        body: &[
-            "Open settings with S for theme, icons, and hourly view",
-            "Use V to cycle hourly views quickly",
-            "Type :theme <name> or :view <table|hybrid|chart>",
-        ],
-    },
-];
+    lines.push(section_title_line(theme, "Start here"));
+    lines.push(Line::from(
+        "1) Read top-left triad: now action, next change, confidence/freshness",
+    ));
+    lines.push(Line::from(vec![
+        Span::raw("2) Press "),
+        Span::styled("Tab", key),
+        Span::raw(" to focus Hourly or 7-Day for deeper context"),
+    ]));
+    lines.push(Line::from(vec![
+        Span::raw("3) Use "),
+        Span::styled(":city <name>", key),
+        Span::raw(" or "),
+        Span::styled("L", key),
+        Span::raw(" to switch location quickly"),
+    ]));
+    lines.push(Line::from(""));
+
+    lines.push(section_title_line(theme, "Switch city"));
+    lines.push(Line::from(vec![
+        Span::raw("Press "),
+        Span::styled("L", key),
+        Span::raw(", type city, "),
+        Span::styled("Enter", key),
+        Span::raw(" search"),
+    ]));
+    lines.push(Line::from(vec![
+        Span::raw("Use "),
+        Span::styled("1..9", key),
+        Span::raw(" for recent locations"),
+    ]));
+    lines.push(Line::from(vec![
+        Span::raw("When ambiguous results appear, choose "),
+        Span::styled("1..5", key),
+    ]));
+    lines.push(Line::from(""));
+
+    lines.push(section_title_line(theme, "Read risk fast"));
+    lines.push(Line::from(
+        "Hero shows: now action + next change + confidence",
+    ));
+    lines.push(Line::from(
+        "Hourly table adds cursor detail and next 6h summary",
+    ));
+    lines.push(Line::from("Alerts include severity and ETA context"));
+    lines.push(Line::from(""));
+
+    lines.push(section_title_line(theme, "Fix stale/offline"));
+    lines.push(Line::from("Watch status badge: fresh / stale / offline"));
+    lines.push(Line::from(vec![
+        Span::raw("Press "),
+        Span::styled("R", key),
+        Span::raw(" to retry immediately"),
+    ]));
+    lines.push(Line::from(
+        "Reliability lines show data age and retry timer",
+    ));
+    lines.push(Line::from(""));
+
+    lines.push(section_title_line(theme, "Customize visuals"));
+    lines.push(Line::from(vec![
+        Span::raw("Open settings with "),
+        Span::styled("S", key),
+        Span::raw(" for theme, icons, and hourly view"),
+    ]));
+    lines.push(Line::from(vec![
+        Span::raw("Use "),
+        Span::styled("V", key),
+        Span::raw(" to cycle hourly views quickly"),
+    ]));
+    lines.push(Line::from(vec![
+        Span::raw("Type "),
+        Span::styled(":theme <name>", key),
+        Span::raw(" or "),
+        Span::styled(":view <table|hybrid|chart>", key),
+    ]));
+    lines.push(Line::from(""));
+}
 
 fn append_key_reference_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
     lines.push(section_title_line(theme, "Key reference"));
@@ -161,17 +193,6 @@ fn append_help_footer(lines: &mut Vec<Line<'static>>, theme: Theme) {
         Span::styled("F1", key),
         Span::styled(" closes this help", muted),
     ]));
-}
-
-fn push_section(
-    lines: &mut Vec<Line<'static>>,
-    theme: Theme,
-    title: &'static str,
-    body: &[&'static str],
-) {
-    lines.push(section_title_line(theme, title));
-    lines.extend(body.iter().copied().map(Line::from));
-    lines.push(Line::from(""));
 }
 
 fn section_title_line(theme: Theme, title: &'static str) -> Line<'static> {
