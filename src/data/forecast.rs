@@ -2,10 +2,10 @@
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use reqwest::{Client, Url};
+use reqwest::Client;
 use serde::Deserialize;
-use std::net::IpAddr;
 
+use crate::data::http::apply_loopback_proxy_policy;
 use crate::domain::weather::{
     AirQualityReading, CurrentConditions, DailyForecast, ForecastBundle, HourlyForecast, Location,
     parse_date, parse_datetime,
@@ -40,13 +40,15 @@ impl ForecastClient {
     ) -> Result<Self> {
         let base_url = base_url.into();
         let air_quality_url = air_quality_url.into();
-        let disable_proxy = should_bypass_proxy(&base_url) || should_bypass_proxy(&air_quality_url);
-        let client = Client::builder()
+        let client_builder = Client::builder()
             .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
-            .timeout(std::time::Duration::from_secs(10))
-            .no_proxy_if(disable_proxy)
-            .build()
-            .context("failed to build forecast client")?;
+            .timeout(std::time::Duration::from_secs(10));
+        let client = apply_loopback_proxy_policy(
+            client_builder,
+            &[base_url.as_str(), air_quality_url.as_str()],
+        )
+        .build()
+        .context("failed to build forecast client")?;
         Ok(Self {
             client,
             base_url,
@@ -136,25 +138,6 @@ fn resolve_api_urls(get_env: impl Fn(&str) -> Option<String>) -> (String, String
     let air_quality_url =
         get_env(AIR_QUALITY_URL_ENV).unwrap_or_else(|| AIR_QUALITY_URL.to_string());
     (forecast_url, air_quality_url)
-}
-
-fn should_bypass_proxy(url: &str) -> bool {
-    Url::parse(url).ok().is_some_and(|parsed| {
-        parsed.host_str().is_some_and(|host| {
-            host.eq_ignore_ascii_case("localhost")
-                || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
-        })
-    })
-}
-
-trait ClientBuilderExt {
-    fn no_proxy_if(self, condition: bool) -> Self;
-}
-
-impl ClientBuilderExt for reqwest::ClientBuilder {
-    fn no_proxy_if(self, condition: bool) -> Self {
-        if condition { self.no_proxy() } else { self }
-    }
 }
 
 fn forecast_query(location: &Location) -> Vec<(&'static str, String)> {
