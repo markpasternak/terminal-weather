@@ -39,7 +39,14 @@ pub fn should_check(now_unix: i64, last_check_unix: Option<i64>) -> bool {
 #[must_use]
 pub fn formula_url() -> String {
     std::env::var("TERMINAL_WEATHER_UPDATE_FORMULA_URL")
-        .unwrap_or_else(|_| HOMEBREW_FORMULA_URL.to_string())
+        .ok()
+        .filter(|url| {
+            let lower = url.trim().to_ascii_lowercase();
+            lower.starts_with("https://")
+                || lower.starts_with("http://127.0.0.1")
+                || lower.starts_with("http://localhost")
+        })
+        .unwrap_or_else(|| HOMEBREW_FORMULA_URL.to_string())
 }
 
 #[must_use]
