@@ -1,10 +1,11 @@
 #![allow(clippy::missing_errors_doc)]
 
 use std::cmp::Ordering;
+use std::net::IpAddr;
 use std::time::Duration;
 
 use anyhow::Context;
-use reqwest::Client;
+use reqwest::{Client, Url};
 
 pub const HOMEBREW_FORMULA_URL: &str =
     "https://raw.githubusercontent.com/markpasternak/homebrew-tap/main/Formula/terminal-weather.rb";
@@ -66,9 +67,11 @@ pub async fn check_latest_version() -> anyhow::Result<Option<String>> {
 }
 
 pub(crate) async fn check_latest_version_from_url(url: &str) -> anyhow::Result<Option<String>> {
+    let disable_proxy = should_bypass_proxy(url);
     let client = Client::builder()
         .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
         .timeout(Duration::from_secs(UPDATE_CHECK_TIMEOUT_SECS))
+        .no_proxy_if(disable_proxy)
         .build()
         .context("failed to build update client")?;
     let mut response = client
@@ -94,6 +97,25 @@ pub(crate) async fn check_latest_version_from_url(url: &str) -> anyhow::Result<O
         String::from_utf8(body_bytes).context("update check response was not valid UTF-8")?;
 
     Ok(parse_formula_version(&body))
+}
+
+fn should_bypass_proxy(url: &str) -> bool {
+    Url::parse(url).ok().is_some_and(|parsed| {
+        parsed.host_str().is_some_and(|host| {
+            host.eq_ignore_ascii_case("localhost")
+                || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
+        })
+    })
+}
+
+trait ClientBuilderExt {
+    fn no_proxy_if(self, condition: bool) -> Self;
+}
+
+impl ClientBuilderExt for reqwest::ClientBuilder {
+    fn no_proxy_if(self, condition: bool) -> Self {
+        if condition { self.no_proxy() } else { self }
+    }
 }
 
 #[must_use]

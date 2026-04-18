@@ -1,8 +1,9 @@
 #![allow(clippy::cast_precision_loss, clippy::missing_errors_doc)]
 
 use anyhow::{Context, Result};
-use reqwest::Client;
+use reqwest::{Client, Url};
 use serde::Deserialize;
+use std::net::IpAddr;
 
 use crate::domain::weather::{GeocodeResolution, Location, sanitize_text};
 
@@ -28,15 +29,19 @@ impl GeocodeClient {
     }
 
     pub fn with_urls(base_url: impl Into<String>, reverse_url: impl Into<String>) -> Result<Self> {
+        let base_url = base_url.into();
+        let reverse_url = reverse_url.into();
+        let disable_proxy = should_bypass_proxy(&base_url) || should_bypass_proxy(&reverse_url);
         let client = Client::builder()
             .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(8))
+            .no_proxy_if(disable_proxy)
             .build()
             .context("failed to build geocode client")?;
         Ok(Self {
             client,
-            base_url: base_url.into(),
-            reverse_url: reverse_url.into(),
+            base_url,
+            reverse_url,
         })
     }
 
@@ -137,6 +142,25 @@ impl GeocodeClient {
 
 fn no_geocode_results(results: Option<&Vec<GeocodeResult>>) -> bool {
     results.is_none_or(Vec::is_empty)
+}
+
+fn should_bypass_proxy(url: &str) -> bool {
+    Url::parse(url).ok().is_some_and(|parsed| {
+        parsed.host_str().is_some_and(|host| {
+            host.eq_ignore_ascii_case("localhost")
+                || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
+        })
+    })
+}
+
+trait ClientBuilderExt {
+    fn no_proxy_if(self, condition: bool) -> Self;
+}
+
+impl ClientBuilderExt for reqwest::ClientBuilder {
+    fn no_proxy_if(self, condition: bool) -> Self {
+        if condition { self.no_proxy() } else { self }
+    }
 }
 
 fn validate_resolve_inputs(city: &str, country_code: Option<&str>) -> Result<()> {
