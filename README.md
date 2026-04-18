@@ -222,7 +222,7 @@ Checks that depend on optional tooling are auto-skipped when the tool is missing
 ```bash
 cargo install --locked rust-code-analysis-cli --version 0.0.25
 cargo install --locked cargo-dupes --version 0.2.1
-cargo install --locked cargo-llvm-cov
+cargo install --locked cargo-llvm-cov --version 0.8.5
 # install jq via your package manager (brew install jq / apt install jq)
 ```
 

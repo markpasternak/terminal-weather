@@ -14,7 +14,7 @@ This is a single-binary Rust 2024 project built around:
 - `clap` for CLI parsing
 - `anyhow` + `thiserror` for error handling
 - Test tooling: `insta`, `proptest`, `wiremock`
-- Optional local analysis tooling: `jq`, `rust-code-analysis-cli` `0.0.25`, `cargo-dupes` `0.2.1`, `cargo-llvm-cov`
+- Optional local analysis tooling: `jq`, `rust-code-analysis-cli` `0.0.25`, `cargo-dupes` `0.2.1`, `cargo-llvm-cov` `0.8.5`
 
 Two runtime paths matter:
 
@@ -47,7 +47,7 @@ Install optional tooling once for full local coverage:
 ```bash
 cargo install --locked rust-code-analysis-cli --version 0.0.25
 cargo install --locked cargo-dupes --version 0.2.1
-cargo install --locked cargo-llvm-cov
+cargo install --locked cargo-llvm-cov --version 0.8.5
 # install jq via brew/apt/etc.
 ```
 
