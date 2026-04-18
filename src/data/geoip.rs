@@ -1,6 +1,7 @@
 use crate::domain::weather::{Location, sanitize_text};
-use reqwest::Client;
+use reqwest::{Client, Url};
 use serde::Deserialize;
+use std::net::IpAddr;
 
 const MAX_CITY_LEN: usize = 100;
 const MAX_COUNTRY_LEN: usize = 100;
@@ -22,15 +23,17 @@ pub async fn detect_location() -> Option<Location> {
 }
 
 async fn detect_location_with_url(url: &str) -> Option<Location> {
-    let client = build_client().ok()?;
+    let client = build_client(url).ok()?;
     let response = fetch_response(&client, url).await?;
     response_to_location(response)
 }
 
-fn build_client() -> Result<Client, reqwest::Error> {
+fn build_client(url: &str) -> Result<Client, reqwest::Error> {
+    let disable_proxy = should_bypass_proxy(url);
     Client::builder()
         .user_agent(concat!("terminal-weather/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(5))
+        .no_proxy_if(disable_proxy)
         .build()
 }
 
@@ -76,6 +79,25 @@ fn sanitized_optional_field(value: Option<String>, max_len: usize) -> Option<Str
     value
         .filter(|entry| entry.len() <= max_len)
         .map(|entry| sanitize_text(&entry))
+}
+
+fn should_bypass_proxy(url: &str) -> bool {
+    Url::parse(url).ok().is_some_and(|parsed| {
+        parsed.host_str().is_some_and(|host| {
+            host.eq_ignore_ascii_case("localhost")
+                || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
+        })
+    })
+}
+
+trait ClientBuilderExt {
+    fn no_proxy_if(self, condition: bool) -> Self;
+}
+
+impl ClientBuilderExt for reqwest::ClientBuilder {
+    fn no_proxy_if(self, condition: bool) -> Self {
+        if condition { self.no_proxy() } else { self }
+    }
 }
 
 #[cfg(test)]
