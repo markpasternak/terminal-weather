@@ -6,6 +6,7 @@ REPORT_PATH="${TW_COVERAGE_REPORT_PATH:-coverage/lcov.info}"
 LANGUAGE="${TW_CODACY_LANGUAGE:-rust}"
 BRANCH_COVERAGE="${TW_COVERAGE_BRANCH:-1}"
 FAIL_ON_THRESHOLD="${TW_COVERAGE_FAIL_ON_THRESHOLD:-1}"
+FAIL_ON_UPLOAD="${TW_CODACY_FAIL_ON_UPLOAD:-1}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 THRESHOLDS_FILE="${TW_COVERAGE_THRESHOLDS_FILE:-${SCRIPT_DIR}/coverage-thresholds.env}"
 
@@ -88,6 +89,7 @@ load_coverage_thresholds() {
   validate_threshold_value "TW_COVERAGE_MIN_FUNCTION" "$MIN_FUNCTION"
   validate_threshold_value "TW_COVERAGE_MIN_BRANCH" "$MIN_BRANCH"
   validate_toggle_value "TW_COVERAGE_FAIL_ON_THRESHOLD" "$FAIL_ON_THRESHOLD"
+  validate_toggle_value "TW_CODACY_FAIL_ON_UPLOAD" "$FAIL_ON_UPLOAD"
 }
 
 is_less_than() {
@@ -213,6 +215,17 @@ validate_codacy_auth() {
   return 1
 }
 
+warn_or_fail_upload() {
+  local message="$1"
+
+  if [[ "$FAIL_ON_UPLOAD" -eq 1 ]]; then
+    echo "error: ${message}"
+    exit 1
+  fi
+
+  echo "warning: ${message}"
+}
+
 print_install_help() {
   echo "error: cargo-llvm-cov is required (install with: cargo install --locked cargo-llvm-cov)"
 }
@@ -259,18 +272,26 @@ enforce_coverage_thresholds
 
 if [[ "$UPLOAD" -eq 1 ]]; then
   if ! validate_codacy_auth; then
-    exit 2
+    warn_or_fail_upload "Codacy upload skipped because authentication is incomplete"
+    exit 0
   fi
 
   if ! command -v curl >/dev/null 2>&1; then
-    echo "error: curl is required for Codacy upload"
-    exit 2
+    warn_or_fail_upload "curl is required for Codacy upload"
+    exit 0
   fi
 
   tmp_script="$(mktemp)"
   trap 'rm -f "$tmp_script"' EXIT
 
   echo "Uploading coverage report to Codacy"
-  curl -LSsf https://coverage.codacy.com/get.sh -o "$tmp_script"
-  bash "$tmp_script" report -r "$REPORT_PATH" --language "$LANGUAGE"
+  if ! curl -LSsf https://coverage.codacy.com/get.sh -o "$tmp_script"; then
+    warn_or_fail_upload "failed to download Codacy uploader"
+    exit 0
+  fi
+
+  if ! bash "$tmp_script" report -r "$REPORT_PATH" --language "$LANGUAGE"; then
+    warn_or_fail_upload "Codacy coverage upload failed"
+    exit 0
+  fi
 fi

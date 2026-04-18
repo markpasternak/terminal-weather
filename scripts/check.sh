@@ -12,6 +12,8 @@ if [[ "${1:-}" == "--verbose" || "${1:-}" == "-v" ]]; then
   VERBOSE=1
 fi
 
+SKIP_COVERAGE_CHECK="${TW_CHECK_SKIP_COVERAGE:-0}"
+
 # ── result arrays ─────────────────────────────────────────────
 declare -a step_names=()
 declare -a step_kinds=()    # REQUIRED | RECOMMENDED
@@ -278,6 +280,10 @@ has_jq() {
   command -v jq >/dev/null 2>&1
 }
 
+should_skip_coverage_check() {
+  [[ "$SKIP_COVERAGE_CHECK" == "1" ]]
+}
+
 # ── step runner ───────────────────────────────────────────────
 step_output_dir="$(mktemp -d)"
 trap 'rm -rf "$step_output_dir"' EXIT
@@ -420,7 +426,9 @@ fi
 if ! has_rust_code_analysis || ! has_jq; then
   skip_warnings+=("Complexity audit — will SKIP")
 fi
-if ! has_cargo_llvm_cov; then
+if should_skip_coverage_check; then
+  skip_warnings+=("Coverage — disabled via TW_CHECK_SKIP_COVERAGE")
+elif ! has_cargo_llvm_cov; then
   skip_warnings+=("Coverage — will SKIP")
 fi
 
@@ -532,7 +540,11 @@ else
     "missing: ${missing}"
 fi
 
-if has_cargo_llvm_cov; then
+if should_skip_coverage_check; then
+  skip_step "Coverage" \
+    "line/function/branch thresholds" \
+    "disabled via TW_CHECK_SKIP_COVERAGE"
+elif has_cargo_llvm_cov; then
   run_step RECOMMENDED "Coverage" \
     "line/function/branch thresholds" \
     detail_coverage \

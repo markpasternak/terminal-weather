@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -70,11 +77,14 @@ jobs:
           key: tools-${{ runner.os }}-rca0.0.25-dupes0.2.1-llvmcov0.8.5
 
       - name: Run quality gate
+        env:
+          TW_CHECK_SKIP_COVERAGE: "1"
         run: ./scripts/check.sh --verbose
 
-      - name: Upload coverage to Codacy
-        if: github.ref == 'refs/heads/main' && (env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != ''))
+      - name: Generate coverage report
+        continue-on-error: true
         env:
-          TW_CODACY_UPLOAD: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '0' }}
           TW_COVERAGE_FAIL_ON_THRESHOLD: "0"
+          TW_CODACY_UPLOAD: ${{ github.ref == 'refs/heads/main' && (env.CODACY_PROJECT_TOKEN != '' || (env.CODACY_API_TOKEN != '' && env.CODACY_ORGANIZATION_PROVIDER != '' && env.CODACY_USERNAME != '' && env.CODACY_PROJECT_NAME != '')) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && '1' || '0' }}
+          TW_CODACY_FAIL_ON_UPLOAD: "0"
         run: ./scripts/coverage.sh
