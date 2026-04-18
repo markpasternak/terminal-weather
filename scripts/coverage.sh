@@ -224,6 +224,8 @@ fi
 
 load_coverage_thresholds
 
+NIGHTLY_TOOLCHAIN="${TW_COVERAGE_NIGHTLY_TOOLCHAIN:-nightly-2026-04-18}"
+
 mkdir -p "$(dirname "$REPORT_PATH")"
 
 echo "Generating LCOV report at ${REPORT_PATH}"
@@ -233,15 +235,15 @@ if [[ "$BRANCH_COVERAGE" -eq 1 ]]; then
     exit 2
   fi
 
-  if ! rustup toolchain list | grep -q '^nightly'; then
-    echo "info: installing nightly toolchain for branch coverage"
-    rustup toolchain install nightly --profile minimal
+  if ! rustup toolchain list | grep -q "^${NIGHTLY_TOOLCHAIN}"; then
+    echo "info: installing ${NIGHTLY_TOOLCHAIN} toolchain for branch coverage"
+    rustup toolchain install "${NIGHTLY_TOOLCHAIN}" --profile minimal
   fi
 
-  echo "info: ensuring llvm-tools-preview for nightly toolchain"
-  rustup component add llvm-tools-preview --toolchain nightly
+  echo "info: ensuring llvm-tools-preview for ${NIGHTLY_TOOLCHAIN}"
+  rustup component add llvm-tools-preview --toolchain "${NIGHTLY_TOOLCHAIN}"
 
-  cargo +nightly llvm-cov --workspace --all-features --lcov --branch --output-path "$REPORT_PATH" -- --test-threads=1
+  cargo +"${NIGHTLY_TOOLCHAIN}" llvm-cov --workspace --all-features --lcov --branch --output-path "$REPORT_PATH" -- --test-threads=1
 else
   if ! rustup component list --installed | grep -q '^llvm-tools-preview'; then
     echo "info: installing llvm-tools-preview"
