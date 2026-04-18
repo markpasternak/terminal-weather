@@ -418,11 +418,7 @@ fn confidence_from_hourly(hourly: &[HourlyForecast]) -> InsightConfidence {
         present += usize::from(hour.weather_code.is_some());
     }
 
-    let coverage_pct = if total == 0 {
-        0usize
-    } else {
-        present.saturating_mul(100) / total
-    };
+    let coverage_pct = present.saturating_mul(100).checked_div(total).unwrap_or(0);
     if coverage_pct >= 75 {
         InsightConfidence::High
     } else if coverage_pct >= 45 {

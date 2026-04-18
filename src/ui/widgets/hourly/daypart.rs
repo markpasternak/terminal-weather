@@ -34,7 +34,7 @@ pub(super) fn render_daypart_cards(
 
     let sections =
         Layout::vertical(vec![Constraint::Ratio(1, dates.len() as u32); dates.len()]).split(area);
-    for (section, date) in sections.iter().zip(dates.into_iter()) {
+    for (section, date) in sections.iter().zip(dates) {
         if !render_daypart_section(frame, *section, date, &summaries, state, theme) {
             return false;
         }

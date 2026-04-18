@@ -50,9 +50,24 @@ detail_clippy() {
     echo "0 warnings"
   else
     local warns errs
-    warns=$(grep -c '^ *warning\[' "$output_file" 2>/dev/null) || warns=0
-    errs=$(grep -c '^ *error\[' "$output_file" 2>/dev/null) || errs=0
-    echo "${warns} warning(s), ${errs} error(s)"
+    warns=$(grep -cE '^ *(warning(\[|:)|= warning:)' "$output_file" 2>/dev/null) || warns=0
+    errs=$(grep -cE '^ *(error(\[|:)|= error:)' "$output_file" 2>/dev/null) || errs=0
+    if [[ "$errs" -gt 0 || "$warns" -gt 0 ]]; then
+      echo "${warns} warning(s), ${errs} error(s)"
+      return
+    fi
+
+    local first_failure
+    first_failure=$(grep -m1 -E \
+      '^error: could not compile|^error: |^Caused by:|^thread '\''.*'\'' panicked|^process didn'\''t exit successfully|^signal: ' \
+      "$output_file" 2>/dev/null \
+      | sed 's/^error: //' \
+      | cut -c1-120)
+    if [[ -n "$first_failure" ]]; then
+      echo "command failed: ${first_failure}"
+    else
+      echo "command failed (re-run with --verbose for details)"
+    fi
   fi
 }
 

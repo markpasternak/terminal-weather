@@ -33,7 +33,7 @@ pub fn scan_alerts(bundle: &ForecastBundle, units: Units) -> Vec<WeatherAlert> {
     push_alert(&mut alerts, extreme_cold_alert(next_24h, units));
     push_alert(&mut alerts, thunder_alert(next_24h));
 
-    alerts.sort_by(|a, b| b.severity.cmp(&a.severity));
+    alerts.sort_by_key(|alert| std::cmp::Reverse(alert.severity));
     alerts
 }
 
