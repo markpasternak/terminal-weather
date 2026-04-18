@@ -127,9 +127,22 @@ impl ForecastClient {
 }
 
 fn resolve_api_urls(get_env: impl Fn(&str) -> Option<String>) -> (String, String) {
-    let forecast_url = get_env(FORECAST_URL_ENV).unwrap_or_else(|| FORECAST_URL.to_string());
-    let air_quality_url =
-        get_env(AIR_QUALITY_URL_ENV).unwrap_or_else(|| AIR_QUALITY_URL.to_string());
+    let forecast_url = get_env(FORECAST_URL_ENV)
+        .filter(|url| {
+            let lower = url.trim().to_ascii_lowercase();
+            lower.starts_with("https://")
+                || lower.starts_with("http://127.0.0.1")
+                || lower.starts_with("http://localhost")
+        })
+        .unwrap_or_else(|| FORECAST_URL.to_string());
+    let air_quality_url = get_env(AIR_QUALITY_URL_ENV)
+        .filter(|url| {
+            let lower = url.trim().to_ascii_lowercase();
+            lower.starts_with("https://")
+                || lower.starts_with("http://127.0.0.1")
+                || lower.starts_with("http://localhost")
+        })
+        .unwrap_or_else(|| AIR_QUALITY_URL.to_string());
     (forecast_url, air_quality_url)
 }
 
