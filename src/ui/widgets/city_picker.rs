@@ -43,18 +43,28 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_query_line(frame: &mut Frame, area: Rect, state: &AppState, theme: Theme) {
-    let (query, style) = if state.city_query.is_empty() {
-        (
-            "Type a city and press Enter (or use history)",
-            Style::default().fg(theme.popup_muted_text),
-        )
+    let query_spans = if state.city_query.is_empty() {
+        vec![
+            Span::styled(
+                "Type a city and press ",
+                Style::default().fg(theme.popup_muted_text),
+            ),
+            Span::styled(
+                "Enter",
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                " (or use history)",
+                Style::default().fg(theme.popup_muted_text),
+            ),
+        ]
     } else {
-        (
+        vec![Span::styled(
             state.city_query.as_str(),
             Style::default()
                 .fg(theme.popup_text)
                 .add_modifier(Modifier::BOLD),
-        )
+        )]
     };
 
     let block = Block::default()
@@ -69,10 +79,13 @@ fn render_query_line(frame: &mut Frame, area: Rect, state: &AppState, theme: The
     ])
     .areas(inner_area);
 
-    let query_line = Paragraph::new(vec![Line::from(vec![
-        Span::styled("Search: ", Style::default().fg(theme.popup_muted_text)),
-        Span::styled(query, style),
-    ])]);
+    let mut final_spans = vec![Span::styled(
+        "Search: ",
+        Style::default().fg(theme.popup_muted_text),
+    )];
+    final_spans.extend(query_spans);
+
+    let query_line = Paragraph::new(vec![Line::from(final_spans)]);
     frame.render_widget(query_line, input_area);
 
     let count = state.city_query.chars().count();
