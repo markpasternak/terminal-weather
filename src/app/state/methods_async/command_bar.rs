@@ -14,10 +14,8 @@ impl AppState {
             KeyCode::Esc => {
                 self.command_bar.close();
             }
-            KeyCode::Backspace => {
-                if self.command_bar.buffer.len() > 1 {
-                    self.command_bar.buffer.pop();
-                }
+            KeyCode::Backspace if self.command_bar.buffer.len() > 1 => {
+                self.command_bar.buffer.pop();
             }
             KeyCode::Enter => {
                 self.execute_command_bar(tx, cli).await;
