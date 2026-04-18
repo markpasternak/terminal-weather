@@ -281,18 +281,9 @@ impl AppState {
         self.settings_path = settings_path;
         self.color_mode = cli.effective_color_mode();
         self.hourly_view_mode = runtime_hourly_view;
-        self.forecast_url_override = cli.forecast_url.clone().filter(|url| {
-            let lower = url.trim().to_ascii_lowercase();
-            lower.starts_with("https://")
-                || lower.starts_with("http://127.0.0.1")
-                || lower.starts_with("http://localhost")
-        });
-        self.air_quality_url_override = cli.air_quality_url.clone().filter(|url| {
-            let lower = url.trim().to_ascii_lowercase();
-            lower.starts_with("https://")
-                || lower.starts_with("http://127.0.0.1")
-                || lower.starts_with("http://localhost")
-        });
+        self.forecast_url_override.clone_from(&cli.forecast_url);
+        self.air_quality_url_override
+            .clone_from(&cli.air_quality_url);
     }
 
     #[must_use]
