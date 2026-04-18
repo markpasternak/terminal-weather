@@ -15,6 +15,9 @@ use crate::{
 
 use super::shared::{popup_block, popup_panel_style};
 
+const SEARCH_LABEL: &str = "Search: ";
+const CITY_QUERY_MAX: usize = 50;
+
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(Clear, area);
 
@@ -43,73 +46,97 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_query_line(frame: &mut Frame, area: Rect, state: &AppState, theme: Theme) {
-    let query_spans = if state.city_query.is_empty() {
-        vec![
-            Span::styled(
-                "Type a city and press ",
-                Style::default().fg(theme.popup_muted_text),
-            ),
-            Span::styled(
-                "Enter",
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                " (or use history)",
-                Style::default().fg(theme.popup_muted_text),
-            ),
-        ]
-    } else {
-        vec![Span::styled(
-            state.city_query.as_str(),
-            Style::default()
-                .fg(theme.popup_text)
-                .add_modifier(Modifier::BOLD),
-        )]
-    };
+    let inner_area = render_query_block(frame, area, theme);
+    let [input_area, count_area] = query_line_areas(inner_area);
 
+    frame.render_widget(Paragraph::new(query_line(state, theme)), input_area);
+    frame.render_widget(query_counter(state, theme), count_area);
+
+    frame.set_cursor_position((query_cursor_x(state, input_area), input_area.y));
+}
+
+fn render_query_block(frame: &mut Frame, area: Rect, theme: Theme) -> Rect {
     let block = Block::default()
         .borders(Borders::BOTTOM)
         .border_style(Style::default().fg(theme.popup_border));
     let inner_area = block.inner(area);
     frame.render_widget(block, area);
+    inner_area
+}
 
-    let [input_area, count_area] = Layout::horizontal([
+fn query_line_areas(inner_area: Rect) -> [Rect; 2] {
+    Layout::horizontal([
         Constraint::Min(10),
         Constraint::Length(10), // Space for (50/50)
     ])
-    .areas(inner_area);
+    .areas(inner_area)
+}
 
-    let mut final_spans = vec![Span::styled(
-        "Search: ",
+fn query_line(state: &AppState, theme: Theme) -> Line<'static> {
+    let mut spans = vec![Span::styled(
+        SEARCH_LABEL,
         Style::default().fg(theme.popup_muted_text),
     )];
-    final_spans.extend(query_spans);
+    spans.extend(query_spans(state, theme));
+    Line::from(spans)
+}
 
-    let query_line = Paragraph::new(vec![Line::from(final_spans)]);
-    frame.render_widget(query_line, input_area);
+fn query_spans(state: &AppState, theme: Theme) -> Vec<Span<'static>> {
+    if state.city_query.is_empty() {
+        empty_query_spans(theme)
+    } else {
+        active_query_spans(state, theme)
+    }
+}
 
+fn empty_query_spans(theme: Theme) -> Vec<Span<'static>> {
+    vec![
+        Span::styled(
+            "Type a city and press ",
+            Style::default().fg(theme.popup_muted_text),
+        ),
+        Span::styled(
+            "Enter",
+            Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            " (or use history)",
+            Style::default().fg(theme.popup_muted_text),
+        ),
+    ]
+}
+
+fn active_query_spans(state: &AppState, theme: Theme) -> Vec<Span<'static>> {
+    vec![Span::styled(
+        state.city_query.clone(),
+        Style::default()
+            .fg(theme.popup_text)
+            .add_modifier(Modifier::BOLD),
+    )]
+}
+
+fn query_counter(state: &AppState, theme: Theme) -> Paragraph<'static> {
     let count = state.city_query.chars().count();
-    let max = 50;
-    let count_style = if count >= max {
+    let count_style = if count >= CITY_QUERY_MAX {
         Style::default().fg(theme.warning)
     } else {
         Style::default().fg(theme.popup_muted_text)
     };
 
-    let counter = Paragraph::new(Line::from(format!("({count}/{max})")))
+    Paragraph::new(Line::from(format!("({count}/{CITY_QUERY_MAX})")))
         .style(count_style)
-        .alignment(Alignment::Right);
-    frame.render_widget(counter, count_area);
+        .alignment(Alignment::Right)
+}
 
-    let prefix_width = "Search: ".len() as u16;
+fn query_cursor_x(state: &AppState, input_area: Rect) -> u16 {
     let query_width = if state.city_query.is_empty() {
         0
     } else {
         Line::from(state.city_query.as_str()).width() as u16
     };
-    // Ensure cursor doesn't drift if layout shifts, though with Borders::BOTTOM
-    // inner_area.x usually equals area.x
-    frame.set_cursor_position((input_area.x + prefix_width + query_width, input_area.y));
+
+    // Keep the cursor pinned to the typed query even if the surrounding layout shifts.
+    input_area.x + SEARCH_LABEL.len() as u16 + query_width
 }
 
 fn recent_city_items(state: &AppState, theme: Theme) -> Vec<ListItem<'static>> {
