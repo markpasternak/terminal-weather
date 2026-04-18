@@ -42,7 +42,15 @@ fn help_lines(theme: Theme, color_mode: ColorArg) -> Vec<Line<'static>> {
 }
 
 fn append_core_help_sections(lines: &mut Vec<Line<'static>>, theme: Theme) {
-    let key = Style::default().fg(theme.text).add_modifier(Modifier::BOLD);
+    append_start_here_help(lines, theme);
+    append_switch_city_help(lines, theme);
+    append_read_risk_help(lines, theme);
+    append_fix_stale_help(lines, theme);
+    append_customize_visuals_help(lines, theme);
+}
+
+fn append_start_here_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
+    let key = key_style(theme);
 
     lines.push(section_title_line(theme, "Start here"));
     lines.push(Line::from(
@@ -61,6 +69,10 @@ fn append_core_help_sections(lines: &mut Vec<Line<'static>>, theme: Theme) {
         Span::raw(" to switch location quickly"),
     ]));
     lines.push(Line::from(""));
+}
+
+fn append_switch_city_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
+    let key = key_style(theme);
 
     lines.push(section_title_line(theme, "Switch city"));
     lines.push(Line::from(vec![
@@ -80,7 +92,9 @@ fn append_core_help_sections(lines: &mut Vec<Line<'static>>, theme: Theme) {
         Span::styled("1..5", key),
     ]));
     lines.push(Line::from(""));
+}
 
+fn append_read_risk_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
     lines.push(section_title_line(theme, "Read risk fast"));
     lines.push(Line::from(
         "Hero shows: now action + next change + confidence",
@@ -90,6 +104,10 @@ fn append_core_help_sections(lines: &mut Vec<Line<'static>>, theme: Theme) {
     ));
     lines.push(Line::from("Alerts include severity and ETA context"));
     lines.push(Line::from(""));
+}
+
+fn append_fix_stale_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
+    let key = key_style(theme);
 
     lines.push(section_title_line(theme, "Fix stale/offline"));
     lines.push(Line::from("Watch status badge: fresh / stale / offline"));
@@ -102,6 +120,10 @@ fn append_core_help_sections(lines: &mut Vec<Line<'static>>, theme: Theme) {
         "Reliability lines show data age and retry timer",
     ));
     lines.push(Line::from(""));
+}
+
+fn append_customize_visuals_help(lines: &mut Vec<Line<'static>>, theme: Theme) {
+    let key = key_style(theme);
 
     lines.push(section_title_line(theme, "Customize visuals"));
     lines.push(Line::from(vec![
@@ -182,7 +204,7 @@ fn append_color_policy_help(lines: &mut Vec<Line<'static>>, theme: Theme, color_
 }
 
 fn append_help_footer(lines: &mut Vec<Line<'static>>, theme: Theme) {
-    let key = Style::default().fg(theme.text).add_modifier(Modifier::BOLD);
+    let key = key_style(theme);
     let muted = Style::default().fg(theme.popup_muted_text);
 
     lines.push(Line::from(vec![
@@ -193,6 +215,10 @@ fn append_help_footer(lines: &mut Vec<Line<'static>>, theme: Theme) {
         Span::styled("F1", key),
         Span::styled(" closes this help", muted),
     ]));
+}
+
+fn key_style(theme: Theme) -> Style {
+    Style::default().fg(theme.text).add_modifier(Modifier::BOLD)
 }
 
 fn section_title_line(theme: Theme, title: &'static str) -> Line<'static> {
